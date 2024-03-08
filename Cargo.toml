@@ -9,7 +9,6 @@ actix-session = { version = "0.9.0", features = ["cookie-session"] }
 lettre = "0.11.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-diesel = { version = "2.1.4", features = ["sqlite", "r2d2", "chrono"] }
 lazy_static = "1.4.0"
 hex = "0.4.3"
 toml = "0.8.10"
@@ -17,3 +16,4 @@ chrono = { version = "0.4.35", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["serde", "v4"] }
 rand = "0.8.5"
 duration-str = "0.7.1"
+sqlx = { version = "0.7.3", features = ["sqlx-sqlite", "uuid", "tls-rustls", "chrono", "sqlite"] }

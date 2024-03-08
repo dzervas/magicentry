@@ -1,8 +1,8 @@
 use chrono::{NaiveDateTime, Utc};
-use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
+use sqlx::{query, query_as, SqlitePool};
 
 use crate::{CONFIG, LINK_DURATION, RANDOM_STRING_LEN, SESSION_DURATION};
 
@@ -18,8 +18,7 @@ impl PartialEq<String> for User {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Insertable, Queryable, Selectable, Serialize, Deserialize)]
-#[diesel(table_name = crate::schema::sessions)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct UserSession {
 	pub session_id: String,
 	pub email: String,
@@ -27,7 +26,7 @@ pub struct UserSession {
 }
 
 impl UserSession {
-	pub fn new(conn: &mut crate::DbConn, user: &User) -> UserSession {
+	pub async fn new(db: &SqlitePool, user: &User) -> Result<UserSession, sqlx::Error> {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(SESSION_DURATION.to_owned()).unwrap();
 		let record = UserSession {
 			session_id: random_string(),
@@ -35,52 +34,55 @@ impl UserSession {
 			expires_at,
 		};
 
-		diesel::insert_into(crate::schema::sessions::table)
-			.values(&record)
-			.execute(conn)
-			.unwrap();
+		query!(
+				"INSERT INTO sessions (session_id, email, expires_at) VALUES (?, ?, ?)",
+				record.session_id,
+				record.email,
+				record.expires_at
+			)
+			.execute(db)
+			.await?;
 
-		record
+		Ok(record)
 	}
 
-	pub fn from_id(conn: &mut crate::DbConn, id: &str) -> Option<UserSession> {
-		use crate::schema::sessions::dsl::*;
+	pub async fn from_id(db: &SqlitePool, id: &str) -> Option<UserSession> {
+		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", id)
+			.fetch_one(db)
+			.await;
 
-		let session = if let Ok(session) = sessions
-			.filter(session_id.eq(id.to_string()))
-			.first::<UserSession>(conn) {
-				session
-			} else {
-				return None
-			};
+		let session = if let Ok(session) = session_res {
+			session
+		} else {
+			return None
+		};
 
-		if !session.is_expired(conn) {
+		if !session.is_expired(db).await {
 			Some(session)
 		} else {
 			None
 		}
 	}
 
-	pub fn is_valid(&self, conn: &mut crate::DbConn) -> bool {
-		use crate::schema::sessions::dsl::*;
+	pub async fn is_valid(&self, db: &SqlitePool) -> bool {
+		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", self.session_id)
+			.fetch_one(db)
+			.await;
 
-		let session = if let Ok(session) = sessions
-			.filter(session_id.eq(self.session_id.clone()))
-			.first::<UserSession>(conn) {
-				session
-			} else {
-				return false
-			};
+		let session = if let Ok(session) = session_res {
+			session
+		} else {
+			return false
+		};
 
-		!self.is_expired(conn) && self == &session
+		!self.is_expired(db).await && self == &session
 	}
 
-	pub fn is_expired(&self, conn: &mut crate::DbConn) -> bool {
-		use crate::schema::sessions::dsl::*;
-
+	pub async fn is_expired(&self, db: &SqlitePool) -> bool {
 		if self.expires_at <= Utc::now().naive_utc() {
-			diesel::delete(sessions.filter(session_id.eq(self.session_id.clone())))
-				.execute(conn)
+			query!("DELETE FROM sessions WHERE session_id = ?", self.session_id)
+				.execute(db)
+				.await
 				.unwrap();
 
 			false
@@ -90,9 +92,7 @@ impl UserSession {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Queryable, Selectable, Insertable, Serialize, Deserialize)]
-#[diesel(table_name = crate::schema::links)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct UserLink {
 	pub magic: String,
 	pub email: String,
@@ -100,7 +100,7 @@ pub struct UserLink {
 }
 
 impl UserLink {
-	pub fn new(conn: &mut crate::DbConn, target: String) -> UserLink {
+	pub async fn new(db: &SqlitePool, target: String) -> UserLink {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(LINK_DURATION.to_owned()).unwrap();
 		let record = UserLink {
 			magic: random_string(),
@@ -108,29 +108,32 @@ impl UserLink {
 			expires_at,
 		};
 
-		diesel::insert_into(crate::schema::links::table)
-			// TODO: Why does this not work?
-			.values(&record)
-			.execute(conn)
+		query!(
+				"INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?)",
+				record.magic,
+				record.email,
+				record.expires_at
+			)
+			.execute(db)
+			.await
 			.unwrap();
 
 		record
 	}
 
-	pub fn visit(conn: &mut crate::DbConn, target: String) -> Option<User> {
-		use crate::schema::links::dsl::*;
-
-		let record = if let Ok(link) = links
-			.filter(magic.eq(target.clone()))
-			.first::<UserLink>(conn) {
+	pub async fn visit(db: &SqlitePool, target: String) -> Option<User> {
+		let record = if let Ok(link) = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", target)
+			.fetch_one(db)
+			.await {
 				link
 			} else {
 				return None
 			};
 
 		if record.expires_at <= Utc::now().naive_utc() {
-			diesel::delete(links.filter(magic.eq(target)))
-				.execute(conn)
+			query!("DELETE FROM links WHERE magic = ?", target)
+				.execute(db)
+				.await
 				.unwrap();
 
 			return None

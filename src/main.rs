@@ -5,15 +5,13 @@ use actix_web::cookie::{Key, SameSite};
 use chrono::Duration;
 use config::ConfigFile;
 use serde::Deserialize;
-use diesel::prelude::*;
-use diesel::r2d2::{self, ConnectionManager};
+use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
 use toml;
 
 use std::env;
 
 pub mod config;
-pub mod schema;
 pub mod user;
 
 use user::{UserLink, UserSession};
@@ -48,12 +46,8 @@ lazy_static! {
 	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
 }
 
-type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
-type DbConn = r2d2::PooledConnection<ConnectionManager<SqliteConnection>>;
-
 #[get("/")]
-async fn index(session: Session, db: web::Data<DbPool>) -> impl Responder {
-	let conn = &mut db.get().unwrap();
+async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
 		session
 	} else {
@@ -61,7 +55,7 @@ async fn index(session: Session, db: web::Data<DbPool>) -> impl Responder {
 	};
 
 
-	let _session = if let Some(session) = UserSession::from_id(conn, &session_id) {
+	let _session = if let Some(session) = UserSession::from_id(&db, &session_id).await {
 		session
 	} else {
 		return HttpResponse::Unauthorized().finish()
@@ -83,15 +77,14 @@ struct SigninInfo {
 
 
 #[post("/signin")]
-async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<DbPool>) -> impl Responder {
-	let conn = &mut db.get().unwrap();
+async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<SqlitePool>) -> impl Responder {
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
 		user
 	} else {
 		return HttpResponse::Unauthorized().finish()
 	};
 
-	let session = UserLink::new(conn, user.email.clone());
+	let session = UserLink::new(&db, user.email.clone()).await;
 	println!("Link: http://{}:{}/signin/{:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), session);
 
 	// Send an email here with lettre
@@ -104,15 +97,18 @@ async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<DbPool>) -> impl
 }
 
 #[get("/signin/{magic}")]
-async fn signin_session(magic: web::Path<String>, session: Session, db: web::Data<DbPool>) -> impl Responder {
-	let conn = &mut db.get().unwrap();
-	let user = if let Some(user) = UserLink::visit(conn, magic.clone()) {
+async fn signin_session(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> impl Responder {
+	let user = if let Some(user) = UserLink::visit(&db, magic.clone()).await {
 		user
 	} else {
 		return HttpResponse::Unauthorized().finish()
 	};
 
-	let user_session = UserSession::new(conn, &user);
+	let user_session = if let Ok(user_session) = UserSession::new(&db, &user).await {
+		user_session
+	} else {
+		return HttpResponse::InternalServerError().finish()
+	};
 	session.insert("session", user_session.session_id).unwrap();
 
 	HttpResponse::Found().append_header(("Location", "/")).finish()
@@ -120,16 +116,15 @@ async fn signin_session(magic: web::Path<String>, session: Session, db: web::Dat
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	let manager = ConnectionManager::<SqliteConnection>::new(DATABASE_URL.as_str());
-	let db = r2d2::Pool::builder().build(manager).expect("Failed to create database connection pool.");
-	let secret = if let Some(secret) = config::ConfigKV::get(db.clone(), "secret") {
+	let db = SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.");
+	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
 		let master = hex::decode(secret).unwrap();
 		Key::from(&master)
 	} else {
 		let key = Key::generate();
 		let master = hex::encode(key.master());
 
-		config::ConfigKV::set(db.clone(), "secret", &master).unwrap_or_else(|_| panic!("Unable to set secret in the database"));
+		config::ConfigKV::set(&db, "secret", &master).await.unwrap_or_else(|_| panic!("Unable to set secret in the database"));
 
 		key
 	};
@@ -159,11 +154,12 @@ mod tests {
 	use super::*;
 
 	lazy_static! {
-		pub static ref DB_POOL: DbPool = db_connect();
+		pub static ref DB_POOL: SqlitePool = db_connect();
 	}
 
-	pub fn db_connect() -> DbPool {
-		let manager = ConnectionManager::<SqliteConnection>::new(DATABASE_URL.as_str());
-		r2d2::Pool::builder().build(manager).expect("Failed to create database connection pool.")
+	pub fn db_connect() -> SqlitePool {
+		actix_web::rt::Runtime::new().unwrap().block_on(async {
+			SqlitePool::connect("file::memory:?cache=shared").await.expect("Failed to create pool.")
+		})
 	}
 }
