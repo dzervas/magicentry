@@ -16,3 +16,4 @@ toml = "0.8.10"
 chrono = { version = "0.4.35", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["serde", "v4"] }
 rand = "0.8.5"
+duration-str = "0.7.1"

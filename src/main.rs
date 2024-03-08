@@ -2,6 +2,7 @@ use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use actix_web::cookie::{Key, SameSite};
+use chrono::Duration;
 use config::ConfigFile;
 use serde::Deserialize;
 use diesel::prelude::*;
@@ -17,18 +18,32 @@ pub mod user;
 
 use user::{UserLink, UserSession};
 
+use crate::config::ConfigFileRaw;
+
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
+
+#[cfg(not(test))]
+lazy_static! {
+	static ref CONFIG_FILE: String = env::var("CONFIG_FILE").unwrap_or("config.toml".to_string());
+}
+
+#[cfg(test)]
+lazy_static! {
+	static ref CONFIG_FILE: String = "config.sample.toml".to_string();
+}
 
 lazy_static! {
 	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
 	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
 	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("database.sqlite3".to_string());
-	static ref SESSION_TIME: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
-	static ref CONFIG_FILE: String = env::var("CONFIG_FILE").unwrap_or("config.toml".to_string());
-	static ref CONFIG: ConfigFile = toml::from_str(
+	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
+	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
+	static ref CONFIG: ConfigFile = toml::from_str::<ConfigFileRaw>(
 		&std::fs::read_to_string(CONFIG_FILE.as_str())
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
-		).expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
+		)
+		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str())
+		.into();
 	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
 	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
 }
@@ -76,8 +91,8 @@ async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<DbPool>) -> impl
 		return HttpResponse::Unauthorized().finish()
 	};
 
-	let session = UserSession::new(conn, &user);
-	println!("Session: {:?}", session);
+	let session = UserLink::new(conn, user.email.clone());
+	println!("Link: http://{}:{}/signin/{:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), session);
 
 	// Send an email here with lettre
 	// Assume we have a function `send_email(email: &str, session_link: &str)` that sends the email
@@ -137,4 +152,18 @@ async fn main() -> std::io::Result<()> {
 	.bind(format!("{}:{}", LISTEN_HOST.as_str(), LISTEN_PORT.as_str()))?
 	.run()
 	.await
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	lazy_static! {
+		pub static ref DB_POOL: DbPool = db_connect();
+	}
+
+	pub fn db_connect() -> DbPool {
+		let manager = ConnectionManager::<SqliteConnection>::new(DATABASE_URL.as_str());
+		r2d2::Pool::builder().build(manager).expect("Failed to create database connection pool.")
+	}
 }
