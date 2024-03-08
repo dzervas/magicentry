@@ -29,17 +29,22 @@ lazy_static! {
 }
 
 lazy_static! {
-	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
-	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
-	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("sqlite://database.sqlite3".to_string());
-	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
-	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
 	static ref CONFIG: ConfigFile = toml::from_str::<ConfigFile>(
 		&std::fs::read_to_string(CONFIG_FILE.as_str())
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		.into();
+
+	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("sqlite://database.sqlite3".to_string());
+
+	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
+	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
+
+	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
+	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
+
+	static ref AUTHORIZATION_HEADER: String = env::var("AUTHORIZATION_HEADER").unwrap_or("X-Authenticated-User".to_string());
 }
 
 #[get("/")]
@@ -51,29 +56,44 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	};
 
 
-	let _session = if let Some(session) = UserSession::from_id(&db, &session_id).await {
+	let session = if let Some(session) = UserSession::from_id(&db, &session_id).await {
 		session
 	} else {
 		return HttpResponse::Unauthorized().finish()
 	};
 
-	HttpResponse::Ok().finish()
+	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == session.email { Some(u) } else { None }) {
+		user
+	} else {
+		session.delete(&db).await.unwrap();
+		return HttpResponse::Unauthorized().finish()
+	};
+
+	let alias = if let Some(alias) = user.alias.clone() {
+		alias
+	} else {
+		user.email.clone()
+	};
+
+	HttpResponse::Ok()
+		.append_header((AUTHORIZATION_HEADER.as_str(), alias.clone()))
+		.body(alias)
 }
 
-#[get("/signin")]
-async fn signin_get() -> impl Responder {
+#[get("/login")]
+async fn login_get() -> impl Responder {
 	// Render your HTML template for sign in
-	HttpResponse::Ok().body("Signin page")
+	HttpResponse::Ok().body("Login page")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-struct SigninInfo {
+struct LoginInfo {
 	email: String,
 }
 
 
-#[post("/signin")]
-async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<SqlitePool>) -> impl Responder {
+#[post("/login")]
+async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>) -> impl Responder {
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
 		user
 	} else {
@@ -81,19 +101,19 @@ async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<SqlitePool>) -> 
 	};
 
 	let session = UserLink::new(&db, user.email.clone()).await;
-	println!("Link: http://{}:{}/signin/{:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), session);
+	println!("Link: http://{}:{}/login/{:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), session);
 
 	// Send an email here with lettre
 	// Assume we have a function `send_email(email: &str, session_link: &str)` that sends the email
 
-	// let session_link = format!("/signin/{}", session_id);
+	// let session_link = format!("/login/{}", session_id);
 	// send_email(&info.email, &session_link);
 
 	HttpResponse::Ok().finish()
 }
 
-#[get("/signin/{magic}")]
-async fn signin_magic_action(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> impl Responder {
+#[get("/login/{magic}")]
+async fn login_magic_action(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	let user = if let Some(user) = UserLink::visit(&db, magic.clone()).await {
 		user
 	} else {
@@ -108,6 +128,22 @@ async fn signin_magic_action(magic: web::Path<String>, session: Session, db: web
 	session.insert("session", user_session.session_id).unwrap();
 
 	HttpResponse::Found().append_header(("Location", "/")).finish()
+}
+
+#[get("/logout")]
+async fn logout(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
+	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
+		session
+	} else {
+		return HttpResponse::Unauthorized().finish()
+	};
+
+	if UserSession::delete_id(&db, &session_id).await.is_ok() {
+		session.remove("session");
+		HttpResponse::Found().append_header(("Location", "/login")).finish()
+	} else {
+		HttpResponse::InternalServerError().finish()
+	}
 }
 
 #[actix_web::main]
@@ -130,9 +166,10 @@ async fn main() -> std::io::Result<()> {
 		App::new()
 			.app_data(web::Data::new(db.clone()))
 			.service(index)
-			.service(signin_get)
-			.service(signin_post)
-			.service(signin_magic_action)
+			.service(login_get)
+			.service(login_post)
+			.service(login_magic_action)
+			.service(logout)
 			.wrap(
 				SessionMiddleware::builder(
 					CookieSessionStore::default(),
@@ -161,11 +198,11 @@ mod tests {
 	}
 
 	#[actix_web::test]
-	async fn test_signin_get() {
-		let mut app = actix_test::init_service(App::new().service(signin_get)).await;
+	async fn test_login_get() {
+		let mut app = actix_test::init_service(App::new().service(login_get)).await;
 
 		let req = actix_test::TestRequest::get()
-			.uri("/signin")
+			.uri("/login")
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
@@ -174,19 +211,19 @@ mod tests {
 	}
 
 	#[actix_web::test]
-	async fn test_signin_post() {
+	async fn test_login_post() {
 		let db = &db_connect().await;
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
-				.service(signin_post)
+				.service(login_post)
 		)
 		.await;
 
 		// Login
 		let req = actix_test::TestRequest::post()
-			.uri("/signin")
-			.set_form(&SigninInfo { email: "valid@example.com".to_string() })
+			.uri("/login")
+			.set_form(&LoginInfo { email: "valid@example.com".to_string() })
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
@@ -194,8 +231,8 @@ mod tests {
 
 		// Invalid login
 		let req = actix_test::TestRequest::post()
-			.uri("/signin")
-			.set_form(&SigninInfo { email: "invalid@example.com".to_string() })
+			.uri("/login")
+			.set_form(&LoginInfo { email: "invalid@example.com".to_string() })
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
@@ -203,12 +240,12 @@ mod tests {
 	}
 
 	#[actix_web::test]
-	async fn test_signin_magic_action() {
+	async fn test_login_magic_action() {
 		let db = &db_connect().await;
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
-				.service(signin_magic_action)
+				.service(login_magic_action)
 		)
 		.await;
 
@@ -225,7 +262,7 @@ mod tests {
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()
-			.uri("/signin/valid_magic_link")
+			.uri("/login/valid_magic_link")
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
@@ -233,7 +270,7 @@ mod tests {
 
 		// Assuming an invalid session
 		let req = actix_test::TestRequest::get()
-			.uri("/signin/invalid_magic_link")
+			.uri("/login/invalid_magic_link")
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;

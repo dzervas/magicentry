@@ -91,6 +91,18 @@ impl UserSession {
 			false
 		}
 	}
+
+	pub async fn delete_id(db: &SqlitePool, id: &str) -> Result<(), sqlx::Error>{
+		query!("DELETE FROM sessions WHERE session_id = ?", id)
+			.execute(db)
+			.await?;
+
+		Ok(())
+	}
+
+	pub async fn delete(&self, db: &SqlitePool) -> Result<(), sqlx::Error> {
+		UserSession::delete_id(db, &self.session_id).await
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
