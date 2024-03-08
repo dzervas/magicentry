@@ -4,7 +4,7 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use actix_web::cookie::{Key, SameSite};
 use chrono::Duration;
 use config::ConfigFile;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
 use toml;
@@ -70,7 +70,7 @@ async fn signin_get() -> impl Responder {
 	HttpResponse::Ok().body("Signin page")
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 struct SigninInfo {
 	email: String,
 }
@@ -97,7 +97,7 @@ async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<SqlitePool>) -> 
 }
 
 #[get("/signin/{magic}")]
-async fn signin_session(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> impl Responder {
+async fn signin_magic_action(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	let user = if let Some(user) = UserLink::visit(&db, magic.clone()).await {
 		user
 	} else {
@@ -135,7 +135,7 @@ async fn main() -> std::io::Result<()> {
 			.service(index)
 			.service(signin_get)
 			.service(signin_post)
-			.service(signin_session)
+			.service(signin_magic_action)
 			.wrap(
 				SessionMiddleware::builder(
 					CookieSessionStore::default(),
@@ -153,11 +153,146 @@ async fn main() -> std::io::Result<()> {
 mod tests {
 	use super::*;
 
-	// lazy_static! {
-	// 	pub static ref DB_POOL: SqlitePool = db_connect();
-	// }
+	use actix_web::cookie::Cookie;
+use actix_web::http::StatusCode;
+	use actix_web::test;
+	use chrono::Utc;
+	use sqlx::query;
 
 	pub async fn db_connect() -> SqlitePool {
 		SqlitePool::connect("sqlite://database.sqlite3").await.expect("Failed to create pool.")
+	}
+
+	#[actix_web::test]
+	async fn test_signin_get() {
+		let mut app = test::init_service(App::new().service(signin_get)).await;
+
+		let req = test::TestRequest::get()
+			.uri("/signin")
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::OK);
+		// assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/html; charset=utf-8");
+	}
+
+	#[actix_web::test]
+	async fn test_signin_post() {
+		let db = &db_connect().await;
+		let mut app = test::init_service(
+			App::new()
+				.app_data(web::Data::new(db.clone()))
+				.service(signin_post)
+		)
+		.await;
+
+		// Login
+		let req = test::TestRequest::post()
+			.uri("/signin")
+			.set_form(&SigninInfo { email: "valid@example.com".to_string() })
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::OK);
+
+		// Invalid login
+		let req = test::TestRequest::post()
+			.uri("/signin")
+			.set_form(&SigninInfo { email: "invalid@example.com".to_string() })
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+	}
+
+	#[actix_web::test]
+	async fn test_signin_magic_action() {
+		let db = &db_connect().await;
+		let mut app = test::init_service(
+			App::new()
+				.app_data(web::Data::new(db.clone()))
+				.service(signin_magic_action)
+		)
+		.await;
+
+		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
+		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(magic) DO UPDATE SET expires_at = ?",
+				"valid_magic_link",
+				"valid@example.com",
+				expiry,
+				expiry,
+			)
+			.execute(db)
+			.await
+			.unwrap();
+
+		// Assuming a valid session exists in the database
+		let req = test::TestRequest::get()
+			.uri("/signin/valid_magic_link")
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::FOUND);
+
+		// Assuming an invalid session
+		let req = test::TestRequest::get()
+			.uri("/signin/invalid_magic_link")
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+	}
+
+	#[actix_web::test]
+	async fn test_index() {
+		let db = &db_connect().await;
+		let secret = Key::generate();
+		let mut app = test::init_service(
+			App::new()
+				.app_data(web::Data::new(db.clone()))
+				.service(index)
+				.wrap(
+					SessionMiddleware::builder(
+						CookieSessionStore::default(),
+						secret
+					)
+					.cookie_same_site(SameSite::Strict)
+					.build())
+		)
+		.await;
+
+		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
+		query!("INSERT INTO sessions (session_id, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET expires_at = ?",
+				"valid_session_id",
+				"valid@example.com",
+				expiry,
+				expiry,
+			)
+			.execute(db)
+			.await
+			.unwrap();
+
+		// let req = test::TestRequest::get()
+		// 	.uri("/")
+		// 	.cookie(Cookie::new("session", "valid_session_id"))
+		// 	.to_request();
+
+		// let resp = test::call_service(&mut app, req).await;
+		// assert_eq!(resp.status(), StatusCode::OK);
+
+		let req = test::TestRequest::get()
+			.uri("/")
+			.cookie(Cookie::new("session", "invalid_session_id"))
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+		let req = test::TestRequest::get()
+			.uri("/")
+			.to_request();
+
+		let resp = test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 	}
 }

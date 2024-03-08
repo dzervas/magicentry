@@ -1,2 +1,3 @@
 [users]
 "valid@example.com" = ["example", "realm"]
+"valid-integration@example.com" = ["users", "guests"]

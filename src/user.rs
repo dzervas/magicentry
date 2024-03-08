@@ -172,7 +172,14 @@ mod tests {
 	}
 
 	#[actix_web::test]
-	async fn test_userlink() {
+	async fn test_user() {
+		let user = get_valid_user();
+
+		assert!(user == user.email);
+	}
+
+	#[actix_web::test]
+	async fn test_user_link() {
 		let db = &db_connect().await;
 		let user = get_valid_user();
 
@@ -210,7 +217,6 @@ mod tests {
 		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)
 			.fetch_one(db)
 			.await;
-
 		assert!(record.is_err());
 
 		let expired_user = UserLink::visit(db, "nonexistent_magic".to_string()).await;
@@ -218,7 +224,7 @@ mod tests {
 	}
 
 	#[actix_web::test]
-	async fn test_usersession() {
+	async fn test_user_session() {
 		let db = &db_connect().await;
 		let user = get_valid_user();
 
@@ -233,6 +239,29 @@ mod tests {
 
 		let session2 = UserSession::from_id(db, &session.session_id).await.unwrap();
 		assert_eq!(session, session2);
+
+		let nonexistent_target = random_string();
+		let session = UserSession::from_id(db, &nonexistent_target).await;
+		assert!(session.is_none());
+
+		let expired_target = random_string();
+		let expired_target2 = expired_target.clone();
+		let expiry = Utc::now().naive_utc() - chrono::Duration::try_days(1).unwrap();
+		query!("INSERT INTO sessions (session_id, email, expires_at) VALUES (?, ?, ?)",
+				expired_target2,
+				"expired@example.com",
+				expiry,
+			)
+			.execute(db)
+			.await
+			.unwrap();
+		let session = UserSession::from_id(db, "expired_session").await;
+		assert!(session.is_none());
+
+		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)
+			.fetch_one(db)
+			.await;
+		assert!(record.is_err());
 	}
 
 	#[test]
