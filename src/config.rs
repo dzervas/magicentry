@@ -1,23 +1,29 @@
 use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::schema::config;
 use crate::schema::config::dsl::*;
+use crate::user::User;
 
-#[derive(Queryable, Selectable)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ConfigFile {
+	pub users: Vec<User>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Queryable, Selectable)]
 #[diesel(table_name = crate::schema::config)]
-#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
-pub struct Config {
+pub struct ConfigKV {
 	pub key: String,
 	pub value: Option<String>,
 }
 
-impl Config {
+impl ConfigKV {
 	pub fn get(db: crate::DbPool, name: &str) -> Option<String> {
 		let mut conn = db.get().unwrap();
 		let record = config
 			.filter(key.eq(name))
 			.limit(1)
-			.load::<Config>(&mut conn)
+			.load::<ConfigKV>(&mut conn)
 			.unwrap_or(Vec::new());
 
 		if let Some(record) = record.get(0) {
@@ -28,9 +34,10 @@ impl Config {
 	}
 
 	pub fn set(db: crate::DbPool, name: &str, new_value: &str) -> Result<usize, diesel::result::Error> {
+		let mut conn = db.get().unwrap();
 		diesel::update(config::table)
 			.filter(key.eq(name))
 			.set(value.eq(new_value))
-			.execute(&mut db.get().unwrap())
+			.execute(&mut conn)
 	}
 }

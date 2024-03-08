@@ -8,8 +8,15 @@ diesel::table! {
 }
 
 diesel::table! {
-    sessions (id) {
-        id -> Nullable<Integer>,
+    links (magic) {
+        magic -> Text,
+        email -> Text,
+        expires_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    sessions (session_id) {
         session_id -> Text,
         email -> Text,
         expires_at -> Timestamp,
@@ -18,5 +25,6 @@ diesel::table! {
 
 diesel::allow_tables_to_appear_in_same_query!(
     config,
+    links,
     sessions,
 );

@@ -1,43 +1,58 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder, http::StatusCode, post, get};
-use actix_web::cookie::Key;
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::cookie::{Key, SameSite};
+use config::ConfigFile;
 use serde::Deserialize;
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 use lazy_static::lazy_static;
-use rand::rngs::{OsRng, StdRng};
-use rand::{Rng, RngCore, SeedableRng};
-use hex;
+use toml;
 
 use std::env;
 
-pub mod schema;
 pub mod config;
+pub mod schema;
+pub mod user;
+
+use user::{UserLink, UserSession};
+
+pub(crate) const RANDOM_STRING_LEN: usize = 32;
 
 lazy_static! {
+	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
+	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
 	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("database.sqlite3".to_string());
+	static ref SESSION_TIME: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
+	static ref CONFIG_FILE: String = env::var("CONFIG_FILE").unwrap_or("config.toml".to_string());
+	static ref CONFIG: ConfigFile = toml::from_str(
+		&std::fs::read_to_string(CONFIG_FILE.as_str())
+			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
+		).expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
+	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
+	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
 }
 
 type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
-
-fn db_connect() -> DbPool {
-	let manager = ConnectionManager::<SqliteConnection>::new(DATABASE_URL.as_str());
-	r2d2::Pool::builder()
-		.build(manager)
-		.expect("Failed to create pool.")
-}
-
-
-// Define your email array
-const VALID_EMAILS: [&str; 2] = ["email1@example.com", "email2@example.com"];
+type DbConn = r2d2::PooledConnection<ConnectionManager<SqliteConnection>>;
 
 #[get("/")]
-async fn index(session: Session, db: web::Data<&mut SqliteConnection>) -> impl Responder {
-	if let Some(session_id) = session.get::<String>("session_id").unwrap_or(None) {
-		return HttpResponse::Ok().finish()
-	}
-	HttpResponse::Unauthorized().finish()
+async fn index(session: Session, db: web::Data<DbPool>) -> impl Responder {
+	let conn = &mut db.get().unwrap();
+	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
+		session
+	} else {
+		return HttpResponse::Unauthorized().finish()
+	};
+
+
+	let _session = if let Some(session) = UserSession::from_id(conn, &session_id) {
+		session
+	} else {
+		return HttpResponse::Unauthorized().finish()
+	};
+
+	HttpResponse::Ok().finish()
 }
 
 #[get("/signin")]
@@ -46,83 +61,80 @@ async fn signin_get() -> impl Responder {
 	HttpResponse::Ok().body("Signin page")
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 struct SigninInfo {
 	email: String,
 }
 
+
 #[post("/signin")]
-async fn signin_post(info: web::Json<SigninInfo>, db: web::Data<DbPool>) -> impl Responder {
-	if VALID_EMAILS.contains(&info.email.as_str()) {
-		// let session_id = "hello";
-		// Create a new session and add it to the database
-		// let session_id = uuid::Uuid::new_v4().to_string();
-		// let _ = sqlx::query!(
-		// 	"INSERT INTO sessions (session_id, email, expires_at) VALUES (?, ?, datetime('now', '+1 day'))",
-		// 	session_id,
-		// 	info.email,
-		// 	)
-		// 	.execute(db.get_ref())
-		// 	.await;
-
-		// Send an email here with lettre
-		// Assume we have a function `send_email(email: &str, session_link: &str)` that sends the email
-
-		// let session_link = format!("/signin/{}", session_id);
-		// send_email(&info.email, &session_link);
-
-		HttpResponse::Ok().finish()
+async fn signin_post(form: web::Form<SigninInfo>, db: web::Data<DbPool>) -> impl Responder {
+	let conn = &mut db.get().unwrap();
+	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
+		user
 	} else {
-		HttpResponse::Unauthorized().finish()
-	}
+		return HttpResponse::Unauthorized().finish()
+	};
+
+	let session = UserSession::new(conn, &user);
+	println!("Session: {:?}", session);
+
+	// Send an email here with lettre
+	// Assume we have a function `send_email(email: &str, session_link: &str)` that sends the email
+
+	// let session_link = format!("/signin/{}", session_id);
+	// send_email(&info.email, &session_link);
+
+	HttpResponse::Ok().finish()
 }
 
-#[get("/signin/{session}")]
-async fn signin_session(session_id: web::Path<String>, session: Session, db: web::Data<DbPool>) -> impl Responder {
-	// Set the session cookie
-	// let valid_session = sqlx::query!(
-	// 	"SELECT * FROM sessions WHERE session_id = ? AND expires_at > datetime('now')",
-	// 	session_id.into_inner()
-	// )
-	// .fetch_optional(db_pool.get_ref())
-	// .await
-	// .unwrap();
-	let valid_session = Some("hi");
-
-	if valid_session.is_some() {
-		// session.insert("session_id", valid_session.unwrap().session_id).unwrap();
-		HttpResponse::Found().append_header(("Location", "/")).finish()
+#[get("/signin/{magic}")]
+async fn signin_session(magic: web::Path<String>, session: Session, db: web::Data<DbPool>) -> impl Responder {
+	let conn = &mut db.get().unwrap();
+	let user = if let Some(user) = UserLink::visit(conn, magic.clone()) {
+		user
 	} else {
-		HttpResponse::Unauthorized().finish()
-	}
+		return HttpResponse::Unauthorized().finish()
+	};
+
+	let user_session = UserSession::new(conn, &user);
+	session.insert("session", user_session.session_id).unwrap();
+
+	HttpResponse::Found().append_header(("Location", "/")).finish()
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	// let mut db_pool = SqliteConnection::establish("database.sqlite3").expect(format!("Unable to connect to sqlite database: `{}`", DATABASE_URL.as_str()).as_str());
-	let db_pool = db_connect();
-	let secret = if let Some(secret) = config::Config::get(db_pool.clone(), "secret") {
+	let manager = ConnectionManager::<SqliteConnection>::new(DATABASE_URL.as_str());
+	let db = r2d2::Pool::builder().build(manager).expect("Failed to create database connection pool.");
+	let secret = if let Some(secret) = config::ConfigKV::get(db.clone(), "secret") {
 		let master = hex::decode(secret).unwrap();
 		Key::from(&master)
 	} else {
 		let key = Key::generate();
 		let master = hex::encode(key.master());
 
-		config::Config::set(db_pool.clone(), "secret", &master).unwrap_or_else(|_| panic!("Unable to set secret in the database"));
+		config::ConfigKV::set(db.clone(), "secret", &master).unwrap_or_else(|_| panic!("Unable to set secret in the database"));
 
 		key
 	};
 
 	HttpServer::new(move || {
 		App::new()
-			.app_data(web::Data::new(db_pool.clone()))
+			.app_data(web::Data::new(db.clone()))
 			.service(index)
 			.service(signin_get)
 			.service(signin_post)
 			.service(signin_session)
-			.wrap(SessionMiddleware::new(CookieSessionStore::default(), secret.clone())) // Use a better secret key in production
+			.wrap(
+				SessionMiddleware::builder(
+					CookieSessionStore::default(),
+					secret.clone()
+				)
+				.cookie_same_site(SameSite::Strict)
+				.build())
 	})
-	.bind("127.0.0.1:8080")?
+	.bind(format!("{}:{}", LISTEN_HOST.as_str(), LISTEN_PORT.as_str()))?
 	.run()
 	.await
 }
