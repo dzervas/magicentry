@@ -16,4 +16,4 @@ chrono = { version = "0.4.35", features = ["serde"] }
 uuid = { version = "1.7.0", features = ["serde", "v4"] }
 rand = "0.8.5"
 duration-str = "0.7.1"
-sqlx = { version = "0.7.3", features = ["sqlx-sqlite", "uuid", "tls-rustls", "chrono", "sqlite"] }
+sqlx = { version = "0.7.3", features = ["sqlx-sqlite", "uuid", "tls-rustls", "chrono", "sqlite", "runtime-tokio"] }

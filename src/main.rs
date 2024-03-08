@@ -153,13 +153,11 @@ async fn main() -> std::io::Result<()> {
 mod tests {
 	use super::*;
 
-	lazy_static! {
-		pub static ref DB_POOL: SqlitePool = db_connect();
-	}
+	// lazy_static! {
+	// 	pub static ref DB_POOL: SqlitePool = db_connect();
+	// }
 
-	pub fn db_connect() -> SqlitePool {
-		actix_web::rt::Runtime::new().unwrap().block_on(async {
-			SqlitePool::connect("file::memory:?cache=shared").await.expect("Failed to create pool.")
-		})
+	pub async fn db_connect() -> SqlitePool {
+		SqlitePool::connect("sqlite://database.sqlite3").await.expect("Failed to create pool.")
 	}
 }

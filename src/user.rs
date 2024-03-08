@@ -85,9 +85,9 @@ impl UserSession {
 				.await
 				.unwrap();
 
-			false
-		} else {
 			true
+		} else {
+			false
 		}
 	}
 }
@@ -152,9 +152,8 @@ pub fn random_string() -> String {
 
 #[cfg(test)]
 mod tests {
-	use crate::tests::DB_POOL;
-
-use super::*;
+	use super::*;
+	use crate::tests::*;
 	use chrono::Utc;
 
 	fn get_valid_user() -> User {
@@ -172,19 +171,19 @@ use super::*;
 		user
 	}
 
-	#[test]
-	fn test_userlink() {
-		let conn = &mut DB_POOL.get().unwrap();
+	#[actix_web::test]
+	async fn test_userlink() {
+		let db = &db_connect().await;
 		let user = get_valid_user();
 
-		let link = UserLink::new(conn, user.email.clone());
+		let link = UserLink::new(db, user.email.clone()).await;
 
 		assert_eq!(link.email, user.email);
 		assert_eq!(link.magic.len(), RANDOM_STRING_LEN * 2);
 		assert!(link.expires_at > Utc::now().naive_utc());
 
 		// Test visit function
-		let user_from_link = UserLink::visit(conn, link.magic).unwrap();
+		let user_from_link = UserLink::visit(db, link.magic).await.unwrap();
 		assert_eq!(user, user_from_link);
 
 		// Test expired UserLink
@@ -195,40 +194,44 @@ use super::*;
 			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(1).unwrap(),
 		};
 
-		diesel::insert_into(crate::schema::links::table)
-			.values(&expired_user_link)
-			.execute(conn)
+		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?)",
+				expired_user_link.magic,
+				expired_user_link.email,
+				expired_user_link.expires_at
+			)
+			.execute(db)
+			.await
 			.unwrap();
 
-		let expired_user = UserLink::visit(conn, expired_target.clone());
+		let expired_user = UserLink::visit(db, expired_target.clone()).await;
 		assert!(expired_user.is_none());
 
 		// Make sure that the expired record is removed
-		use crate::schema::links::dsl::*;
-		let record = links
-			.filter(magic.eq(expired_target.clone()))
-			.first::<UserLink>(conn);
+		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)
+			.fetch_one(db)
+			.await;
 
 		assert!(record.is_err());
 
-		let expired_user = UserLink::visit(conn, "nonexistent_magic".to_string());
+		let expired_user = UserLink::visit(db, "nonexistent_magic".to_string()).await;
 		assert!(expired_user.is_none());
 	}
 
-	#[test]
-	fn test_usersession() {
-		let conn = &mut DB_POOL.get().unwrap();
+	#[actix_web::test]
+	async fn test_usersession() {
+		let db = &db_connect().await;
 		let user = get_valid_user();
 
-		let session = UserSession::new(conn, &user);
+		let session = UserSession::new(db, &user).await.unwrap();
 
 		assert_eq!(session.email, user.email);
 		assert_eq!(session.session_id.len(), RANDOM_STRING_LEN * 2);
 		assert!(session.expires_at > Utc::now().naive_utc());
-		assert!(session.is_valid(conn));
-		assert!(!session.is_expired(conn));
+		println!("is_valid: {:?} session: {:?}", session.is_valid(db).await, session);
+		assert!(session.is_valid(db).await);
+		assert!(!session.is_expired(db).await);
 
-		let session2 = UserSession::from_id(conn, &session.session_id).unwrap();
+		let session2 = UserSession::from_id(db, &session.session_id).await.unwrap();
 		assert_eq!(session, session2);
 	}
 
