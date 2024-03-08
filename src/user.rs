@@ -10,6 +10,7 @@ use crate::{CONFIG, LINK_DURATION, RANDOM_STRING_LEN, SESSION_DURATION};
 pub struct User {
 	pub email: String,
 	pub realms: Vec<String>,
+	pub alias: Option<String>,
 }
 
 impl PartialEq<String> for User {

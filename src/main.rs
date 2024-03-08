@@ -16,8 +16,6 @@ pub mod user;
 
 use user::{UserLink, UserSession};
 
-use crate::config::ConfigFileRaw;
-
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
 
 #[cfg(not(test))]
@@ -33,17 +31,15 @@ lazy_static! {
 lazy_static! {
 	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
 	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
-	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("database.sqlite3".to_string());
+	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("sqlite://database.sqlite3".to_string());
 	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
 	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
-	static ref CONFIG: ConfigFile = toml::from_str::<ConfigFileRaw>(
+	static ref CONFIG: ConfigFile = toml::from_str::<ConfigFile>(
 		&std::fs::read_to_string(CONFIG_FILE.as_str())
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		.into();
-	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
-	// static ref SMTP_HOST: String = env::var("SESSION_TIME").unwrap_or("1d".to_string());
 }
 
 #[get("/")]
@@ -115,6 +111,7 @@ async fn signin_magic_action(magic: web::Path<String>, session: Session, db: web
 }
 
 #[actix_web::main]
+#[cfg(not(tarpaulin_include))]
 async fn main() -> std::io::Result<()> {
 	let db = SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.");
 	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
@@ -154,24 +151,24 @@ mod tests {
 	use super::*;
 
 	use actix_web::cookie::Cookie;
-use actix_web::http::StatusCode;
-	use actix_web::test;
+	use actix_web::http::StatusCode;
+	use actix_web::test as actix_test;
 	use chrono::Utc;
 	use sqlx::query;
 
 	pub async fn db_connect() -> SqlitePool {
-		SqlitePool::connect("sqlite://database.sqlite3").await.expect("Failed to create pool.")
+		SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.")
 	}
 
 	#[actix_web::test]
 	async fn test_signin_get() {
-		let mut app = test::init_service(App::new().service(signin_get)).await;
+		let mut app = actix_test::init_service(App::new().service(signin_get)).await;
 
-		let req = test::TestRequest::get()
+		let req = actix_test::TestRequest::get()
 			.uri("/signin")
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		// assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/html; charset=utf-8");
 	}
@@ -179,7 +176,7 @@ use actix_web::http::StatusCode;
 	#[actix_web::test]
 	async fn test_signin_post() {
 		let db = &db_connect().await;
-		let mut app = test::init_service(
+		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(signin_post)
@@ -187,28 +184,28 @@ use actix_web::http::StatusCode;
 		.await;
 
 		// Login
-		let req = test::TestRequest::post()
+		let req = actix_test::TestRequest::post()
 			.uri("/signin")
 			.set_form(&SigninInfo { email: "valid@example.com".to_string() })
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
 		// Invalid login
-		let req = test::TestRequest::post()
+		let req = actix_test::TestRequest::post()
 			.uri("/signin")
 			.set_form(&SigninInfo { email: "invalid@example.com".to_string() })
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 	}
 
 	#[actix_web::test]
 	async fn test_signin_magic_action() {
 		let db = &db_connect().await;
-		let mut app = test::init_service(
+		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(signin_magic_action)
@@ -227,19 +224,19 @@ use actix_web::http::StatusCode;
 			.unwrap();
 
 		// Assuming a valid session exists in the database
-		let req = test::TestRequest::get()
+		let req = actix_test::TestRequest::get()
 			.uri("/signin/valid_magic_link")
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 
 		// Assuming an invalid session
-		let req = test::TestRequest::get()
+		let req = actix_test::TestRequest::get()
 			.uri("/signin/invalid_magic_link")
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 	}
 
@@ -247,7 +244,7 @@ use actix_web::http::StatusCode;
 	async fn test_index() {
 		let db = &db_connect().await;
 		let secret = Key::generate();
-		let mut app = test::init_service(
+		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(index)
@@ -280,19 +277,19 @@ use actix_web::http::StatusCode;
 		// let resp = test::call_service(&mut app, req).await;
 		// assert_eq!(resp.status(), StatusCode::OK);
 
-		let req = test::TestRequest::get()
+		let req = actix_test::TestRequest::get()
 			.uri("/")
 			.cookie(Cookie::new("session", "invalid_session_id"))
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
-		let req = test::TestRequest::get()
+		let req = actix_test::TestRequest::get()
 			.uri("/")
 			.to_request();
 
-		let resp = test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 	}
 }
