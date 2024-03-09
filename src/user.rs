@@ -6,6 +6,8 @@ use sqlx::{query, query_as, SqlitePool};
 
 use crate::{CONFIG, LINK_DURATION, RANDOM_STRING_LEN, SESSION_DURATION};
 
+type Result<T> = std::result::Result<T, sqlx::Error>;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
 	pub email: String,
@@ -27,7 +29,7 @@ pub struct UserSession {
 }
 
 impl UserSession {
-	pub async fn new(db: &SqlitePool, user: &User) -> Result<UserSession, sqlx::Error> {
+	pub async fn new(db: &SqlitePool, user: &User) -> Result<UserSession> {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(SESSION_DURATION.to_owned()).unwrap();
 		let record = UserSession {
 			session_id: random_string(),
@@ -47,7 +49,7 @@ impl UserSession {
 		Ok(record)
 	}
 
-	pub async fn from_id(db: &SqlitePool, id: &str) -> Option<UserSession> {
+	pub async fn from_id(db: &SqlitePool, id: &str) -> Result<Option<UserSession>> {
 		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", id)
 			.fetch_one(db)
 			.await;
@@ -55,17 +57,17 @@ impl UserSession {
 		let session = if let Ok(session) = session_res {
 			session
 		} else {
-			return None
+			return Ok(None)
 		};
 
-		if !session.is_expired(db).await {
-			Some(session)
+		if !session.is_expired(db).await? {
+			Ok(Some(session))
 		} else {
-			None
+			Ok(None)
 		}
 	}
 
-	pub async fn is_valid(&self, db: &SqlitePool) -> bool {
+	pub async fn is_valid(&self, db: &SqlitePool) -> Result<bool> {
 		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", self.session_id)
 			.fetch_one(db)
 			.await;
@@ -73,26 +75,25 @@ impl UserSession {
 		let session = if let Ok(session) = session_res {
 			session
 		} else {
-			return false
+			return Ok(false)
 		};
 
-		!self.is_expired(db).await && self == &session
+		Ok(!self.is_expired(db).await? && self == &session)
 	}
 
-	pub async fn is_expired(&self, db: &SqlitePool) -> bool {
+	pub async fn is_expired(&self, db: &SqlitePool) -> Result<bool> {
 		if self.expires_at <= Utc::now().naive_utc() {
 			query!("DELETE FROM sessions WHERE session_id = ?", self.session_id)
 				.execute(db)
-				.await
-				.unwrap();
+				.await?;
 
-			true
+			Ok(true)
 		} else {
-			false
+			Ok(false)
 		}
 	}
 
-	pub async fn delete_id(db: &SqlitePool, id: &str) -> Result<(), sqlx::Error>{
+	pub async fn delete_id(db: &SqlitePool, id: &str) -> Result<()>{
 		query!("DELETE FROM sessions WHERE session_id = ?", id)
 			.execute(db)
 			.await?;
@@ -100,7 +101,7 @@ impl UserSession {
 		Ok(())
 	}
 
-	pub async fn delete(&self, db: &SqlitePool) -> Result<(), sqlx::Error> {
+	pub async fn delete(&self, db: &SqlitePool) -> Result<()> {
 		UserSession::delete_id(db, &self.session_id).await
 	}
 }
@@ -113,7 +114,7 @@ pub struct UserLink {
 }
 
 impl UserLink {
-	pub async fn new(db: &SqlitePool, target: String) -> UserLink {
+	pub async fn new(db: &SqlitePool, target: String) -> Result<UserLink> {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(LINK_DURATION.to_owned()).unwrap();
 		let record = UserLink {
 			magic: random_string(),
@@ -128,31 +129,32 @@ impl UserLink {
 				record.expires_at
 			)
 			.execute(db)
-			.await
-			.unwrap();
+			.await?;
 
-		record
+		Ok(record)
 	}
 
-	pub async fn visit(db: &SqlitePool, target: String) -> Option<User> {
+	pub async fn visit(db: &SqlitePool, target: String) -> Result<Option<User>> {
 		let record = if let Ok(link) = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", target)
 			.fetch_one(db)
 			.await {
 				link
 			} else {
-				return None
+				return Ok(None)
 			};
 
 		if record.expires_at <= Utc::now().naive_utc() {
 			query!("DELETE FROM links WHERE magic = ?", target)
 				.execute(db)
-				.await
-				.unwrap();
+				.await?;
 
-			return None
+			return Ok(None)
 		}
 
-		CONFIG.users.iter().find_map(|u| if u.email == record.email { Some(u.clone()) } else { None })
+		Ok(
+			CONFIG.users
+				.iter()
+				.find_map(|u| if u.email == record.email { Some(u.clone()) } else { None }))
 	}
 }
 
@@ -196,14 +198,14 @@ mod tests {
 		let db = &db_connect().await;
 		let user = get_valid_user();
 
-		let link = UserLink::new(db, user.email.clone()).await;
+		let link = UserLink::new(db, user.email.clone()).await.unwrap();
 
 		assert_eq!(link.email, user.email);
 		assert_eq!(link.magic.len(), RANDOM_STRING_LEN * 2);
 		assert!(link.expires_at > Utc::now().naive_utc());
 
 		// Test visit function
-		let user_from_link = UserLink::visit(db, link.magic).await.unwrap();
+		let user_from_link = UserLink::visit(db, link.magic).await.unwrap().unwrap();
 		assert_eq!(user, user_from_link);
 
 		// Test expired UserLink
@@ -224,7 +226,7 @@ mod tests {
 			.unwrap();
 
 		let expired_user = UserLink::visit(db, expired_target.clone()).await;
-		assert!(expired_user.is_none());
+		assert!(expired_user.unwrap().is_none());
 
 		// Make sure that the expired record is removed
 		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)
@@ -232,7 +234,7 @@ mod tests {
 			.await;
 		assert!(record.is_err());
 
-		let expired_user = UserLink::visit(db, "nonexistent_magic".to_string()).await;
+		let expired_user = UserLink::visit(db, "nonexistent_magic".to_string()).await.unwrap();
 		assert!(expired_user.is_none());
 	}
 
@@ -247,14 +249,14 @@ mod tests {
 		assert_eq!(session.session_id.len(), RANDOM_STRING_LEN * 2);
 		assert!(session.expires_at > Utc::now().naive_utc());
 		println!("is_valid: {:?} session: {:?}", session.is_valid(db).await, session);
-		assert!(session.is_valid(db).await);
-		assert!(!session.is_expired(db).await);
+		assert!(session.is_valid(db).await.unwrap());
+		assert!(!session.is_expired(db).await.unwrap());
 
-		let session2 = UserSession::from_id(db, &session.session_id).await.unwrap();
+		let session2 = UserSession::from_id(db, &session.session_id).await.unwrap().unwrap();
 		assert_eq!(session, session2);
 
 		let nonexistent_target = random_string();
-		let session = UserSession::from_id(db, &nonexistent_target).await;
+		let session = UserSession::from_id(db, &nonexistent_target).await.unwrap();
 		assert!(session.is_none());
 
 		let expired_target = random_string();
@@ -268,7 +270,7 @@ mod tests {
 			.execute(db)
 			.await
 			.unwrap();
-		let session = UserSession::from_id(db, "expired_session").await;
+		let session = UserSession::from_id(db, "expired_session").await.unwrap();
 		assert!(session.is_none());
 
 		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)

@@ -1,24 +1,25 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{get, post, web, App, HttpResponse, Responder, Result as AwResult};
-#[cfg(not(test))]
-use actix_web::HttpServer;
+use actix_web::{get, post, web, App, HttpResponse, Result as AwResult};
 use actix_web::cookie::{Key, SameSite};
 use chrono::Duration;
 use config::ConfigFile;
 use maud::{html, Markup};
-#[cfg(not(test))]
-use lettre::transport::smtp;
 use lettre::AsyncTransport;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
 use formatx::formatx;
 use toml;
+use log::info;
+
+#[cfg(not(test))]
+use lettre::transport::smtp;
 
 use std::env;
 
 pub mod config;
+pub mod error;
 pub mod partials;
 pub mod user;
 
@@ -64,27 +65,27 @@ lazy_static! {
 	static ref TITLE: String = env::var("TITLE").unwrap_or("Login".to_string());
 }
 
+type Response = std::result::Result<HttpResponse, crate::error::Error>;
 
 #[get("/")]
-async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
+async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
 		session
 	} else {
-		return HttpResponse::Found().append_header(("Location", "/login")).finish()
+		return Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
 	};
 
-
-	let session = if let Some(session) = UserSession::from_id(&db, &session_id).await {
+	let session = if let Some(session) = UserSession::from_id(&db, &session_id).await? {
 		session
 	} else {
-		return HttpResponse::Found().append_header(("Location", "/login")).finish()
+		return Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
 	};
 
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == session.email { Some(u) } else { None }) {
 		user
 	} else {
 		session.delete(&db).await.unwrap();
-		return HttpResponse::Found().append_header(("Location", "/login")).finish()
+		return Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
 	};
 
 	let alias = if let Some(alias) = user.alias.clone() {
@@ -93,10 +94,10 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 		user.email.clone()
 	};
 
-	HttpResponse::Ok()
+	Ok(HttpResponse::Ok()
 		.append_header((AUTHORIZATION_ALIAS_HEADER.as_str(), alias.clone()))
 		.append_header((AUTHORIZATION_EMAIL_HEADER.as_str(), user.email.clone()))
-		.body(alias)
+		.body(alias))
 }
 
 #[get("/login")]
@@ -125,14 +126,15 @@ type SmtpTrasport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
 type SmtpTrasport = lettre::transport::stub::AsyncStubTransport;
 
 #[post("/login")]
-async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>, http_client: web::Data<Option<reqwest::Client>>) -> impl Responder {
+async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
 		user
 	} else {
-		return HttpResponse::Unauthorized().finish()
+		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
-	let link = UserLink::new(&db, user.email.clone()).await;
+	let link = UserLink::new(&db, user.email.clone()).await?;
+	#[cfg(debug_assertions)]
 	println!("Link: http://{}:{}/login/{} {:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic, link);
 
 	if let Some(mailer) = mailer.as_ref() {
@@ -143,6 +145,7 @@ async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, maile
 			.body(format!("Click the link to login: http://{}:{}/login/{}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic))
 			.unwrap();
 
+		info!("Sending email to {}", &user.email);
 		mailer.send(email).await.unwrap();
 	}
 	if let Some(client) = http_client.as_ref() {
@@ -155,49 +158,62 @@ async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, maile
 			req = req.body(body);
 		}
 
+		info!("Sending request for user {}", &user.email);
 		req.send().await.unwrap();
 	}
 
-	HttpResponse::Ok().finish()
+	Ok(HttpResponse::Ok().finish())
 }
 
 #[get("/login/{magic}")]
-async fn login_magic_action(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> impl Responder {
-	let user = if let Some(user) = UserLink::visit(&db, magic.clone()).await {
+async fn login_magic_action(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> Response {
+	let user = if let Some(user) = UserLink::visit(&db, magic.clone()).await? {
 		user
 	} else {
-		return HttpResponse::Unauthorized().finish()
+		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
 	let user_session = if let Ok(user_session) = UserSession::new(&db, &user).await {
 		user_session
 	} else {
-		return HttpResponse::InternalServerError().finish()
+		return Ok(HttpResponse::InternalServerError().finish())
 	};
+
+	info!("User {} logged in", &user.email);
+
 	session.insert("session", user_session.session_id).unwrap();
 
-	HttpResponse::Found().append_header(("Location", "/")).finish()
+	Ok(HttpResponse::Found().append_header(("Location", "/")).finish())
 }
 
 #[get("/logout")]
-async fn logout(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
+async fn logout(session: Session, db: web::Data<SqlitePool>) -> Response {
 	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
 		session
 	} else {
-		return HttpResponse::Unauthorized().finish()
+		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
 	if UserSession::delete_id(&db, &session_id).await.is_ok() {
 		session.remove("session");
-		HttpResponse::Found().append_header(("Location", "/login")).finish()
+		Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
 	} else {
-		HttpResponse::InternalServerError().finish()
+		Ok(HttpResponse::InternalServerError().finish())
 	}
 }
 
-#[cfg(not(test))] // Do not compile in tests at all as the SmtpTransport is not available
+// Do not compile in tests at all as the SmtpTransport is not available
+#[cfg(not(test))]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+	use actix_web::HttpServer;
+	use actix_web::middleware::Logger;
+
+	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+	#[cfg(debug_assertions)]
+	log::warn!("Running in debug mode, all magic links will be printed to the console.");
+
 	// Database setup
 	let db = SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.");
 	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
@@ -239,6 +255,7 @@ async fn main() -> std::io::Result<()> {
 			.service(login_post)
 			.service(login_magic_action)
 			.service(logout)
+			.wrap(Logger::default())
 			.wrap(
 				SessionMiddleware::builder(
 					CookieSessionStore::default(),
