@@ -1,10 +1,15 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result as AwResult};
+use actix_web::{get, post, web, App, HttpResponse, Responder, Result as AwResult};
+#[allow(unused_imports)]
+use actix_web::HttpServer;
 use actix_web::cookie::{Key, SameSite};
 use chrono::Duration;
 use config::ConfigFile;
 use maud::{html, Markup};
+#[allow(unused_imports)]
+use lettre::transport::smtp;
+use lettre::AsyncTransport;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
@@ -45,7 +50,11 @@ lazy_static! {
 	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
 	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
 
-	static ref AUTHORIZATION_HEADER: String = env::var("AUTHORIZATION_HEADER").unwrap_or("X-Authenticated-User".to_string());
+	static ref AUTHORIZATION_ALIAS_HEADER: String = env::var("AUTHORIZATION_ALIAS_HEADER").unwrap_or("X-Authenticated-User".to_string());
+	static ref AUTHORIZATION_EMAIL_HEADER: String = env::var("AUTHORIZATION_EMAIL_HEADER").unwrap_or("X-Authenticated-Email".to_string());
+
+	static ref SMTP_URL: Option<String> = env::var_os("SMTP_URL").map(|s| s.into_string().unwrap());
+	static ref SMTP_FROM: String = env::var("SMTP_FROM").unwrap_or("Just Passwordless <just-passwordless@example.com>".to_string());
 
 	static ref TITLE: String = env::var("TITLE").unwrap_or("Login".to_string());
 }
@@ -79,7 +88,8 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	};
 
 	HttpResponse::Ok()
-		.append_header((AUTHORIZATION_HEADER.as_str(), alias.clone()))
+		.append_header((AUTHORIZATION_ALIAS_HEADER.as_str(), alias.clone()))
+		.append_header((AUTHORIZATION_EMAIL_HEADER.as_str(), user.email.clone()))
 		.body(alias)
 }
 
@@ -102,9 +112,14 @@ struct LoginInfo {
 	email: String,
 }
 
+#[cfg(not(test))]
+type SmtpTrasport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
+
+#[cfg(test)]
+type SmtpTrasport = lettre::transport::stub::AsyncStubTransport;
 
 #[post("/login")]
-async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>) -> impl Responder {
+async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>) -> impl Responder {
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
 		user
 	} else {
@@ -114,8 +129,16 @@ async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>) -> im
 	let link = UserLink::new(&db, user.email.clone()).await;
 	println!("Link: http://{}:{}/login/{} {:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic, link);
 
-	// Send an email here with lettre
-	// Assume we have a function `send_email(email: &str, session_link: &str)` that sends the email
+	if let Some(mailer) = mailer.as_ref() {
+		let email = lettre::Message::builder()
+			.from(SMTP_FROM.as_str().parse().unwrap())
+			.to(user.email.parse().unwrap())
+			.subject("Login to realm")
+			.body(format!("Click the link to login: http://{}:{}/login/{}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic))
+			.unwrap();
+
+		mailer.send(email).await.unwrap();
+	}
 
 	// let session_link = format!("/login/{}", session_id);
 	// send_email(&info.email, &session_link);
@@ -157,9 +180,10 @@ async fn logout(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	}
 }
 
+#[cfg(not(test))] // Do not compile in tests at all as the SmtpTransport is not available
 #[actix_web::main]
-#[cfg(not(tarpaulin_include))]
 async fn main() -> std::io::Result<()> {
+	// Database setup
 	let db = SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.");
 	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
 		let master = hex::decode(secret).unwrap();
@@ -173,9 +197,20 @@ async fn main() -> std::io::Result<()> {
 		key
 	};
 
+	// Mailer setup
+	let mailer: Option<SmtpTrasport> = if let Some(smtp_url) = SMTP_URL.as_ref() {
+		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(smtp_url)
+			.unwrap()
+			.pool_config(smtp::PoolConfig::new())
+			.build())
+	} else {
+		None
+	};
+
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(db.clone()))
+			.app_data(web::Data::new(mailer.clone()))
 			.service(index)
 			.service(login_get)
 			.service(login_post)
@@ -227,6 +262,7 @@ mod tests {
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
+				.app_data(web::Data::new(None::<SmtpTrasport>))
 				.service(login_post)
 		)
 		.await;
