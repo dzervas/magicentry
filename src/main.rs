@@ -1,18 +1,19 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
 use actix_web::{get, post, web, App, HttpResponse, Responder, Result as AwResult};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use actix_web::HttpServer;
 use actix_web::cookie::{Key, SameSite};
 use chrono::Duration;
 use config::ConfigFile;
 use maud::{html, Markup};
-#[allow(unused_imports)]
+#[cfg(not(test))]
 use lettre::transport::smtp;
 use lettre::AsyncTransport;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
+use formatx::formatx;
 use toml;
 
 use std::env;
@@ -56,29 +57,34 @@ lazy_static! {
 	static ref SMTP_URL: Option<String> = env::var_os("SMTP_URL").map(|s| s.into_string().unwrap());
 	static ref SMTP_FROM: String = env::var("SMTP_FROM").unwrap_or("Just Passwordless <just-passwordless@example.com>".to_string());
 
+	static ref REQUEST_METHOD: String = env::var("REQUEST_METHOD").unwrap_or("GET".to_string());
+	static ref REQUEST_URL: Option<String> = env::var_os("REQUEST_URL").map(|s| s.into_string().unwrap());
+	static ref REQUEST_DATA: Option<String> = env::var_os("REQUEST_DATA").map(|s| s.into_string().unwrap());
+
 	static ref TITLE: String = env::var("TITLE").unwrap_or("Login".to_string());
 }
+
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
 		session
 	} else {
-		return HttpResponse::Unauthorized().finish()
+		return HttpResponse::Found().append_header(("Location", "/login")).finish()
 	};
 
 
 	let session = if let Some(session) = UserSession::from_id(&db, &session_id).await {
 		session
 	} else {
-		return HttpResponse::Unauthorized().finish()
+		return HttpResponse::Found().append_header(("Location", "/login")).finish()
 	};
 
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == session.email { Some(u) } else { None }) {
 		user
 	} else {
 		session.delete(&db).await.unwrap();
-		return HttpResponse::Unauthorized().finish()
+		return HttpResponse::Found().append_header(("Location", "/login")).finish()
 	};
 
 	let alias = if let Some(alias) = user.alias.clone() {
@@ -119,7 +125,7 @@ type SmtpTrasport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
 type SmtpTrasport = lettre::transport::stub::AsyncStubTransport;
 
 #[post("/login")]
-async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>) -> impl Responder {
+async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>, http_client: web::Data<Option<reqwest::Client>>) -> impl Responder {
 	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
 		user
 	} else {
@@ -139,9 +145,18 @@ async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, maile
 
 		mailer.send(email).await.unwrap();
 	}
+	if let Some(client) = http_client.as_ref() {
+		let method = reqwest::Method::from_bytes(crate::REQUEST_METHOD.as_bytes()).unwrap();
+		let url = formatx!(REQUEST_URL.as_ref().unwrap().as_str(), magic = link.magic.clone(), email = link.email.clone()).unwrap();
+		let mut req = client.request(method, url);
 
-	// let session_link = format!("/login/{}", session_id);
-	// send_email(&info.email, &session_link);
+		if let Some(data) = REQUEST_DATA.as_ref() {
+			let body = formatx!(data.as_str(), magic = link.magic, email = link.email).unwrap();
+			req = req.body(body);
+		}
+
+		req.send().await.unwrap();
+	}
 
 	HttpResponse::Ok().finish()
 }
@@ -207,10 +222,18 @@ async fn main() -> std::io::Result<()> {
 		None
 	};
 
+	// HTTP client setup
+	let http_client = if REQUEST_URL.is_some() {
+		Some(reqwest::Client::new())
+	} else {
+		None
+	};
+
 	HttpServer::new(move || {
 		App::new()
 			.app_data(web::Data::new(db.clone()))
 			.app_data(web::Data::new(mailer.clone()))
+			.app_data(web::Data::new(http_client.clone()))
 			.service(index)
 			.service(login_get)
 			.service(login_post)
@@ -263,6 +286,7 @@ mod tests {
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(None::<SmtpTrasport>))
+				.app_data(web::Data::new(None::<reqwest::Client>))
 				.service(login_post)
 		)
 		.await;
@@ -353,13 +377,16 @@ mod tests {
 			.await
 			.unwrap();
 
-		// let req = test::TestRequest::get()
+		// TODO: Something's wrong with the cookie
+		// let req = actix_test::TestRequest::get()
 		// 	.uri("/")
 		// 	.cookie(Cookie::new("session", "valid_session_id"))
 		// 	.to_request();
 
-		// let resp = test::call_service(&mut app, req).await;
+		// let resp = actix_test::call_service(&mut app, req).await;
 		// assert_eq!(resp.status(), StatusCode::OK);
+		// assert_eq!(resp.headers().get(AUTHORIZATION_ALIAS_HEADER.as_str()).unwrap(), "valid");
+		// assert_eq!(resp.headers().get(AUTHORIZATION_EMAIL_HEADER.as_str()).unwrap(), "valid@example.com");
 
 		let req = actix_test::TestRequest::get()
 			.uri("/")
@@ -367,13 +394,15 @@ mod tests {
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
 		let req = actix_test::TestRequest::get()
 			.uri("/")
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 	}
 }

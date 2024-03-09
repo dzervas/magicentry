@@ -24,3 +24,4 @@ Cargo.lock
 *.db-shm
 *.db-wal
 tarpaulin-report.html
+/config.toml
