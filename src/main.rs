@@ -1,9 +1,10 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder, Result as AwResult};
 use actix_web::cookie::{Key, SameSite};
 use chrono::Duration;
 use config::ConfigFile;
+use maud::{html, Markup};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
@@ -12,6 +13,7 @@ use toml;
 use std::env;
 
 pub mod config;
+pub mod partials;
 pub mod user;
 
 use user::{UserLink, UserSession};
@@ -33,8 +35,7 @@ lazy_static! {
 		&std::fs::read_to_string(CONFIG_FILE.as_str())
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
-		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str())
-		.into();
+		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
 
 	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("sqlite://database.sqlite3".to_string());
 
@@ -45,6 +46,8 @@ lazy_static! {
 	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
 
 	static ref AUTHORIZATION_HEADER: String = env::var("AUTHORIZATION_HEADER").unwrap_or("X-Authenticated-User".to_string());
+
+	static ref TITLE: String = env::var("TITLE").unwrap_or("Login".to_string());
 }
 
 #[get("/")]
@@ -81,9 +84,17 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> impl Responder {
 }
 
 #[get("/login")]
-async fn login_get() -> impl Responder {
-	// Render your HTML template for sign in
-	HttpResponse::Ok().body("Login page")
+async fn login_get() -> AwResult<Markup> {
+	Ok(html! {
+		head {
+			(partials::header(TITLE.as_str()));
+		}
+		body {
+			(partials::login_form());
+			// (partials::footer());
+		}
+	})
+
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -100,8 +111,8 @@ async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>) -> im
 		return HttpResponse::Unauthorized().finish()
 	};
 
-	let session = UserLink::new(&db, user.email.clone()).await;
-	println!("Link: http://{}:{}/login/{:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), session);
+	let link = UserLink::new(&db, user.email.clone()).await;
+	println!("Link: http://{}:{}/login/{} {:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic, link);
 
 	// Send an email here with lettre
 	// Assume we have a function `send_email(email: &str, session_link: &str)` that sends the email
