@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{query, query_as, SqlitePool};
 
+use crate::CONFIG;
 use crate::oidc::AuthorizeRequest;
-use crate::SESSION_DURATION;
 use crate::user::{random_string, Result, User};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
@@ -18,7 +18,7 @@ pub struct OIDCSession {
 
 impl OIDCSession {
 	pub async fn generate(db: &SqlitePool, email: String, request: AuthorizeRequest) -> Result<OIDCSession> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(SESSION_DURATION.to_owned()).unwrap();
+		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration).unwrap();
 		let code = random_string();
 		query!(
 				"INSERT INTO oidc_codes (code, email, expires_at, scope, response_type, client_id, redirect_uri, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -79,7 +79,7 @@ pub struct OIDCAuth {
 
 impl OIDCAuth {
 	pub async fn generate(db: &SqlitePool, email: String) -> Result<OIDCAuth> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(SESSION_DURATION.to_owned()).unwrap();
+		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
 		let auth = random_string();
 		query!(
 				"INSERT INTO oidc_auth (auth, email, expires_at) VALUES (?, ?, ?)",

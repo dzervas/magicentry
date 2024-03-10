@@ -23,5 +23,10 @@ Cargo.lock
 *.db
 *.db-shm
 *.db-wal
-tarpaulin-report.html
+
+# Config files
 /config.toml
+/config.yaml
+/config.yml
+
+tarpaulin-report.html

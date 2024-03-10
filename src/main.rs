@@ -1,8 +1,7 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{get, post, web, App, HttpResponse, Result as AwResult};
+use actix_web::{get, post, web, App, HttpRequest, HttpResponse, Result as AwResult};
 use actix_web::cookie::{Key, SameSite};
-use chrono::Duration;
 use config::ConfigFile;
 use maud::{html, Markup};
 use lettre::AsyncTransport;
@@ -10,14 +9,12 @@ use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
 use formatx::formatx;
-use toml;
 use log::{info, warn};
 
 #[cfg(not(test))]
 use lettre::transport::smtp;
 
 use std::borrow::Cow;
-use std::env;
 
 pub mod config;
 pub mod error;
@@ -31,41 +28,20 @@ pub(crate) const RANDOM_STRING_LEN: usize = 32;
 
 #[cfg(not(test))]
 lazy_static! {
-	static ref CONFIG_FILE: String = env::var("CONFIG_FILE").unwrap_or("config.toml".to_string());
+	static ref CONFIG_FILE: String = std::env::var("CONFIG_FILE").unwrap_or("config.yaml".to_string());
 }
 
 #[cfg(test)]
 lazy_static! {
-	static ref CONFIG_FILE: String = "config.sample.toml".to_string();
+	static ref CONFIG_FILE: String = "config.sample.yaml".to_string();
 }
 
 lazy_static! {
-	static ref CONFIG: ConfigFile = toml::from_str::<ConfigFile>(
+	static ref CONFIG: ConfigFile = serde_yaml::from_str::<ConfigFile>(
 		&std::fs::read_to_string(CONFIG_FILE.as_str())
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
-
-	static ref DATABASE_URL: String = env::var("DATABASE_URL").unwrap_or("sqlite://database.sqlite3".to_string());
-
-	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
-	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
-	static ref LISTEN_HOSTNAME: String = env::var("LISTEN_HOSTNAME").unwrap_or("localhost".to_string());
-
-	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
-	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
-
-	static ref AUTHORIZATION_ALIAS_HEADER: String = env::var("AUTHORIZATION_ALIAS_HEADER").unwrap_or("X-Authenticated-User".to_string());
-	static ref AUTHORIZATION_EMAIL_HEADER: String = env::var("AUTHORIZATION_EMAIL_HEADER").unwrap_or("X-Authenticated-Email".to_string());
-
-	static ref SMTP_URL: Option<String> = env::var_os("SMTP_URL").map(|s| s.into_string().unwrap());
-	static ref SMTP_FROM: String = env::var("SMTP_FROM").unwrap_or("Just Passwordless <just-passwordless@example.com>".to_string());
-
-	static ref REQUEST_METHOD: String = env::var("REQUEST_METHOD").unwrap_or("GET".to_string());
-	static ref REQUEST_URL: Option<String> = env::var_os("REQUEST_URL").map(|s| s.into_string().unwrap());
-	static ref REQUEST_DATA: Option<String> = env::var_os("REQUEST_DATA").map(|s| s.into_string().unwrap());
-
-	static ref TITLE: String = env::var("TITLE").unwrap_or("Login".to_string());
 }
 
 type Response = std::result::Result<HttpResponse, crate::error::Error>;
@@ -87,8 +63,9 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 	};
 
 	Ok(HttpResponse::Ok()
-		.append_header((AUTHORIZATION_ALIAS_HEADER.as_str(), alias.clone()))
-		.append_header((AUTHORIZATION_EMAIL_HEADER.as_str(), user.email.clone()))
+		// TODO: Add realm & name headers
+		.append_header((CONFIG.auth_url_user_header.as_str(), alias.clone()))
+		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
 		.body(alias))
 }
 
@@ -96,7 +73,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 async fn login_get() -> AwResult<Markup> {
 	Ok(html! {
 		head {
-			(partials::header(TITLE.as_str()));
+			(partials::header(CONFIG.title.as_str()));
 		}
 		body {
 			(partials::login_form());
@@ -112,13 +89,13 @@ struct LoginInfo {
 }
 
 #[cfg(not(test))]
-type SmtpTrasport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
+type SmtpTransport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
 
 #[cfg(test)]
-type SmtpTrasport = lettre::transport::stub::AsyncStubTransport;
+type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
 
 #[post("/login")]
-async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
+async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
 	let user = if let Some(user) = User::from_config(&form.email) {
 		user
 	} else {
@@ -127,25 +104,26 @@ async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, maile
 
 	let link = UserLink::new(&db, user.email.clone()).await?;
 	#[cfg(debug_assertions)]
-	println!("Link: http://{}:{}/login/{} {:?}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic, link);
+	println!("Link: http://{}:{}/login/{} {:?}", CONFIG.listen_host, CONFIG.listen_port, link.magic, link);
 
+	let base_url = CONFIG.url_from_request(&req);
 	if let Some(mailer) = mailer.as_ref() {
 		let email = lettre::Message::builder()
-			.from(SMTP_FROM.as_str().parse().unwrap())
+			.from(CONFIG.smtp_from.parse().unwrap())
 			.to(user.email.parse().unwrap())
 			.subject("Login to realm")
-			.body(format!("Click the link to login: http://{}:{}/login/{}", crate::LISTEN_HOST.as_str(), crate::LISTEN_PORT.as_str(), link.magic))
+			.body(format!("Click the link to login: {}/login/{}", base_url, link.magic))
 			.unwrap();
 
 		info!("Sending email to {}", &user.email);
 		mailer.send(email).await.unwrap();
 	}
 	if let Some(client) = http_client.as_ref() {
-		let method = reqwest::Method::from_bytes(crate::REQUEST_METHOD.as_bytes()).unwrap();
-		let url = formatx!(REQUEST_URL.as_ref().unwrap().as_str(), magic = link.magic.clone(), email = link.email.clone()).unwrap();
+		let method = reqwest::Method::from_bytes(CONFIG.request_method.as_bytes()).unwrap();
+		let url = formatx!(&CONFIG.request_url, base_url = base_url, magic = link.magic.clone(), email = link.email.clone()).unwrap();
 		let mut req = client.request(method, url);
 
-		if let Some(data) = REQUEST_DATA.as_ref() {
+		if let Some(data) = &CONFIG.request_data {
 			let body = formatx!(data.as_str(), magic = link.magic, email = link.email).unwrap();
 			req = req.body(body);
 		}
@@ -223,7 +201,7 @@ async fn main() -> std::io::Result<()> {
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
 	// Database setup
-	let db = SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.");
+	let db = SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create pool.");
 	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
 		let master = hex::decode(secret).unwrap();
 		Key::from(&master)
@@ -237,8 +215,8 @@ async fn main() -> std::io::Result<()> {
 	};
 
 	// Mailer setup
-	let mailer: Option<SmtpTrasport> = if let Some(smtp_url) = SMTP_URL.as_ref() {
-		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(smtp_url)
+	let mailer: Option<SmtpTransport> = if CONFIG.smtp_enable {
+		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&CONFIG.smtp_url)
 			.unwrap()
 			.pool_config(smtp::PoolConfig::new())
 			.build())
@@ -247,7 +225,7 @@ async fn main() -> std::io::Result<()> {
 	};
 
 	// HTTP client setup
-	let http_client = if REQUEST_URL.is_some() {
+	let http_client = if CONFIG.request_enable {
 		Some(reqwest::Client::new())
 	} else {
 		None
@@ -289,7 +267,7 @@ async fn main() -> std::io::Result<()> {
 				.cookie_same_site(SameSite::Strict)
 				.build())
 	})
-	.bind(format!("{}:{}", LISTEN_HOST.as_str(), LISTEN_PORT.as_str()))?
+	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
 	.run()
 	.await
 }
@@ -305,7 +283,7 @@ mod tests {
 	use sqlx::query;
 
 	pub async fn db_connect() -> SqlitePool {
-		SqlitePool::connect(&DATABASE_URL).await.expect("Failed to create pool.")
+		SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create pool.")
 	}
 
 	#[actix_web::test]
@@ -327,7 +305,7 @@ mod tests {
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
-				.app_data(web::Data::new(None::<SmtpTrasport>))
+				.app_data(web::Data::new(None::<SmtpTransport>))
 				.app_data(web::Data::new(None::<reqwest::Client>))
 				.service(login_post)
 		)

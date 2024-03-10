@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
 use crate::user::User;
-use crate::{Response, SESSION_DURATION};
+use crate::{Response, CONFIG};
 
 pub mod model;
 pub mod data;
@@ -27,8 +27,8 @@ pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 }
 
 #[get("/.well-known/openid-configuration")]
-pub async fn configuration() -> impl Responder {
-	let discovery = Discovery::default();
+pub async fn configuration(req: HttpRequest) -> impl Responder {
+	let discovery = Discovery::new(&CONFIG.url_from_request(&req));
 	HttpResponse::Ok().json(discovery)
 }
 
@@ -67,7 +67,7 @@ pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: w
 }
 
 #[post("/token")]
-pub async fn token(db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
+pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
 	let session = if let Some(session) = OIDCSession::from_code(&db, &data.code).await? {
 		session
 	} else {
@@ -78,10 +78,10 @@ pub async fn token(db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key
 	let jwt_data = JWTData {
 		user: session.email.clone(),
 		client_id: session.request.client_id.clone(),
-		..Default::default()
+		..JWTData::new(&CONFIG.url_from_request(&req))
 	};
 
-	let claims = Claims::with_custom_claims(jwt_data, Duration::from_millis(SESSION_DURATION.num_milliseconds().try_into().unwrap()));
+	let claims = Claims::with_custom_claims(jwt_data, Duration::from_millis(CONFIG.session_duration.num_milliseconds().try_into().unwrap()));
 	let id_token = key.as_ref().sign(claims).unwrap();
 
 	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
@@ -89,7 +89,7 @@ pub async fn token(db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,
 		token_type: "Bearer".to_string(),
-		expires_in: SESSION_DURATION.num_seconds(),
+		expires_in: CONFIG.session_duration.num_seconds(),
 		id_token,
 		refresh_token: None,
 	}))

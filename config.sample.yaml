@@ -1,0 +1,52 @@
+# Apart from oidc_clients and users, the following are the default values
+# To create a new config, just set the `users` and any other settings you want to change
+database_url: sqlite://database.sqlite3
+
+listen_host: "127.0.0.1"
+listen_port: 8080
+path_prefix: /
+hostname: localhost
+
+link_duration: 1h
+session_duration: 1mon
+
+title: Just Passwordless
+
+auth_url_enable: true
+auth_url_user_header: Remote-User
+auth_url_name_header: Remote-Name
+auth_url_email_header: Remote-Email
+auth_url_realm_header: Remote-Group
+
+oidc_enable: true
+oidc_code_duration: 1m
+oidc_clients:
+  - id: client
+    secret: secret
+    redirect_uris:
+      - http://localhost:8080/oidc/callback
+    realms:
+      - example
+
+smtp_enable: false
+# For the URL scheme options see https://docs.rs/lettre/latest/lettre/transport/smtp/struct.AsyncSmtpTransport.html#method.from_url
+smtp_url: smtp://user@pass:localhost:25/?tls=required
+smtp_from: Just Passwordless <just-passwordless@example.com>
+
+request_enable: true
+request_url: https://www.cinotify.cc/api/notify
+request_data: to={email}&subject=Just Passwordless Login&body=http://localhost:8080/login/{magic}
+request_method: POST
+
+users:
+  - username: valid
+    name: Valid User
+    email: valid@example.com
+    realms:
+      - example
+  - username: integration
+    email: valid-integration@example.com
+    name: Integration User
+    realms:
+      - example
+      - public

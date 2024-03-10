@@ -4,7 +4,7 @@ use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 use sqlx::{query, query_as, SqlitePool};
 
-use crate::{CONFIG, LINK_DURATION, RANDOM_STRING_LEN, SESSION_DURATION};
+use crate::{CONFIG, RANDOM_STRING_LEN};
 
 pub type Result<T> = std::result::Result<T, sqlx::Error>;
 
@@ -60,7 +60,7 @@ pub struct UserSession {
 
 impl UserSession {
 	pub async fn new(db: &SqlitePool, user: &User) -> Result<UserSession> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(SESSION_DURATION.to_owned()).unwrap();
+		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
 		let record = UserSession {
 			session_id: random_string(),
 			email: user.email.clone(),
@@ -145,7 +145,7 @@ pub struct UserLink {
 
 impl UserLink {
 	pub async fn new(db: &SqlitePool, target: String) -> Result<UserLink> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(LINK_DURATION.to_owned()).unwrap();
+		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.link_duration.to_owned()).unwrap();
 		let record = UserLink {
 			magic: random_string(),
 			email: target.clone(),
@@ -203,7 +203,7 @@ mod tests {
 
 	fn get_valid_user() -> User {
 		let user_email = "valid@example.com";
-		let user_realms = vec!["example".to_string(), "realm".to_string()];
+		let user_realms = vec!["example".to_string()];
 		let user = CONFIG
 			.users
 			.iter()

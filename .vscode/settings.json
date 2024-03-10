@@ -3,6 +3,19 @@
 		"DATABASE_URL": "sqlite://database.sqlite3"
 	},
 	"cSpell.words": [
-		"oidc"
+		"actix",
+		"chrono",
+		"formatx",
+		"jwks",
+		"keypair",
+		"lettre",
+		"oidc",
+		"Passwordless",
+		"reqwest",
+		"rngs",
+		"Seedable",
+		"sqlx",
+		"urlencoding",
+		"userinfo"
 	]
 }

@@ -1,9 +1,0 @@
-[[users]]
-email = "valid@example.com"
-realms = ["example", "realm"]
-alias = "valid"
-
-[[users]]
-email = "valid-integration@example.com"
-realms = ["users", "guests"]
-alias = "integration"

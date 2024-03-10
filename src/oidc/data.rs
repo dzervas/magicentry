@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::SqlitePool;
 
-use crate::{LISTEN_HOSTNAME, LISTEN_PORT, SESSION_DURATION};
+use crate::CONFIG;
 use crate::user::Result;
 
 use super::model::*;
@@ -25,9 +25,8 @@ pub struct Discovery {
 	pub claims_supported: Vec<String>,
 }
 
-impl Default for Discovery {
-	fn default() -> Self {
-		let base = format!("http://{}:{}", LISTEN_HOSTNAME.as_str(), LISTEN_PORT.as_str());
+impl Discovery {
+	pub fn new(base: &str) -> Self {
 		Discovery {
 			issuer: base.to_string(),
 			authorization_endpoint: format!("{}/authorize", base).to_string(),
@@ -97,13 +96,13 @@ pub struct JWTData {
 	pub iat: u64,
 }
 
-impl Default for JWTData {
-	fn default() -> Self {
-		let expiry = Utc::now() + SESSION_DURATION.to_owned();
+impl JWTData {
+	pub fn new(base_url: &str) -> Self {
+		let expiry = Utc::now() + CONFIG.session_duration;
 		JWTData {
 			user: String::default(),
 			client_id: String::default(),
-			from_url: format!("http://{}:{}", LISTEN_HOSTNAME.as_str(), LISTEN_PORT.as_str()).to_string(),
+			from_url: base_url.to_string(),
 			expires_at: expiry.timestamp() as u64,
 			iat: Utc::now().timestamp() as u64,
 		}
