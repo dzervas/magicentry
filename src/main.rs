@@ -235,12 +235,11 @@ async fn main() -> std::io::Result<()> {
 	let oidc_key = oidc::init(&db).await;
 
 	HttpServer::new(move || {
-		App::new()
+		let app = App::new()
 			// Data
 			.app_data(web::Data::new(db.clone()))
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
-			.app_data(web::Data::new(oidc_key.clone()))
 
 			// Auth routes
 			.service(index)
@@ -248,14 +247,6 @@ async fn main() -> std::io::Result<()> {
 			.service(login_post)
 			.service(login_magic_action)
 			.service(logout)
-
-			// OIDC routes
-			.service(oidc::configuration)
-			.service(oidc::authorize_get)
-			.service(oidc::authorize_post)
-			.service(oidc::token)
-			.service(oidc::jwks)
-			.service(oidc::userinfo)
 
 			// Middleware
 			.wrap(Logger::default())
@@ -265,7 +256,21 @@ async fn main() -> std::io::Result<()> {
 					secret.clone()
 				)
 				.cookie_same_site(SameSite::Strict)
-				.build())
+				.build());
+
+		// OIDC routes
+		if CONFIG.oidc_enable {
+			app
+				.app_data(web::Data::new(oidc_key.clone()))
+				.service(oidc::configuration)
+				.service(oidc::authorize_get)
+				.service(oidc::authorize_post)
+				.service(oidc::token)
+				.service(oidc::jwks)
+				.service(oidc::userinfo)
+		} else {
+			app
+		}
 	})
 	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
 	.run()
