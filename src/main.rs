@@ -11,15 +11,17 @@ use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
 use formatx::formatx;
 use toml;
-use log::info;
+use log::{info, warn};
 
 #[cfg(not(test))]
 use lettre::transport::smtp;
 
+use std::borrow::Cow;
 use std::env;
 
 pub mod config;
 pub mod error;
+pub mod oidc;
 pub mod partials;
 pub mod user;
 
@@ -48,6 +50,7 @@ lazy_static! {
 
 	static ref LISTEN_HOST: String = env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string());
 	static ref LISTEN_PORT: String = env::var("LISTEN_PORT").unwrap_or("8080".to_string());
+	static ref LISTEN_HOSTNAME: String = env::var("LISTEN_HOSTNAME").unwrap_or("localhost".to_string());
 
 	static ref LINK_DURATION: Duration = duration_str::parse_chrono(env::var("LINK_DURATION").unwrap_or("12h".to_string())).unwrap();
 	static ref SESSION_DURATION: Duration = duration_str::parse_chrono(env::var("SESSION_DURATION").unwrap_or("1mon".to_string())).unwrap();
@@ -186,20 +189,29 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 	Ok(HttpResponse::Found().append_header(("Location", "/")).finish())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct LogoutRequest {
+	post_logout_redirect_uri: Option<String>,
+}
+
 #[get("/logout")]
-async fn logout(session: Session, db: web::Data<SqlitePool>) -> Response {
-	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
-		session
+async fn logout(req: web::Query<LogoutRequest>, session: Session, db: web::Data<SqlitePool>) -> Response {
+	if let Some(session_id) = session.get::<String>("session").unwrap_or(None) {
+		session.remove("session");
+		UserSession::delete_id(&db, &session_id).await?;
+	}
+
+	// XXX: Open redirect
+	let target_url = if let Some(target) = &req.into_inner().post_logout_redirect_uri {
+		urlencoding::decode(&target.clone()).unwrap_or_else(|_| {
+			warn!("Invalid logout redirect URL: {}", &target);
+			Cow::from("/login")
+		}).to_string()
 	} else {
-		return Ok(HttpResponse::Unauthorized().finish())
+		"/login".to_string()
 	};
 
-	if UserSession::delete_id(&db, &session_id).await.is_ok() {
-		session.remove("session");
-		Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
-	} else {
-		Ok(HttpResponse::InternalServerError().finish())
-	}
+	Ok(HttpResponse::Found().append_header(("Location", target_url.as_str())).finish())
 }
 
 // Do not compile in tests at all as the SmtpTransport is not available
@@ -245,16 +257,33 @@ async fn main() -> std::io::Result<()> {
 		None
 	};
 
+	// OIDC setup
+	let oidc_key = oidc::init(&db).await;
+
 	HttpServer::new(move || {
 		App::new()
+			// Data
 			.app_data(web::Data::new(db.clone()))
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
+			.app_data(web::Data::new(oidc_key.clone()))
+
+			// Auth routes
 			.service(index)
 			.service(login_get)
 			.service(login_post)
 			.service(login_magic_action)
 			.service(logout)
+
+			// OIDC routes
+			.service(oidc::configuration)
+			.service(oidc::authorize_get)
+			.service(oidc::authorize_post)
+			.service(oidc::token)
+			.service(oidc::jwks)
+			.service(oidc::userinfo)
+
+			// Middleware
 			.wrap(Logger::default())
 			.wrap(
 				SessionMiddleware::builder(
