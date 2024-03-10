@@ -1,12 +1,14 @@
 use actix_session::Session;
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
 use chrono::Utc;
-use log::info;
 use serde::{Deserialize, Serialize};
+use sqlx::prelude::FromRow;
 use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
-use crate::{LISTEN_HOSTNAME, LISTEN_PORT, SESSION_DURATION};
+use crate::oidc_model::{OIDCAuth, OIDCSession};
+use crate::user::{User, Result};
+use crate::{Response, LISTEN_HOSTNAME, LISTEN_PORT, SESSION_DURATION};
 use crate::config;
 
 pub async fn init(db: &SqlitePool) -> RS256KeyPair {
@@ -72,7 +74,7 @@ pub async fn configuration() -> impl Responder {
 	HttpResponse::Ok().json(discovery)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
 pub struct AuthorizeRequest {
 	pub scope: String,
 	pub response_type: String,
@@ -81,13 +83,32 @@ pub struct AuthorizeRequest {
 	pub state: Option<String>,
 }
 
-async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeRequest) -> impl Responder {
+impl AuthorizeRequest {
+	pub async fn generate_code(&self, db: &SqlitePool, email: &str) -> Result<OIDCSession> {
+		OIDCSession::generate(db, email.to_string(), self.clone()).await
+	}
+}
+
+async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeRequest) -> Response {
+	session.insert("oidc_authorize", data.clone()).unwrap();
+
+	let user = if let Some(user) = User::from_session(&db, session).await? {
+		user
+	} else {
+		let target_url = format!("/login?{}", serde_qs::to_string(&data).unwrap());
+		return Ok(HttpResponse::Found()
+			.append_header(("Location", target_url))
+			.finish())
+	};
+
+	let oidc_session = data.generate_code(&db, user.email.as_str()).await?;
+
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = urlencoding::decode(&data.redirect_uri).unwrap();
-	let target_url = format!("{}?code=1234&state={}", redirect_url, data.state.unwrap_or_default());
-	HttpResponse::Found()
-		.append_header(("Location", target_url.as_str()))
-		.finish()
+	// XXX: Open redirect
+	let redirect_url = oidc_session.get_redirect_url();
+	Ok(HttpResponse::Found()
+		.append_header(("Location", redirect_url.as_str()))
+		.finish())
 	// Either send to ?code=<code>&state=<state>
 	// Or send to ?error=<error>&error_description=<error_description>&state=<state>
 }
@@ -105,10 +126,11 @@ pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: w
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TokenRequest {
 	pub grant_type: String,
-	pub code: Option<String>,
-	pub redirect_uri: Option<String>,
+	pub code: String,
 	pub client_id: Option<String>,
 	pub client_secret: Option<String>,
+	// OAuth 2.0 allows for empty redirect_uri
+	pub redirect_uri: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -125,7 +147,7 @@ pub struct JWTData {
 	#[serde(rename = "sub")]
 	pub user: String,
 	#[serde(rename = "aud")]
-	pub realm: String,
+	pub client_id: String,
 	#[serde(rename = "iss")]
 	pub from_url: String,
 	#[serde(rename = "exp")]
@@ -138,7 +160,7 @@ impl Default for JWTData {
 		let expiry = Utc::now() + SESSION_DURATION.to_owned();
 		JWTData {
 			user: String::default(),
-			realm: String::default(),
+			client_id: String::default(),
 			from_url: format!("http://{}:{}", LISTEN_HOSTNAME.as_str(), LISTEN_PORT.as_str()).to_string(),
 			expires_at: expiry.timestamp() as u64,
 			iat: Utc::now().timestamp() as u64,
@@ -148,26 +170,32 @@ impl Default for JWTData {
 
 
 #[post("/token")]
-pub async fn token(session: Session, db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> impl Responder {
+pub async fn token(db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
+	let session = if let Some(session) = OIDCSession::from_code(&db, &data.code).await? {
+		session
+	} else {
+		return Ok(HttpResponse::BadRequest().finish());
+	};
+
+	// XXX: Check client secret
 	let jwt_data = JWTData {
-		user: "valid".to_string(),
-		realm: "hello".to_string(),
+		user: session.email.clone(),
+		client_id: session.request.client_id.clone(),
 		..Default::default()
 	};
 
 	let claims = Claims::with_custom_claims(jwt_data, Duration::from_millis(SESSION_DURATION.num_milliseconds().try_into().unwrap()));
-	let token = key.as_ref().sign(claims).unwrap();
+	let id_token = key.as_ref().sign(claims).unwrap();
 
-	#[cfg(debug_assertions)]
-	info!("Token: {}", token);
+	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
 
-	HttpResponse::Ok().json(TokenResponse {
-		access_token: "access".to_string(),
+	Ok(HttpResponse::Ok().json(TokenResponse {
+		access_token,
 		token_type: "Bearer".to_string(),
 		expires_in: SESSION_DURATION.num_seconds(),
-		id_token: token,
+		id_token,
 		refresh_token: None,
-	})
+	}))
 	// Either send to ?access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
 	// Or send to ?error=<error>&error_description=<error_description>
 }
@@ -229,12 +257,31 @@ pub struct UserInfoResponse {
 }
 
 #[get("/userinfo")]
-pub async fn userinfo() -> impl Responder {
-	let resp = UserInfoResponse {
-		user: "valid".to_string(),
-		email: "valid@example.com".to_string(),
-		preferred_username: "valid".to_string(),
-	};
+pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Responder {
+	let auth_header = req.headers().get("Authorization").unwrap();
+	let auth_header_parts = auth_header.to_str().unwrap().split_whitespace().collect::<Vec<&str>>();
 
-	HttpResponse::Ok().json(resp)
+	if auth_header_parts.len() != 2 || auth_header_parts[0] != "Bearer" {
+		return HttpResponse::BadRequest().finish()
+	}
+
+	let auth = auth_header_parts[1];
+
+	if let Ok(Some(user)) = OIDCAuth::get_user(&db, auth).await {
+		let alias = if let Some(alias) = user.alias.clone() {
+			alias
+		} else {
+			user.email.clone()
+		};
+
+		let resp = UserInfoResponse {
+			user: user.email.clone(),
+			email: user.email.clone(),
+			preferred_username: alias,
+		};
+
+		HttpResponse::Ok().json(resp)
+	} else {
+		HttpResponse::Unauthorized().finish()
+	}
 }

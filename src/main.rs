@@ -22,10 +22,11 @@ use std::env;
 pub mod config;
 pub mod error;
 pub mod oidc;
+pub mod oidc_model;
 pub mod partials;
 pub mod user;
 
-use user::{UserLink, UserSession};
+use user::{User, UserLink, UserSession};
 
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
 
@@ -72,23 +73,12 @@ type Response = std::result::Result<HttpResponse, crate::error::Error>;
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
-	let session_id = if let Some(session) = session.get::<String>("session").unwrap_or(None) {
-		session
-	} else {
-		return Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
-	};
-
-	let session = if let Some(session) = UserSession::from_id(&db, &session_id).await? {
-		session
-	} else {
-		return Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
-	};
-
-	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == session.email { Some(u) } else { None }) {
+	let user = if let Some(user) = User::from_session(&db, session).await? {
 		user
 	} else {
-		session.delete(&db).await.unwrap();
-		return Ok(HttpResponse::Found().append_header(("Location", "/login")).finish())
+		return Ok(HttpResponse::Found()
+			.append_header(("Location", "/login"))
+			.finish())
 	};
 
 	let alias = if let Some(alias) = user.alias.clone() {
@@ -130,7 +120,7 @@ type SmtpTrasport = lettre::transport::stub::AsyncStubTransport;
 
 #[post("/login")]
 async fn login_post(form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTrasport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
-	let user = if let Some(user) = CONFIG.users.iter().find_map(|u| if u.email == form.email { Some(u) } else { None }) {
+	let user = if let Some(user) = User::from_config(&form.email) {
 		user
 	} else {
 		return Ok(HttpResponse::Unauthorized().finish())
@@ -176,17 +166,24 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
-	let user_session = if let Ok(user_session) = UserSession::new(&db, &user).await {
-		user_session
-	} else {
-		return Ok(HttpResponse::InternalServerError().finish())
-	};
-
+	let user_session = UserSession::new(&db, &user).await?;
 	info!("User {} logged in", &user.email);
-
 	session.insert("session", user_session.session_id).unwrap();
 
-	Ok(HttpResponse::Found().append_header(("Location", "/")).finish())
+	// TODO: This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
+	if let Some(oidc_authorize) = session.get::<oidc::AuthorizeRequest>("oidc_authorize").unwrap() {
+		// XXX: Open redirect
+		let oidc_session = oidc_authorize.generate_code(&db, user.email.as_str()).await?;
+		let redirect_url = oidc_session.get_redirect_url();
+		info!("Redirecting to client {}", &oidc_session.request.client_id);
+		Ok(HttpResponse::Found()
+			.append_header(("Location", redirect_url.as_str()))
+			.finish())
+	} else {
+		Ok(HttpResponse::Found()
+			.append_header(("Location", "/"))
+			.finish())
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

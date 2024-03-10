@@ -6,13 +6,43 @@ use sqlx::{query, query_as, SqlitePool};
 
 use crate::{CONFIG, LINK_DURATION, RANDOM_STRING_LEN, SESSION_DURATION};
 
-type Result<T> = std::result::Result<T, sqlx::Error>;
+pub type Result<T> = std::result::Result<T, sqlx::Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
 	pub email: String,
 	pub realms: Vec<String>,
 	pub alias: Option<String>,
+}
+
+impl User {
+	pub async fn from_session(db: &SqlitePool, session: actix_session::Session) -> Result<Option<User>> {
+		if let Some(session_id) = session.get::<String>("session").unwrap_or(None) {
+			User::from_session_id(db, session_id.as_str()).await
+		} else {
+			Ok(None)
+		}
+	}
+
+	pub async fn from_session_id(db: &SqlitePool, session_id: &str) -> Result<Option<User>> {
+		let session = UserSession::from_id(db, session_id).await?;
+		if let Some(session) = session {
+			let user = User::from_config(&session.email);
+			if user.is_none() {
+				session.delete(&db).await.unwrap();
+			}
+			Ok(user)
+		} else {
+			Ok(None)
+		}
+	}
+
+	pub fn from_config(email: &str) -> Option<User> {
+		CONFIG
+			.users
+			.iter()
+			.find_map(|u| if u.email == email { Some(u.clone()) } else { None })
+	}
 }
 
 impl PartialEq<String> for User {
@@ -51,10 +81,10 @@ impl UserSession {
 
 	pub async fn from_id(db: &SqlitePool, id: &str) -> Result<Option<UserSession>> {
 		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", id)
-			.fetch_one(db)
-			.await;
+			.fetch_optional(db)
+			.await?;
 
-		let session = if let Ok(session) = session_res {
+		let session = if let Some(session) = session_res {
 			session
 		} else {
 			return Ok(None)
@@ -69,10 +99,10 @@ impl UserSession {
 
 	pub async fn is_valid(&self, db: &SqlitePool) -> Result<bool> {
 		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", self.session_id)
-			.fetch_one(db)
-			.await;
+			.fetch_optional(db)
+			.await?;
 
-		let session = if let Ok(session) = session_res {
+		let session = if let Some(session) = session_res {
 			session
 		} else {
 			return Ok(false)
@@ -135,26 +165,26 @@ impl UserLink {
 	}
 
 	pub async fn visit(db: &SqlitePool, target: String) -> Result<Option<User>> {
-		let record = if let Ok(link) = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", target)
-			.fetch_one(db)
-			.await {
+		let session = if let Some(link) = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", target)
+			.fetch_optional(db)
+			.await? {
 				link
 			} else {
 				return Ok(None)
 			};
 
-		if record.expires_at <= Utc::now().naive_utc() {
-			query!("DELETE FROM links WHERE magic = ?", target)
-				.execute(db)
-				.await?;
+		query!("DELETE FROM links WHERE magic = ?", target)
+			.execute(db)
+			.await?;
 
+		if session.expires_at <= Utc::now().naive_utc() {
 			return Ok(None)
 		}
 
 		Ok(
 			CONFIG.users
 				.iter()
-				.find_map(|u| if u.email == record.email { Some(u.clone()) } else { None }))
+				.find_map(|u| if u.email == session.email { Some(u.clone()) } else { None }))
 	}
 }
 
@@ -230,9 +260,9 @@ mod tests {
 
 		// Make sure that the expired record is removed
 		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)
-			.fetch_one(db)
+			.fetch_optional(db)
 			.await;
-		assert!(record.is_err());
+		assert!(record.unwrap().is_none());
 
 		let expired_user = UserLink::visit(db, "nonexistent_magic".to_string()).await.unwrap();
 		assert!(expired_user.is_none());
@@ -274,9 +304,9 @@ mod tests {
 		assert!(session.is_none());
 
 		let record = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", expired_target)
-			.fetch_one(db)
+			.fetch_optional(db)
 			.await;
-		assert!(record.is_err());
+		assert!(record.unwrap().is_none());
 	}
 
 	#[test]

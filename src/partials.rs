@@ -25,7 +25,7 @@ pub fn login_form() -> Markup {
 						// p class="mx-auto mb-8 max-w-2xl font-light text-gray-500 md:mb-12 sm:text-xl dark:text-gray-400" {
 						// 	"Stay up to date with the roadmap progress, announcements and exclusive discounts feel free to sign up with your email."
 						// }
-						form action="/login" method="post" {
+						form action="" method="post" {
 							div class="items-center mx-auto mb-3 space-y-4 max-w-screen-sm sm:flex sm:space-y-0" {
 								div class="relative w-full" {
 									label for="email" class="hidden mb-2 text-sm font-medium text-gray-900 dark:text-gray-300" {
