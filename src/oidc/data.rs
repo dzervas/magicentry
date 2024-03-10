@@ -29,11 +29,11 @@ impl Discovery {
 	pub fn new(base: &str) -> Self {
 		Discovery {
 			issuer: base.to_string(),
-			authorization_endpoint: format!("{}/authorize", base).to_string(),
+			authorization_endpoint: format!("{}authorize", base).to_string(),
 			// authorization_endpoint: "http://localhost:8080/authorize".to_string(),
-			token_endpoint: format!("{}/token", base).to_string(),
-			userinfo_endpoint: format!("{}/userinfo", base).to_string(),
-			jwks_uri: format!("{}/jwks", base).to_string(),
+			token_endpoint: format!("{}token", base).to_string(),
+			userinfo_endpoint: format!("{}userinfo", base).to_string(),
+			jwks_uri: format!("{}jwks", base).to_string(),
 
 			scopes_supported: vec!["openid".to_string()],
 			response_types_supported: vec!["code".to_string(), "id_token".to_string(), "id_token token".to_string()],
@@ -110,7 +110,7 @@ impl JWTData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct JwksResponseItem {
+pub struct JWKSResponseItem {
 	#[serde(rename = "kty")]
 	pub algorithm: String,
 	#[serde(rename = "use")]
@@ -123,9 +123,9 @@ pub struct JwksResponseItem {
 	pub exponent: String,
 }
 
-impl Default for JwksResponseItem {
+impl Default for JWKSResponseItem {
 	fn default() -> Self {
-		JwksResponseItem {
+		JWKSResponseItem {
 			algorithm: "RSA".to_string(),
 			usage: "sig".to_string(),
 			modulus: String::default(),
@@ -137,7 +137,7 @@ impl Default for JwksResponseItem {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct JwksResponse {
-	pub keys: Vec<JwksResponseItem>,
+	pub keys: Vec<JWKSResponseItem>,
 }
 
 

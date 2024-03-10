@@ -10,9 +10,10 @@ pub type Result<T> = std::result::Result<T, sqlx::Error>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
-	pub email: String,
+	pub username: Option<String>,
 	pub realms: Vec<String>,
-	pub alias: Option<String>,
+	pub email: String,
+	pub name: Option<String>,
 }
 
 impl User {

@@ -56,7 +56,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 			.finish())
 	};
 
-	let alias = if let Some(alias) = user.alias.clone() {
+	let alias = if let Some(alias) = user.username.clone() {
 		alias
 	} else {
 		user.email.clone()
@@ -145,12 +145,14 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 
 	let user_session = UserSession::new(&db, &user).await?;
 	info!("User {} logged in", &user.email);
+	println!("User Session: {:?}", session.entries());
 	session.insert("session", user_session.session_id).unwrap();
 
 	// TODO: This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
-	if let Some(oidc_authorize) = session.get::<oidc::data::AuthorizeRequest>("oidc_authorize").unwrap() {
+	if let Some(oidc_authorize) = session.remove_as::<oidc::data::AuthorizeRequest>("oidc_authorize") {
+		println!("Session Authorize Request: {:?}", oidc_authorize);
 		// XXX: Open redirect
-		let oidc_session = oidc_authorize.generate_code(&db, user.email.as_str()).await?;
+		let oidc_session = oidc_authorize.unwrap().generate_code(&db, user.email.as_str()).await?;
 		let redirect_url = oidc_session.get_redirect_url();
 		info!("Redirecting to client {}", &oidc_session.request.client_id);
 		Ok(HttpResponse::Found()
@@ -256,12 +258,16 @@ async fn main() -> std::io::Result<()> {
 					secret.clone()
 				)
 				.cookie_same_site(SameSite::Strict)
+				.cookie_path(CONFIG.path_prefix.clone())
+				.session_lifecycle(
+					actix_session::config::PersistentSession::default()
+						.session_ttl(actix_web::cookie::time::Duration::try_from(CONFIG.session_duration.to_std().unwrap()).unwrap())
+				)
 				.build());
 
 		// OIDC routes
 		if CONFIG.oidc_enable {
-			app
-				.app_data(web::Data::new(oidc_key.clone()))
+			app.app_data(web::Data::new(oidc_key.clone()))
 				.service(oidc::configuration)
 				.service(oidc::authorize_get)
 				.service(oidc::authorize_post)

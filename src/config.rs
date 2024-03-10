@@ -5,6 +5,7 @@ use sqlx::{query, Error, SqlitePool};
 use crate::user::User;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(default)]
 pub struct ConfigFile {
 	pub database_url: String,
 
@@ -45,7 +46,7 @@ pub struct ConfigFile {
 impl Default for ConfigFile {
 	fn default() -> Self {
 		Self {
-			database_url: "sqlite:./db.sqlite".to_string(),
+			database_url: "sqlite://database.sqlite3".to_string(),
 
 			listen_host: "127.0.0.1".to_string(),
 			listen_port: 8080,
@@ -57,13 +58,13 @@ impl Default for ConfigFile {
 
 			title: "Just Passwordless".to_string(),
 
-			auth_url_enable      : false,
+			auth_url_enable      : true,
 			auth_url_user_header : "Remote-User".to_string(),
 			auth_url_email_header: "Remote-Email".to_string(),
 			auth_url_name_header : "Remote-Name".to_string(),
 			auth_url_realm_header: "Remote-Group".to_string(),
 
-			oidc_enable       : false,
+			oidc_enable       : true,
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),
 			// oidc_clients      : vec![],
 

@@ -1,5 +1,6 @@
 use actix_session::Session;
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
+use log::info;
 use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
@@ -16,6 +17,7 @@ pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 	if let Some(keypair) = crate::config::ConfigKV::get(&db, "jwt_keypair").await {
 		RS256KeyPair::from_pem(&keypair).unwrap()
 	} else {
+		log::warn!("Generating JWT keypair for RSA 4096. This is going to take some time...");
 		let keypair = RS256KeyPair::generate(4096).unwrap();
 		let keypair_pem = keypair.to_pem().unwrap();
 
@@ -33,6 +35,7 @@ pub async fn configuration(req: HttpRequest) -> impl Responder {
 }
 
 async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeRequest) -> Response {
+	info!("Beginning OIDC flow for {}", data.client_id);
 	session.insert("oidc_authorize", data.clone()).unwrap();
 
 	let user = if let Some(user) = User::from_session(&db, session).await? {
@@ -73,6 +76,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 	} else {
 		return Ok(HttpResponse::BadRequest().finish());
 	};
+	println!("Token Request: {:?}", data);
 
 	// XXX: Check client secret
 	let jwt_data = JWTData {
@@ -80,6 +84,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 		client_id: session.request.client_id.clone(),
 		..JWTData::new(&CONFIG.url_from_request(&req))
 	};
+	println!("JWT Data: {:?}", jwt_data);
 
 	let claims = Claims::with_custom_claims(jwt_data, Duration::from_millis(CONFIG.session_duration.num_milliseconds().try_into().unwrap()));
 	let id_token = key.as_ref().sign(claims).unwrap();
@@ -101,7 +106,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 pub async fn jwks(key: web::Data<RS256KeyPair>) -> impl Responder {
 	let comp = key.as_ref().public_key().to_components();
 
-	let item = JwksResponseItem {
+	let item = JWKSResponseItem {
 		modulus: Base64::encode_to_string(comp.n).unwrap(),
 		exponent: Base64::encode_to_string(comp.e).unwrap(),
 		..Default::default()
@@ -126,7 +131,7 @@ pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Respo
 	let auth = auth_header_parts[1];
 
 	if let Ok(Some(user)) = OIDCAuth::get_user(&db, auth).await {
-		let alias = if let Some(alias) = user.alias.clone() {
+		let username = if let Some(alias) = user.username.clone() {
 			alias
 		} else {
 			user.email.clone()
@@ -135,8 +140,9 @@ pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Respo
 		let resp = UserInfoResponse {
 			user: user.email.clone(),
 			email: user.email.clone(),
-			preferred_username: alias,
+			preferred_username: username,
 		};
+		println!("Userinfo Response: {:?}", resp);
 
 		HttpResponse::Ok().json(resp)
 	} else {
