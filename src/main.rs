@@ -22,7 +22,6 @@ use std::env;
 pub mod config;
 pub mod error;
 pub mod oidc;
-pub mod oidc_model;
 pub mod partials;
 pub mod user;
 
@@ -171,7 +170,7 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 	session.insert("session", user_session.session_id).unwrap();
 
 	// TODO: This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
-	if let Some(oidc_authorize) = session.get::<oidc::AuthorizeRequest>("oidc_authorize").unwrap() {
+	if let Some(oidc_authorize) = session.get::<oidc::data::AuthorizeRequest>("oidc_authorize").unwrap() {
 		// XXX: Open redirect
 		let oidc_session = oidc_authorize.generate_code(&db, user.email.as_str()).await?;
 		let redirect_url = oidc_session.get_redirect_url();
