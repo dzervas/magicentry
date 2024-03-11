@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM oidc_auth WHERE auth = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7c819455a25fd1346cf384b4f0c3c727871120a3a1da5966cfa4bd1973587c14"
+}

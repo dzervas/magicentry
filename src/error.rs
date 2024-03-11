@@ -11,10 +11,10 @@ impl From<sqlx::Error> for Error {
 		log::error!("Database error: {:?}", error);
 
 		#[cfg(debug_assertions)]
-		return Error { cause: format!("Internal Server Error: {}", error) };
+		return Error { cause: format!("Internal Server Error: {}", error).to_string() };
 
 		#[cfg(not(debug_assertions))]
-		return Error { cause: format!("Internal Server Error", error) };
+		return Error { cause: "Internal Server Error".to_string() };
 	}
 }
 

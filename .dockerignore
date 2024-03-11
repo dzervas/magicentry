@@ -1,0 +1,12 @@
+.git
+.gitignore
+/.github
+/.vscode
+/target
+/config.*
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
