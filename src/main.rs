@@ -107,7 +107,7 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 
 	let link = UserLink::new(&db, user.email.clone()).await?;
 	let base_url = CONFIG.url_from_request(&req);
-	let magic_link = format!("{}/login/{}", base_url, link.magic);
+	let magic_link = format!("{}login/{}", base_url, link.magic);
 	let name = &user.name.unwrap_or_default();
 	let username = &user.username.unwrap_or_default();
 
