@@ -175,12 +175,11 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 	println!("User Session: {:?}", session.entries());
 	session.insert("session", user_session.session_id).unwrap();
 
-	// TODO: This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
+	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
 	if let Some(oidc_authorize) = session.remove_as::<oidc::data::AuthorizeRequest>("oidc_authorize") {
 		println!("Session Authorize Request: {:?}", oidc_authorize);
-		// XXX: Open redirect
 		let oidc_session = oidc_authorize.unwrap().generate_code(&db, user.email.as_str()).await?;
-		let redirect_url = oidc_session.get_redirect_url();
+		let redirect_url = oidc_session.get_redirect_url().unwrap();
 		info!("Redirecting to client {}", &oidc_session.request.client_id);
 		Ok(HttpResponse::Found()
 			.append_header(("Location", redirect_url.as_str()))
@@ -271,11 +270,14 @@ async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(http_client.clone()))
 
 			// Auth routes
-			.service(index)
-			.service(login_get)
-			.service(login_post)
-			.service(login_magic_action)
-			.service(logout)
+			.service(
+				web::scope(&CONFIG.path_prefix)
+				.service(index)
+				.service(login_get)
+				.service(login_post)
+				.service(login_magic_action)
+				.service(logout)
+			)
 
 			// Middleware
 			.wrap(Logger::default())
@@ -290,17 +292,24 @@ async fn main() -> std::io::Result<()> {
 					actix_session::config::PersistentSession::default()
 						.session_ttl(actix_web::cookie::time::Duration::try_from(CONFIG.session_duration.to_std().unwrap()).unwrap())
 				)
-				.build());
+				.build()
+			);
 
 		// OIDC routes
 		if CONFIG.oidc_enable {
 			app.app_data(web::Data::new(oidc_key.clone()))
-				.service(oidc::configuration)
-				.service(oidc::authorize_get)
-				.service(oidc::authorize_post)
-				.service(oidc::token)
-				.service(oidc::jwks)
-				.service(oidc::userinfo)
+				.service(
+					web::scope(&CONFIG.path_prefix)
+					.service(oidc::configuration)
+				)
+				.service(
+					web::scope(format!("{}oidc", CONFIG.path_prefix).as_str())
+					.service(oidc::authorize_get)
+					.service(oidc::authorize_post)
+					.service(oidc::token)
+					.service(oidc::jwks)
+					.service(oidc::userinfo)
+				)
 		} else {
 			app
 		}
@@ -435,7 +444,7 @@ mod tests {
 			.await
 			.unwrap();
 
-		// TODO: Something's wrong with the cookie
+		// TODO: Use actix-session, not plain cookie
 		// let req = actix_test::TestRequest::get()
 		// 	.uri("/")
 		// 	.cookie(Cookie::new("session", "valid_session_id"))

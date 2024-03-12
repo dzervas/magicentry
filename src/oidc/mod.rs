@@ -30,7 +30,8 @@ pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 
 #[get("/.well-known/openid-configuration")]
 pub async fn configuration(req: HttpRequest) -> impl Responder {
-	let discovery = Discovery::new(&CONFIG.url_from_request(&req));
+	let base_url = CONFIG.url_from_request(&req);
+	let discovery = Discovery::new(&base_url);
 	HttpResponse::Ok().json(discovery)
 }
 
@@ -50,8 +51,7 @@ async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeR
 	let oidc_session = data.generate_code(&db, user.email.as_str()).await?;
 
 	// TODO: Check the state with the cookie for CSRF
-	// XXX: Open redirect
-	let redirect_url = oidc_session.get_redirect_url();
+	let redirect_url = oidc_session.get_redirect_url().unwrap();
 	Ok(HttpResponse::Found()
 		.append_header(("Location", redirect_url.as_str()))
 		.finish())

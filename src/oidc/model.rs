@@ -1,4 +1,5 @@
 use chrono::{NaiveDateTime, Utc};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{query, query_as, SqlitePool};
@@ -68,11 +69,13 @@ impl OIDCSession {
 				return Ok(None);
 			}
 
+			let redirect_url = urlencoding::decode(&record.request.redirect_uri).unwrap().to_string();
+
 			let config_client = CONFIG.oidc_clients
 				.iter()
 				.find(|c|
 					c.id == record.request.client_id &&
-					c.redirect_uris.contains(&record.request.redirect_uri));
+					c.redirect_uris.contains(&redirect_url));
 
 			if let Some(client) = config_client {
 				return Ok(Some((client.clone(), record.clone())));
@@ -82,9 +85,24 @@ impl OIDCSession {
 		Ok(None)
 	}
 
-	pub fn get_redirect_url(&self) -> String {
-		let redirect_url = urlencoding::decode(&self.request.redirect_uri).unwrap();
-		format!("{}?code={}&state={}", redirect_url, self.code, self.request.state.clone().unwrap_or_default())
+	pub fn get_redirect_url(&self) -> Option<String> {
+		let redirect_url = urlencoding::decode(&self.request.redirect_uri).unwrap().to_string();
+
+		let config_client = CONFIG.oidc_clients
+			.iter()
+			.find(|c|
+				c.id == self.request.client_id &&
+				c.redirect_uris.contains(&redirect_url));
+
+		if config_client.is_none() {
+			warn!("Invalid redirect_uri: {} for client_id: {}", redirect_url, self.request.client_id);
+			return None;
+		}
+
+		Some(format!("{}?code={}&state={}",
+			redirect_url,
+			self.code,
+			self.request.state.clone().unwrap_or_default()))
 	}
 }
 

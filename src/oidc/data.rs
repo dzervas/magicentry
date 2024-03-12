@@ -1,4 +1,5 @@
 use chrono::Utc;
+use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::SqlitePool;
@@ -8,43 +9,50 @@ use crate::user::Result;
 
 use super::model::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct Discovery {
-	pub issuer: String,
+fn serialize_vec_with_space<S: Serializer>(vec: &Vec<&str>, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+	serializer.serialize_str(&vec.join(" "))
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct Discovery<'a> {
+	pub issuer: &'a str,
+
+	// These are String because they get constructed with format!
 	pub authorization_endpoint: String,
 	pub token_endpoint: String,
 	pub userinfo_endpoint: String,
 	pub jwks_uri: String,
 
-	pub scopes_supported: Vec<String>,
-	pub response_types_supported: Vec<String>,
-	pub subject_types_supported: Vec<String>,
-	pub id_token_signing_alg_values_supported: Vec<String>,
-	pub userinfo_signing_alg_values_supported: Vec<String>,
-	// pub token_endpoint_auth_methods_supported: Vec<String>,
-	pub claims_supported: Vec<String>,
+	#[serde(serialize_with = "serialize_vec_with_space")]
+	pub scopes_supported: Vec<&'a str>,
+	pub response_types_supported: Vec<&'a str>,
+	pub id_token_signing_alg_values_supported: Vec<&'a str>,
+	pub userinfo_signing_alg_values_supported: Vec<&'a str>,
+	// pub token_endpoint_auth_methods_supported: Vec<&'a str>,
+	pub claims_supported: Vec<&'a str>,
+
+	pub subject_types_supported: Vec<&'a str>,
 }
 
-impl Discovery {
-	pub fn new(base: &str) -> Self {
+impl<'a> Discovery<'a> {
+	pub fn new(base: &'a str) -> Self {
 		Discovery {
-			issuer: base.to_string(),
-			authorization_endpoint: format!("{}authorize", base).to_string(),
-			// authorization_endpoint: "http://localhost:8080/authorize".to_string(),
-			token_endpoint: format!("{}token", base).to_string(),
-			userinfo_endpoint: format!("{}userinfo", base).to_string(),
-			jwks_uri: format!("{}jwks", base).to_string(),
+			issuer: base,
 
-			scopes_supported: vec!["openid".to_string()],
-			response_types_supported: vec!["code".to_string(), "id_token".to_string(), "id_token token".to_string()],
-			id_token_signing_alg_values_supported: vec!["RS256".to_string()],
-			userinfo_signing_alg_values_supported: vec!["none".to_string()],
+			authorization_endpoint: format!("{}oidc/authorize", base),
+			token_endpoint: format!("{}oidc/token", base),
+			userinfo_endpoint: format!("{}oidc/userinfo", base),
+			jwks_uri: format!("{}oidc/jwks", base),
 
-			// TODO: What are these?
-			claims_supported: vec!["sub".to_string()],
+			scopes_supported: vec!["openid", "profile", "email"],
+			response_types_supported: vec!["code", "id_token", "id_token token"],
+			id_token_signing_alg_values_supported: vec!["RS256"],
+			userinfo_signing_alg_values_supported: vec!["none"],
+			claims_supported: vec!["sub", "email", "preferred_username", "name"],
 
-			// TODO: Why only public? is pairwise a pain?
-			subject_types_supported: vec!["public".to_string()],
+			// Pairwise would require a different username per client, too much hassle
+			subject_types_supported: vec!["public"],
 		}
 	}
 }
