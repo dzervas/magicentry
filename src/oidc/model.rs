@@ -7,6 +7,14 @@ use crate::CONFIG;
 use crate::oidc::AuthorizeRequest;
 use crate::user::{random_string, Result, User};
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct OIDCClient {
+	pub id: String,
+	pub secret: String,
+	pub redirect_uri: String,
+	pub realms: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
 pub struct OIDCSession {
 	pub code: String,
@@ -42,7 +50,7 @@ impl OIDCSession {
 		})
 	}
 
-	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Option<OIDCSession>> {
+	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Option<(OIDCClient, OIDCSession)>> {
 		println!("Looking for code: {}", code);
 
 		// We need the non-macro query_as to support struct flattening
@@ -59,9 +67,19 @@ impl OIDCSession {
 			if record.expires_at <= Utc::now().naive_utc() {
 				return Ok(None);
 			}
+
+			let config_client = CONFIG.oidc_clients
+				.iter()
+				.find(|c|
+					c.id == record.request.client_id &&
+					c.redirect_uri == record.request.redirect_uri);
+
+			if let Some(client) = config_client {
+				return Ok(Some((client.clone(), record.clone())));
+			}
 		}
 
-		Ok(session)
+		Ok(None)
 	}
 
 	pub fn get_redirect_url(&self) -> String {

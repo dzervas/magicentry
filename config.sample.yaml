@@ -23,8 +23,7 @@ oidc_code_duration: 1m
 oidc_clients:
   - id: client
     secret: secret
-    redirect_uris:
-      - http://localhost:8080/oidc/callback
+    redirect_uri: http://localhost:8080/oidc/callback
     realms:
       - example
 

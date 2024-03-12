@@ -71,14 +71,20 @@ pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: w
 
 #[post("/token")]
 pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
-	let session = if let Some(session) = OIDCSession::from_code(&db, &data.code).await? {
-		session
+	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &data.code).await? {
+		client_session
 	} else {
 		return Ok(HttpResponse::BadRequest().finish());
 	};
 	println!("Token Request: {:?}", data);
 
-	// XXX: Check client secret
+	if
+		&client.id != data.client_id.as_ref().unwrap_or(&String::default()) ||
+		&client.redirect_uri != data.redirect_uri.as_ref().unwrap_or(&String::default()) ||
+		&client.secret != data.client_secret.as_ref().unwrap_or(&String::default()) {
+		return Ok(HttpResponse::BadRequest().finish());
+	}
+
 	let jwt_data = JWTData {
 		user: session.email.clone(),
 		client_id: session.request.client_id.clone(),
