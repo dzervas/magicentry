@@ -59,17 +59,17 @@ async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeR
 	// Or send to ?error=<error>&error_description=<error_description>&state=<state>
 }
 
-#[get("/authorize")]
+#[get("/oidc/authorize")]
 pub async fn authorize_get(session: Session, db: web::Data<SqlitePool>, data: web::Query<AuthorizeRequest>) -> impl Responder {
 	authorize(session, db, data.into_inner()).await
 }
 
-#[post("/authorize")]
+#[post("/oidc/authorize")]
 pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: web::Form<AuthorizeRequest>) -> impl Responder {
 	authorize(session, db, data.into_inner()).await
 }
 
-#[post("/token")]
+#[post("/oidc/token")]
 pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
 	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &data.code).await? {
 		client_session
@@ -108,7 +108,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 	// Or send to ?error=<error>&error_description=<error_description>
 }
 
-#[get("/jwks")]
+#[get("/oidc/jwks")]
 pub async fn jwks(key: web::Data<RS256KeyPair>) -> impl Responder {
 	let comp = key.as_ref().public_key().to_components();
 
@@ -125,7 +125,7 @@ pub async fn jwks(key: web::Data<RS256KeyPair>) -> impl Responder {
 	HttpResponse::Ok().json(resp)
 }
 
-#[get("/userinfo")]
+#[get("/oidc/userinfo")]
 pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Responder {
 	let auth_header = req.headers().get("Authorization").unwrap();
 	let auth_header_parts = auth_header.to_str().unwrap().split_whitespace().collect::<Vec<&str>>();
@@ -153,5 +153,107 @@ pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Respo
 		HttpResponse::Ok().json(resp)
 	} else {
 		HttpResponse::Unauthorized().finish()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::tests::*;
+
+	use actix_session::storage::CookieSessionStore;
+	use actix_session::SessionMiddleware;
+	use actix_web::cookie::Cookie;
+	use actix_web::cookie::Key;
+	use actix_web::cookie::SameSite;
+	use actix_web::App;
+	use actix_web::test as actix_test;
+	use actix_web::http::StatusCode;
+	use chrono::Utc;
+	use sqlx::query;
+
+	#[actix_web::test]
+	async fn test_oidc() {
+		let db = &db_connect().await;
+		let secret = Key::generate();
+
+		let mut app = actix_test::init_service(
+			App::new()
+				.app_data(web::Data::new(db.clone()))
+				.service(crate::login_magic_action)
+				.service(configuration)
+				.service(authorize_get)
+				.service(authorize_post)
+				.service(token)
+				.service(jwks)
+				.service(userinfo)
+				.wrap(
+					SessionMiddleware::builder(
+						CookieSessionStore::default(),
+						secret
+					)
+					.cookie_same_site(SameSite::Strict)
+					.build())
+		)
+		.await;
+
+		let client_id = "my_client";
+		let client_secret = "my_secret";
+		let redirect_url = "https://openidconnect.net/callback";
+		let redirect = urlencoding::encode(redirect_url);
+		let state = "my_awesome_state";
+
+		let req = actix_test::TestRequest::get()
+			.uri(format!(
+				"/oidc/authorize?client_id={}&redirect_uri={}&scope=openid%20profile%20email%20phone%20address&response_type=code&state={}",
+				client_id,
+				redirect,
+				state
+			).as_str())
+			.to_request();
+
+		let resp = actix_test::call_service(&mut app, req).await;
+
+		assert_eq!(resp.status(), StatusCode::FOUND);
+
+		// Unauthenticated user should be redirected to login
+		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
+		assert!(target.starts_with("/login"));
+
+		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
+		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(magic) DO UPDATE SET expires_at = ?",
+				"oidc_valid_magic_link",
+				"valid@example.com",
+				expiry,
+				expiry,
+			)
+			.execute(db)
+			.await
+			.unwrap();
+
+		let req = actix_test::TestRequest::get().uri("/login/oidc_valid_magic_link").to_request();
+		let resp = actix_test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/");
+
+		let headers = resp.headers().clone();
+		let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
+		let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
+
+		let req = actix_test::TestRequest::get()
+			.uri(format!(
+				"/oidc/authorize?client_id={}&redirect_uri={}&scope=openid%20profile%20email%20phone%20address&response_type=code&state={}",
+				client_id,
+				redirect,
+				state
+			).as_str())
+			.cookie(parsed_cookie.clone())
+			.to_request();
+		let resp = actix_test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert!(resp.headers().get("Location").unwrap().to_str().unwrap().starts_with(redirect_url));
+
+		// TODO: Send to /token with the code and client_id and client_secret
+		// TODO: Send token to /userinfo
 	}
 }

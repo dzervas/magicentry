@@ -107,7 +107,7 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 
 	let link = UserLink::new(&db, user.email.clone()).await?;
 	let base_url = CONFIG.url_from_request(&req);
-	let magic_link = format!("{}login/{}", base_url, link.magic);
+	let magic_link = format!("{}/login/{}", base_url, link.magic);
 	let name = &user.name.unwrap_or_default();
 	let username = &user.username.unwrap_or_default();
 
@@ -270,14 +270,11 @@ async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(http_client.clone()))
 
 			// Auth routes
-			.service(
-				web::scope(&CONFIG.path_prefix)
-				.service(index)
-				.service(login_get)
-				.service(login_post)
-				.service(login_magic_action)
-				.service(logout)
-			)
+			.service(index)
+			.service(login_get)
+			.service(login_post)
+			.service(login_magic_action)
+			.service(logout)
 
 			// Middleware
 			.wrap(Logger::default())
@@ -292,24 +289,17 @@ async fn main() -> std::io::Result<()> {
 					actix_session::config::PersistentSession::default()
 						.session_ttl(actix_web::cookie::time::Duration::try_from(CONFIG.session_duration.to_std().unwrap()).unwrap())
 				)
-				.build()
-			);
+				.build());
 
 		// OIDC routes
 		if CONFIG.oidc_enable {
 			app.app_data(web::Data::new(oidc_key.clone()))
-				.service(
-					web::scope(&CONFIG.path_prefix)
-					.service(oidc::configuration)
-				)
-				.service(
-					web::scope(format!("{}oidc", CONFIG.path_prefix).as_str())
-					.service(oidc::authorize_get)
-					.service(oidc::authorize_post)
-					.service(oidc::token)
-					.service(oidc::jwks)
-					.service(oidc::userinfo)
-				)
+				.service(oidc::configuration)
+				.service(oidc::authorize_get)
+				.service(oidc::authorize_post)
+				.service(oidc::token)
+				.service(oidc::jwks)
+				.service(oidc::userinfo)
 		} else {
 			app
 		}
@@ -321,6 +311,8 @@ async fn main() -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+	use std::collections::HashMap;
+
 	use super::*;
 
 	use actix_web::cookie::Cookie;
@@ -331,6 +323,21 @@ mod tests {
 
 	pub async fn db_connect() -> SqlitePool {
 		SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create pool.")
+	}
+
+	pub fn get_valid_user() -> User {
+		let user_email = "valid@example.com";
+		let user_realms = vec!["example".to_string()];
+		let user = CONFIG
+			.users
+			.iter()
+			.find_map(|u| if u.email == user_email { Some(u.clone()) } else { None })
+			.unwrap();
+
+		assert_eq!(user.email, user_email);
+		assert_eq!(user.realms, user_realms);
+
+		user
 	}
 
 	#[actix_web::test]
@@ -418,24 +425,34 @@ mod tests {
 	#[actix_web::test]
 	async fn test_index() {
 		let db = &db_connect().await;
-		let secret = Key::generate();
+		let mut session_map = HashMap::new();
+		let secret = Key::from(&[0; 64]);
+		session_map.insert("session".to_string(), "valid_session_id".to_string());
+
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(index)
+				.service(login_magic_action)
 				.wrap(
 					SessionMiddleware::builder(
 						CookieSessionStore::default(),
 						secret
 					)
+					.cookie_secure(false)
 					.cookie_same_site(SameSite::Strict)
 					.build())
 		)
 		.await;
 
+		let req = actix_test::TestRequest::get().uri("/").to_request();
+		let resp = actix_test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
+
 		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
-		query!("INSERT INTO sessions (session_id, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(session_id) DO UPDATE SET expires_at = ?",
-				"valid_session_id",
+		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(magic) DO UPDATE SET expires_at = ?",
+				"valid_magic_link",
 				"valid@example.com",
 				expiry,
 				expiry,
@@ -444,25 +461,25 @@ mod tests {
 			.await
 			.unwrap();
 
+		let req = actix_test::TestRequest::get().uri("/login/valid_magic_link").to_request();
+		let resp = actix_test::call_service(&mut app, req).await;
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/");
+
+		let headers = resp.headers().clone();
+		let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
+		let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
+
 		// TODO: Use actix-session, not plain cookie
-		// let req = actix_test::TestRequest::get()
-		// 	.uri("/")
-		// 	.cookie(Cookie::new("session", "valid_session_id"))
-		// 	.to_request();
-
-		// let resp = actix_test::call_service(&mut app, req).await;
-		// assert_eq!(resp.status(), StatusCode::OK);
-		// assert_eq!(resp.headers().get(AUTHORIZATION_ALIAS_HEADER.as_str()).unwrap(), "valid");
-		// assert_eq!(resp.headers().get(AUTHORIZATION_EMAIL_HEADER.as_str()).unwrap(), "valid@example.com");
-
 		let req = actix_test::TestRequest::get()
 			.uri("/")
-			.cookie(Cookie::new("session", "invalid_session_id"))
+			.cookie(parsed_cookie)
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::FOUND);
-		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
+		assert_eq!(resp.status(), StatusCode::OK);
+		assert_eq!(resp.headers().get(CONFIG.auth_url_user_header.as_str()).unwrap(), "valid");
+		assert_eq!(resp.headers().get(CONFIG.auth_url_email_header.as_str()).unwrap(), "valid@example.com");
 
 		let req = actix_test::TestRequest::get()
 			.uri("/")

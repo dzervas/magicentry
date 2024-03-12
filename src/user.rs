@@ -202,21 +202,6 @@ mod tests {
 	use crate::tests::*;
 	use chrono::Utc;
 
-	fn get_valid_user() -> User {
-		let user_email = "valid@example.com";
-		let user_realms = vec!["example".to_string()];
-		let user = CONFIG
-			.users
-			.iter()
-			.find_map(|u| if u.email == user_email { Some(u.clone()) } else { None })
-			.unwrap();
-
-		assert_eq!(user.email, user_email);
-		assert_eq!(user.realms, user_realms);
-
-		user
-	}
-
 	#[actix_web::test]
 	async fn test_user() {
 		let user = get_valid_user();

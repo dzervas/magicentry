@@ -2,9 +2,9 @@
 # To create a new config, just set the `users` and any other settings you want to change
 database_url: sqlite://database.sqlite3
 
-listen_host: "0.0.0.0"
+listen_host: 0.0.0.0
 listen_port: 8080
-path_prefix: /
+path_prefix:
 hostname: localhost
 
 link_duration: 1h
@@ -21,10 +21,10 @@ auth_url_realm_header: Remote-Group
 oidc_enable: true
 oidc_code_duration: 1m
 oidc_clients:
-  - id: client
-    secret: secret
+  - id: my_client
+    secret: my_secret
     redirect_uris:
-      - http://localhost:8080/oidc/callback
+      - https://openidconnect.net/callback
     realms:
       - example
 
