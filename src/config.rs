@@ -20,6 +20,7 @@ pub struct ConfigFile {
 	pub session_duration: Duration,
 
 	pub title: String,
+	pub static_path: String,
 
 	pub auth_url_enable: bool,
 	pub auth_url_user_header: String,
@@ -34,6 +35,8 @@ pub struct ConfigFile {
 	pub smtp_enable: bool,
 	pub smtp_url: String,
 	pub smtp_from: String,
+	pub smtp_subject: String,
+	pub smtp_body: String,
 
 	pub request_enable: bool,
 	pub request_url: String,
@@ -57,6 +60,7 @@ impl Default for ConfigFile {
 			session_duration: Duration::try_days(30).unwrap(),
 
 			title: "Just Passwordless".to_string(),
+			static_path: "static".to_string(),
 
 			auth_url_enable      : true,
 			auth_url_user_header : "Remote-User".to_string(),
@@ -68,9 +72,11 @@ impl Default for ConfigFile {
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),
 			// oidc_clients      : vec![],
 
-			smtp_enable: false,
-			smtp_url   : "smtp://localhost:25".to_string(),
-			smtp_from  : "Just Passwordless <just-passwordless@example.com>".to_string(),
+			smtp_enable : false,
+			smtp_url    : "smtp://localhost:25".to_string(),
+			smtp_from   : "Just Passwordless <just-passwordless@example.com>".to_string(),
+			smtp_subject: "Just Passwordless Login".to_string(),
+			smtp_body   : "Click the link to login: {link}".to_string(),
 
 			request_enable: false,
 			request_url   : "https://www.cinotify.cc/api/notify".to_string(),

@@ -1,9 +1,8 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{get, post, web, App, HttpRequest, HttpResponse, Result as AwResult};
+use actix_web::{get, post, web, App, HttpRequest, HttpResponse, Responder};
 use actix_web::cookie::{Key, SameSite};
 use config::ConfigFile;
-use maud::{html, Markup};
 use lettre::AsyncTransport;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::SqlitePool;
@@ -19,7 +18,6 @@ use std::borrow::Cow;
 pub mod config;
 pub mod error;
 pub mod oidc;
-pub mod partials;
 pub mod user;
 
 use user::{User, UserLink, UserSession};
@@ -42,6 +40,7 @@ lazy_static! {
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
+	static ref LOGIN_PAGE_HTML: String = std::fs::read_to_string(format!("{}/login.html", &CONFIG.static_path)).unwrap();
 }
 
 type Response = std::result::Result<HttpResponse, crate::error::Error>;
@@ -63,24 +62,28 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 	};
 
 	Ok(HttpResponse::Ok()
-		// TODO: Add realm & name headers
+		// TODO: Add realm
 		.append_header((CONFIG.auth_url_user_header.as_str(), alias.clone()))
 		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
+		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
+		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
 		.body(alias))
 }
 
 #[get("/login")]
-async fn login_get() -> AwResult<Markup> {
-	Ok(html! {
-		head {
-			(partials::header(CONFIG.title.as_str()));
-		}
-		body {
-			(partials::login_form());
-			// (partials::footer());
-		}
-	})
+async fn login_get() -> impl Responder {
+	// TODO: Add realm
+	let login_page = formatx!(
+		LOGIN_PAGE_HTML.as_str(),
+		title = &CONFIG.title,
+		realm = "default",
+		path_prefix = &CONFIG.path_prefix
+	)
+	.unwrap();
 
+	HttpResponse::Ok()
+		.content_type("text/html; charset=utf-8")
+		.body(login_page)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -103,28 +106,52 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 	};
 
 	let link = UserLink::new(&db, user.email.clone()).await?;
-	#[cfg(debug_assertions)]
-	println!("Link: http://{}:{}/login/{} {:?}", CONFIG.listen_host, CONFIG.listen_port, link.magic, link);
-
 	let base_url = CONFIG.url_from_request(&req);
+	let magic_link = format!("{}/login/{}", base_url, link.magic);
+	let name = &user.name.unwrap_or_default();
+	let username = &user.username.unwrap_or_default();
+
+	#[cfg(debug_assertions)]
+	println!("Link: {} {:?}", &magic_link, link);
+
 	if let Some(mailer) = mailer.as_ref() {
 		let email = lettre::Message::builder()
 			.from(CONFIG.smtp_from.parse().unwrap())
 			.to(user.email.parse().unwrap())
-			.subject("Login to realm")
-			.body(format!("Click the link to login: {}/login/{}", base_url, link.magic))
+			.subject(formatx!(&CONFIG.smtp_subject, title = &CONFIG.title).unwrap())
+			.body(formatx!(
+				&CONFIG.smtp_body,
+				link = &magic_link,
+				name = name,
+				username = username
+			).unwrap())
 			.unwrap();
 
 		info!("Sending email to {}", &user.email);
 		mailer.send(email).await.unwrap();
 	}
+
 	if let Some(client) = http_client.as_ref() {
 		let method = reqwest::Method::from_bytes(CONFIG.request_method.as_bytes()).unwrap();
-		let url = formatx!(&CONFIG.request_url, base_url = base_url, magic = link.magic.clone(), email = link.email.clone()).unwrap();
+		let url = formatx!(
+			&CONFIG.request_url,
+			title = &CONFIG.title,
+			link = &magic_link,
+			email = &link.email,
+			name = name,
+			username = username
+		).unwrap();
 		let mut req = client.request(method, url);
 
 		if let Some(data) = &CONFIG.request_data {
-			let body = formatx!(data.as_str(), magic = link.magic, email = link.email).unwrap();
+			let body = formatx!(
+				data.as_str(),
+				title = &CONFIG.title,
+				link = &magic_link,
+				email = &link.email,
+				name = name,
+				username = username
+			).unwrap();
 			req = req.body(body);
 		}
 
