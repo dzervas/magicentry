@@ -80,8 +80,8 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 
 	if
 		&client.id != data.client_id.as_ref().unwrap_or(&String::default()) ||
-		&client.redirect_uri != data.redirect_uri.as_ref().unwrap_or(&String::default()) ||
-		&client.secret != data.client_secret.as_ref().unwrap_or(&String::default()) {
+		&client.secret != data.client_secret.as_ref().unwrap_or(&String::default()) ||
+		!client.redirect_uris.contains(data.redirect_uri.as_ref().unwrap_or(&String::default())) {
 		return Ok(HttpResponse::BadRequest().finish());
 	}
 

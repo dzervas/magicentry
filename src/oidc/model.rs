@@ -11,7 +11,7 @@ use crate::user::{random_string, Result, User};
 pub struct OIDCClient {
 	pub id: String,
 	pub secret: String,
-	pub redirect_uri: String,
+	pub redirect_uris: Vec<String>,
 	pub realms: Vec<String>,
 }
 
@@ -72,7 +72,7 @@ impl OIDCSession {
 				.iter()
 				.find(|c|
 					c.id == record.request.client_id &&
-					c.redirect_uri == record.request.redirect_uri);
+					c.redirect_uris.contains(&record.request.redirect_uri));
 
 			if let Some(client) = config_client {
 				return Ok(Some((client.clone(), record.clone())));
