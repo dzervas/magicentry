@@ -94,6 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: bump
     permissions:
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
@@ -142,6 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: bump
     permissions:
+      contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
