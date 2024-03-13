@@ -1,0 +1,10 @@
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authorized-keys
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+data:
+  {{ .Values.config | toYaml | nindent 2 }}

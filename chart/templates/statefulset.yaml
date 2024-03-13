@@ -1,0 +1,68 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: "{{ .Chart.Name }}-statefulset"
+  labels:
+    helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  serviceName: "{{ .Chart.Name }}-service"
+  minReadySeconds: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: "{{ .Chart.Name }}"
+  replicas: {{ .Values.replicaCount | default 1 }}
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      {{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: just-passwordless
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.Version }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        {{- if eq .Values.service.type "hostPort" }}
+          - containerPort: 2222
+            protocol: TCP
+            name: borg
+        {{- end }}
+        volumeMounts:
+        - name: database
+          mountPath: /database
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
+      volumes:
+      {{- if not .Values.persistence.enabled }}
+        - name: database
+          emptyDir: {}
+      {{- else }}
+  volumeClaimTemplates:
+  - metadata:
+      name: "{{ .Chart.Name }}-database"
+    spec:
+      accessModes:
+      {{- range .Values.persistence.accessModes }}
+        - {{ . | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.size | default "128Mi" }}
+      {{- if .Values.persistence.storageClass }}
+      storageClassName: {{ .Values.persistence.storageClass }}
+      {{- end }}
+      {{- end }}
