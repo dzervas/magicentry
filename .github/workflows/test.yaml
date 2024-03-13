@@ -15,17 +15,25 @@ jobs:
     strategy:
       matrix:
         target:
-          - aarch64-unknown-linux-gnu
+          # - aarch64-unknown-linux-gnu
           - x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Rust
-        run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+      - name: Install Rust toolchain
+        id: rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          target: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: just-passwordless
+          prefix-key: ${{ steps.rust.outputs.cachekey }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Test
         run: cargo test --release --target ${{ matrix.target }}
+        env:
+          DATABASE_URL: sqlite://database.sqlite3
