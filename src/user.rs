@@ -5,8 +5,7 @@ use rand::{RngCore, SeedableRng};
 use sqlx::{query, query_as, SqlitePool};
 
 use crate::{CONFIG, RANDOM_STRING_LEN};
-
-pub type Result<T> = std::result::Result<T, sqlx::Error>;
+use crate::error::SqlResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
@@ -17,7 +16,7 @@ pub struct User {
 }
 
 impl User {
-	pub async fn from_session(db: &SqlitePool, session: actix_session::Session) -> Result<Option<User>> {
+	pub async fn from_session(db: &SqlitePool, session: actix_session::Session) -> SqlResult<Option<User>> {
 		if let Some(session_id) = session.get::<String>("session").unwrap_or(None) {
 			User::from_session_id(db, session_id.as_str()).await
 		} else {
@@ -25,7 +24,7 @@ impl User {
 		}
 	}
 
-	pub async fn from_session_id(db: &SqlitePool, session_id: &str) -> Result<Option<User>> {
+	pub async fn from_session_id(db: &SqlitePool, session_id: &str) -> SqlResult<Option<User>> {
 		let session = UserSession::from_id(db, session_id).await?;
 		if let Some(session) = session {
 			let user = User::from_config(&session.email);
@@ -60,7 +59,7 @@ pub struct UserSession {
 }
 
 impl UserSession {
-	pub async fn new(db: &SqlitePool, user: &User) -> Result<UserSession> {
+	pub async fn new(db: &SqlitePool, user: &User) -> SqlResult<UserSession> {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
 		let record = UserSession {
 			session_id: random_string(),
@@ -80,7 +79,7 @@ impl UserSession {
 		Ok(record)
 	}
 
-	pub async fn from_id(db: &SqlitePool, id: &str) -> Result<Option<UserSession>> {
+	pub async fn from_id(db: &SqlitePool, id: &str) -> SqlResult<Option<UserSession>> {
 		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", id)
 			.fetch_optional(db)
 			.await?;
@@ -98,7 +97,7 @@ impl UserSession {
 		}
 	}
 
-	pub async fn is_valid(&self, db: &SqlitePool) -> Result<bool> {
+	pub async fn is_valid(&self, db: &SqlitePool) -> SqlResult<bool> {
 		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", self.session_id)
 			.fetch_optional(db)
 			.await?;
@@ -112,7 +111,7 @@ impl UserSession {
 		Ok(!self.is_expired(db).await? && self == &session)
 	}
 
-	pub async fn is_expired(&self, db: &SqlitePool) -> Result<bool> {
+	pub async fn is_expired(&self, db: &SqlitePool) -> SqlResult<bool> {
 		if self.expires_at <= Utc::now().naive_utc() {
 			query!("DELETE FROM sessions WHERE session_id = ?", self.session_id)
 				.execute(db)
@@ -124,7 +123,7 @@ impl UserSession {
 		}
 	}
 
-	pub async fn delete_id(db: &SqlitePool, id: &str) -> Result<()>{
+	pub async fn delete_id(db: &SqlitePool, id: &str) -> SqlResult<()>{
 		query!("DELETE FROM sessions WHERE session_id = ?", id)
 			.execute(db)
 			.await?;
@@ -132,7 +131,7 @@ impl UserSession {
 		Ok(())
 	}
 
-	pub async fn delete(&self, db: &SqlitePool) -> Result<()> {
+	pub async fn delete(&self, db: &SqlitePool) -> SqlResult<()> {
 		UserSession::delete_id(db, &self.session_id).await
 	}
 }
@@ -145,7 +144,7 @@ pub struct UserLink {
 }
 
 impl UserLink {
-	pub async fn new(db: &SqlitePool, target: String) -> Result<UserLink> {
+	pub async fn new(db: &SqlitePool, target: String) -> SqlResult<UserLink> {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.link_duration.to_owned()).unwrap();
 		let record = UserLink {
 			magic: random_string(),
@@ -165,7 +164,7 @@ impl UserLink {
 		Ok(record)
 	}
 
-	pub async fn visit(db: &SqlitePool, target: String) -> Result<Option<User>> {
+	pub async fn visit(db: &SqlitePool, target: String) -> SqlResult<Option<User>> {
 		let session = if let Some(link) = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", target)
 			.fetch_optional(db)
 			.await? {

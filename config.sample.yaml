@@ -25,6 +25,7 @@ oidc_clients:
     secret: my_secret
     redirect_uris:
       - https://openidconnect.net/callback
+      - http://127.0.0.1:8081/auth/openid/callback
     realms:
       - example
 

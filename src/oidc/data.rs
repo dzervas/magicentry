@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::SqlitePool;
 
+use crate::error::Error;
 use crate::CONFIG;
-use crate::user::Result;
 
 use super::model::*;
 
@@ -67,7 +67,7 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_code(&self, db: &SqlitePool, email: &str) -> Result<OIDCSession> {
+	pub async fn generate_code(&self, db: &SqlitePool, email: &str) -> std::result::Result<OIDCSession, Error> {
 		OIDCSession::generate(db, email.to_string(), self.clone()).await
 	}
 }

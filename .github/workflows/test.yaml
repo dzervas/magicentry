@@ -36,4 +36,4 @@ jobs:
       - name: Test
         run: cargo test --release --target ${{ matrix.target }}
         env:
-          DATABASE_URL: sqlite://database.sqlite3
+          DATABASE_URL: sqlite://database.sqlite3?mode=rwc

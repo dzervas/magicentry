@@ -1,6 +1,6 @@
 use actix_session::Session;
 use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
-use log::info;
+use log::{info, warn};
 use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
@@ -52,7 +52,7 @@ async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeR
 	let oidc_session = data.generate_code(&db, user.email.as_str()).await?;
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = oidc_session.get_redirect_url().unwrap();
+	let redirect_url = oidc_session.get_redirect_url().ok_or(ErrorKind::IncorrectRedirectUrl)?;
 	Ok(HttpResponse::Found()
 		.append_header(("Location", redirect_url.as_str()))
 		.finish())
@@ -75,12 +75,25 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &data.code).await? {
 		client_session
 	} else {
+		#[cfg(debug_assertions)]
+		info!("Someone tried to get a token with an invalid invalid OIDC code: {}", data.code);
+		#[cfg(not(debug_assertions))]
+		info!("Someone tried to get a token with an invalid invalid OIDC code");
+
 		return Ok(HttpResponse::BadRequest().finish());
 	};
 
+	let req_client_id = data.client_id.as_ref().ok_or(ErrorKind::NoClientID)?;
+	let req_client_secret = data.client_secret.as_ref().ok_or(ErrorKind::NoClientSecret)?;
+
 	if
-		&client.id != data.client_id.as_ref().unwrap_or(&String::default()) ||
-		&client.secret != data.client_secret.as_ref().unwrap_or(&String::default()) {
+		&client.id != req_client_id ||
+		&client.secret != req_client_secret {
+		#[cfg(debug_assertions)]
+		warn!("Incorrect Client ID ({}) or Secret ({}) for OIDC code: {}", req_client_id, req_client_secret, data.code);
+		#[cfg(not(debug_assertions))]
+		warn!("Incorrect Client ID or Secret for OIDC code");
+
 		return Ok(HttpResponse::BadRequest().finish());
 	}
 
@@ -91,7 +104,6 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 	};
 	println!("JWT Data: {:?}", jwt_data);
 
-	// NOTE: We can crash here
 	let claims = Claims::with_custom_claims(
 		jwt_data,
 		Duration::from_millis(
@@ -111,6 +123,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 		refresh_token: None,
 	}))
 	// Either send to ?access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
+	// TODO: Send error response
 	// Or send to ?error=<error>&error_description=<error_description>
 }
 
@@ -133,6 +146,7 @@ pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response {
 
 #[get("/oidc/userinfo")]
 pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> Response {
+	println!("Userinfo Request: {:?}", req);
 	let auth_header = req.headers().get("Authorization").ok_or(ErrorKind::MissingAuthorizationHeader)?;
 	let auth_header_parts = auth_header
 		.to_str()

@@ -4,9 +4,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{query, query_as, SqlitePool};
 
+use crate::error::{Error, ErrorKind};
 use crate::CONFIG;
 use crate::oidc::AuthorizeRequest;
-use crate::user::{random_string, Result, User};
+use crate::user::{random_string, User};
+use crate::error::SqlResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OIDCClient {
@@ -26,7 +28,15 @@ pub struct OIDCSession {
 }
 
 impl OIDCSession {
-	pub async fn generate(db: &SqlitePool, email: String, request: AuthorizeRequest) -> Result<OIDCSession> {
+	pub async fn generate(db: &SqlitePool, email: String, request: AuthorizeRequest) -> std::result::Result<OIDCSession, Error> {
+		let config_client = CONFIG.oidc_clients
+			.iter()
+			.find(|c| c.id == request.client_id);
+
+		if config_client.is_none() {
+			return Err(ErrorKind::InvalidClientID.into());
+		}
+
 		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.oidc_code_duration).unwrap();
 		let code = random_string();
 		query!(
@@ -51,7 +61,7 @@ impl OIDCSession {
 		})
 	}
 
-	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Option<(OIDCClient, OIDCSession)>> {
+	pub async fn from_code(db: &SqlitePool, code: &str) -> SqlResult<Option<(OIDCClient, OIDCSession)>> {
 		println!("Looking for code: {}", code);
 
 		// We need the non-macro query_as to support struct flattening
@@ -114,7 +124,7 @@ pub struct OIDCAuth {
 }
 
 impl OIDCAuth {
-	pub async fn generate(db: &SqlitePool, email: String) -> Result<OIDCAuth> {
+	pub async fn generate(db: &SqlitePool, email: String) -> SqlResult<OIDCAuth> {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
 		let auth = random_string();
 		query!(
@@ -133,7 +143,7 @@ impl OIDCAuth {
 		})
 	}
 
-	pub async fn get_user(db: &SqlitePool, auth: &str) -> Result<Option<User>> {
+	pub async fn get_user(db: &SqlitePool, auth: &str) -> SqlResult<Option<User>> {
 		let auth_res = query_as!(OIDCAuth, "SELECT * FROM oidc_auth WHERE auth = ?", auth)
 			.fetch_optional(db)
 			.await?;

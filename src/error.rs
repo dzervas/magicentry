@@ -2,6 +2,8 @@ use actix_web::http::header::ContentType;
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error};
 
+pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
+
 #[derive(Debug, Display, Error, Clone)]
 pub enum ErrorKind {
 	#[display(fmt = "Missing Authorization header")]
@@ -10,6 +12,14 @@ pub enum ErrorKind {
 	CouldNotParseAuthorizationHeader,
 	#[display(fmt = "The Duration provided is incorrect or too big (max i64)")]
 	InvalidDuration,
+	#[display(fmt = "Client sent a redirect URL different from the one in the config")]
+	IncorrectRedirectUrl,
+	#[display(fmt = "Client sent a client_id that is not in the config")]
+	InvalidClientID,
+	#[display(fmt = "Client did not send a client_id")]
+	NoClientID,
+	#[display(fmt = "Client did not send a client_secret")]
+	NoClientSecret,
 }
 
 #[derive(Debug, Display, Error, Clone)]
