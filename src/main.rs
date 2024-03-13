@@ -172,7 +172,6 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 
 	let user_session = UserSession::new(&db, &user).await?;
 	info!("User {} logged in", &user.email);
-	println!("User Session: {:?}", session.entries());
 	session.insert("session", user_session.session_id).unwrap();
 
 	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
