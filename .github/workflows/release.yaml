@@ -117,7 +117,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io:${{ github.actor }}/just-passwordless
+          images: ghcr.io/${{ github.actor }}/just-passwordless
           tags: |
             # On a pull request, tag the image with the PR ID e.g. pr-123
             type=ref,event=pr

@@ -1,5 +1,5 @@
 apiVersion: v2
-name: just-passwordless
+name: just-passwordless-chart
 description: Authentication proxy for self hosted services
 
 type: application
