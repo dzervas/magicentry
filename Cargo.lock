@@ -1398,6 +1398,7 @@ dependencies = [
  "actix-session",
  "actix-web",
  "chrono",
+ "derive_more",
  "duration-str",
  "env_logger",
  "formatx",

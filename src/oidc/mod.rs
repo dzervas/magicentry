@@ -4,6 +4,7 @@ use log::info;
 use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
+use crate::error::ErrorKind;
 use crate::user::User;
 use crate::{Response, CONFIG};
 
@@ -15,13 +16,13 @@ use data::*;
 
 pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 	if let Some(keypair) = crate::config::ConfigKV::get(&db, "jwt_keypair").await {
-		RS256KeyPair::from_pem(&keypair).unwrap()
+		RS256KeyPair::from_pem(&keypair).expect("Failed to load JWT keypair from database")
 	} else {
 		log::warn!("Generating JWT keypair for RSA 4096. This is going to take some time...");
-		let keypair = RS256KeyPair::generate(4096).unwrap();
-		let keypair_pem = keypair.to_pem().unwrap();
+		let keypair = RS256KeyPair::generate(4096).expect("Failed to generate RSA 4096 keypair");
+		let keypair_pem = keypair.to_pem().expect("Failed to convert keypair to PEM - that's super weird");
 
-		crate::config::ConfigKV::set(&db, "jwt_keypair", &keypair_pem).await.unwrap_or_else(|_| panic!("Unable to set secret in the database"));
+		crate::config::ConfigKV::set(&db, "jwt_keypair", &keypair_pem).await.expect("Unable to set secret in the database");
 
 		keypair
 	}
@@ -42,7 +43,7 @@ async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeR
 	let user = if let Some(user) = User::from_session(&db, session).await? {
 		user
 	} else {
-		let target_url = format!("/login?{}", serde_qs::to_string(&data).unwrap());
+		let target_url = format!("/login?{}", serde_qs::to_string(&data)?);
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url))
 			.finish())
@@ -71,7 +72,7 @@ pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: w
 
 #[post("/oidc/token")]
 pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
-	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &data.code).await.unwrap() {
+	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &data.code).await? {
 		client_session
 	} else {
 		return Ok(HttpResponse::BadRequest().finish());
@@ -90,8 +91,15 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 	};
 	println!("JWT Data: {:?}", jwt_data);
 
-	let claims = Claims::with_custom_claims(jwt_data, Duration::from_millis(CONFIG.session_duration.num_milliseconds().try_into().unwrap()));
-	let id_token = key.as_ref().sign(claims).unwrap();
+	// NOTE: We can crash here
+	let claims = Claims::with_custom_claims(
+		jwt_data,
+		Duration::from_millis(
+			CONFIG.session_duration
+			.num_milliseconds()
+			.try_into()
+			.map_err(|_| ErrorKind::InvalidDuration)?));
+	let id_token = key.as_ref().sign(claims)?;
 
 	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
 
@@ -107,12 +115,12 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 }
 
 #[get("/oidc/jwks")]
-pub async fn jwks(key: web::Data<RS256KeyPair>) -> impl Responder {
+pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response {
 	let comp = key.as_ref().public_key().to_components();
 
 	let item = JWKSResponseItem {
-		modulus: Base64::encode_to_string(comp.n).unwrap(),
-		exponent: Base64::encode_to_string(comp.e).unwrap(),
+		modulus: Base64::encode_to_string(comp.n)?,
+		exponent: Base64::encode_to_string(comp.e)?,
 		..Default::default()
 	};
 
@@ -120,16 +128,20 @@ pub async fn jwks(key: web::Data<RS256KeyPair>) -> impl Responder {
 		keys: vec![item],
 	};
 
-	HttpResponse::Ok().json(resp)
+	Ok(HttpResponse::Ok().json(resp))
 }
 
 #[get("/oidc/userinfo")]
-pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Responder {
-	let auth_header = req.headers().get("Authorization").unwrap();
-	let auth_header_parts = auth_header.to_str().unwrap().split_whitespace().collect::<Vec<&str>>();
+pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> Response {
+	let auth_header = req.headers().get("Authorization").ok_or(ErrorKind::MissingAuthorizationHeader)?;
+	let auth_header_parts = auth_header
+		.to_str()
+		.map_err(|_| ErrorKind::CouldNotParseAuthorizationHeader)?
+		.split_whitespace()
+		.collect::<Vec<&str>>();
 
 	if auth_header_parts.len() != 2 || auth_header_parts[0] != "Bearer" {
-		return HttpResponse::BadRequest().finish()
+		return Ok(HttpResponse::BadRequest().finish())
 	}
 
 	let auth = auth_header_parts[1];
@@ -148,9 +160,9 @@ pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> impl Respo
 		};
 		println!("Userinfo Response: {:?}", resp);
 
-		HttpResponse::Ok().json(resp)
+		Ok(HttpResponse::Ok().json(resp))
 	} else {
-		HttpResponse::Unauthorized().finish()
+		Ok(HttpResponse::Unauthorized().finish())
 	}
 }
 

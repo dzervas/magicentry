@@ -1,6 +1,7 @@
 use actix_session::{Session, SessionMiddleware};
 use actix_session::storage::CookieSessionStore;
-use actix_web::{get, post, web, App, HttpRequest, HttpResponse, Responder};
+use actix_web::http::header::ContentType;
+use actix_web::{get, post, web, App, HttpRequest, HttpResponse};
 use actix_web::cookie::{Key, SameSite};
 use config::ConfigFile;
 use lettre::AsyncTransport;
@@ -40,7 +41,7 @@ lazy_static! {
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
-	static ref LOGIN_PAGE_HTML: String = std::fs::read_to_string(format!("{}/login.html", &CONFIG.static_path)).unwrap();
+	static ref LOGIN_PAGE_HTML: String = std::fs::read_to_string(format!("{}/login.html", &CONFIG.static_path)).expect(format!("Unable to open login page `{:?}/login.html`", &CONFIG.static_path).as_str());
 }
 
 type Response = std::result::Result<HttpResponse, crate::error::Error>;
@@ -71,19 +72,18 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 }
 
 #[get("/login")]
-async fn login_get() -> impl Responder {
+async fn login_get() -> Response {
 	// TODO: Add realm
 	let login_page = formatx!(
 		LOGIN_PAGE_HTML.as_str(),
 		title = &CONFIG.title,
 		realm = "default",
 		path_prefix = &CONFIG.path_prefix
-	)
-	.unwrap();
+	)?;
 
-	HttpResponse::Ok()
-		.content_type("text/html; charset=utf-8")
-		.body(login_page)
+	Ok(HttpResponse::Ok()
+		.content_type(ContentType::html())
+		.body(login_page))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -116,19 +116,18 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 
 	if let Some(mailer) = mailer.as_ref() {
 		let email = lettre::Message::builder()
-			.from(CONFIG.smtp_from.parse().unwrap())
-			.to(user.email.parse().unwrap())
-			.subject(formatx!(&CONFIG.smtp_subject, title = &CONFIG.title).unwrap())
+			.from(CONFIG.smtp_from.parse()?)
+			.to(user.email.parse()?)
+			.subject(formatx!(&CONFIG.smtp_subject, title = &CONFIG.title)?)
 			.body(formatx!(
 				&CONFIG.smtp_body,
 				link = &magic_link,
 				name = name,
 				username = username
-			).unwrap())
-			.unwrap();
+			)?)?;
 
 		info!("Sending email to {}", &user.email);
-		mailer.send(email).await.unwrap();
+		mailer.send(email).await?;
 	}
 
 	if let Some(client) = http_client.as_ref() {
@@ -140,7 +139,7 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 			email = &link.email,
 			name = name,
 			username = username
-		).unwrap();
+		)?;
 		let mut req = client.request(method, url);
 
 		if let Some(data) = &CONFIG.request_data {
@@ -151,12 +150,12 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 				email = &link.email,
 				name = name,
 				username = username
-			).unwrap();
+			)?;
 			req = req.body(body);
 		}
 
 		info!("Sending request for user {}", &user.email);
-		req.send().await.unwrap();
+		req.send().await?;
 	}
 
 	Ok(HttpResponse::Ok().finish())
@@ -172,12 +171,14 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 
 	let user_session = UserSession::new(&db, &user).await?;
 	info!("User {} logged in", &user.email);
+	// TODO: Move to cookies
 	session.insert("session", user_session.session_id).unwrap();
 
 	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
 	if let Some(oidc_authorize) = session.remove_as::<oidc::data::AuthorizeRequest>("oidc_authorize") {
 		println!("Session Authorize Request: {:?}", oidc_authorize);
 		let oidc_session = oidc_authorize.unwrap().generate_code(&db, user.email.as_str()).await?;
+		// TODO: Use `?` instead of `unwrap`
 		let redirect_url = oidc_session.get_redirect_url().unwrap();
 		info!("Redirecting to client {}", &oidc_session.request.client_id);
 		Ok(HttpResponse::Found()
@@ -212,7 +213,9 @@ async fn logout(req: web::Query<LogoutRequest>, session: Session, db: web::Data<
 		"/login".to_string()
 	};
 
-	Ok(HttpResponse::Found().append_header(("Location", target_url.as_str())).finish())
+	Ok(HttpResponse::Found()
+		.append_header(("Location", target_url.as_str()))
+		.finish())
 }
 
 // Do not compile in tests at all as the SmtpTransport is not available
@@ -228,9 +231,9 @@ async fn main() -> std::io::Result<()> {
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
 	// Database setup
-	let db = SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create pool.");
+	let db = SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create sqlite pool.");
 	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
-		let master = hex::decode(secret).unwrap();
+		let master = hex::decode(secret).expect("Failed to decode secret - is something wrong with the database?");
 		Key::from(&master)
 	} else {
 		let key = Key::generate();
@@ -244,7 +247,7 @@ async fn main() -> std::io::Result<()> {
 	// Mailer setup
 	let mailer: Option<SmtpTransport> = if CONFIG.smtp_enable {
 		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&CONFIG.smtp_url)
-			.unwrap()
+			.expect("Failed to create mailer - is the `smtp_url` correct?")
 			.pool_config(smtp::PoolConfig::new())
 			.build())
 	} else {
@@ -286,7 +289,7 @@ async fn main() -> std::io::Result<()> {
 				.cookie_path(CONFIG.path_prefix.clone())
 				.session_lifecycle(
 					actix_session::config::PersistentSession::default()
-						.session_ttl(actix_web::cookie::time::Duration::try_from(CONFIG.session_duration.to_std().unwrap()).unwrap())
+						.session_ttl(actix_web::cookie::time::Duration::try_from(CONFIG.session_duration.to_std().expect("Couldn't parse session_duration")).unwrap())
 				)
 				.build());
 
