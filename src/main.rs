@@ -22,6 +22,7 @@ pub mod oidc;
 pub mod user;
 
 use user::{User, UserLink, UserSession};
+use error::Response;
 
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
 
@@ -43,8 +44,6 @@ lazy_static! {
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
 	static ref LOGIN_PAGE_HTML: String = std::fs::read_to_string(format!("{}/login.html", &CONFIG.static_path)).expect(format!("Unable to open login page `{:?}/login.html`", &CONFIG.static_path).as_str());
 }
-
-type Response = std::result::Result<HttpResponse, crate::error::Error>;
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {

@@ -4,9 +4,9 @@ use log::{info, warn};
 use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
-use crate::error::ErrorKind;
+use crate::error::{AppErrorKind, Response};
 use crate::user::User;
-use crate::{Response, CONFIG};
+use crate::CONFIG;
 
 pub mod model;
 pub mod data;
@@ -52,7 +52,7 @@ async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeR
 	let oidc_session = data.generate_code(&db, user.email.as_str()).await?;
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = oidc_session.get_redirect_url().ok_or(ErrorKind::IncorrectRedirectUrl)?;
+	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::IncorrectRedirectUrl)?;
 	Ok(HttpResponse::Found()
 		.append_header(("Location", redirect_url.as_str()))
 		.finish())
@@ -83,8 +83,8 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 		return Ok(HttpResponse::BadRequest().finish());
 	};
 
-	let req_client_id = data.client_id.as_ref().ok_or(ErrorKind::NoClientID)?;
-	let req_client_secret = data.client_secret.as_ref().ok_or(ErrorKind::NoClientSecret)?;
+	let req_client_id = data.client_id.as_ref().ok_or(AppErrorKind::NoClientID)?;
+	let req_client_secret = data.client_secret.as_ref().ok_or(AppErrorKind::NoClientSecret)?;
 
 	if
 		&client.id != req_client_id ||
@@ -110,7 +110,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 			CONFIG.session_duration
 			.num_milliseconds()
 			.try_into()
-			.map_err(|_| ErrorKind::InvalidDuration)?));
+			.map_err(|_| AppErrorKind::InvalidDuration)?));
 	let id_token = key.as_ref().sign(claims)?;
 
 	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
@@ -128,7 +128,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 }
 
 #[get("/oidc/jwks")]
-pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response {
+pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response  {
 	let comp = key.as_ref().public_key().to_components();
 
 	let item = JWKSResponseItem {
@@ -147,10 +147,10 @@ pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response {
 #[get("/oidc/userinfo")]
 pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> Response {
 	println!("Userinfo Request: {:?}", req);
-	let auth_header = req.headers().get("Authorization").ok_or(ErrorKind::MissingAuthorizationHeader)?;
+	let auth_header = req.headers().get("Authorization").ok_or(AppErrorKind::MissingAuthorizationHeader)?;
 	let auth_header_parts = auth_header
 		.to_str()
-		.map_err(|_| ErrorKind::CouldNotParseAuthorizationHeader)?
+		.map_err(|_| AppErrorKind::CouldNotParseAuthorizationHeader)?
 		.split_whitespace()
 		.collect::<Vec<&str>>();
 

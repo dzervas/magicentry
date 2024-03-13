@@ -3,9 +3,10 @@ use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error};
 
 pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
+pub type Response = std::result::Result<HttpResponse, Error>;
 
 #[derive(Debug, Display, Error, Clone)]
-pub enum ErrorKind {
+pub enum AppErrorKind {
 	#[display(fmt = "Missing Authorization header")]
 	MissingAuthorizationHeader,
 	#[display(fmt = "Could not parse Authorization header")]
@@ -22,35 +23,76 @@ pub enum ErrorKind {
 	NoClientSecret,
 }
 
-#[derive(Debug, Display, Error, Clone)]
-#[cfg_attr(debug_assertions, display(fmt = "Internal Server Error: {}", cause))]
-#[cfg_attr(not(debug_assertions), display(fmt = "Internal Server Error"))]
-pub struct Error {
-	cause: String,
-}
-
-impl ResponseError for Error {
+impl ResponseError for AppErrorKind {
 	fn status_code(&self) -> StatusCode {
-		StatusCode::INTERNAL_SERVER_ERROR
+		match self {
+			AppErrorKind::MissingAuthorizationHeader => StatusCode::BAD_REQUEST,
+			AppErrorKind::CouldNotParseAuthorizationHeader => StatusCode::BAD_REQUEST,
+			AppErrorKind::InvalidClientID => StatusCode::UNAUTHORIZED,
+			AppErrorKind::NoClientID => StatusCode::BAD_REQUEST,
+			AppErrorKind::NoClientSecret => StatusCode::BAD_REQUEST,
+			_ => StatusCode::BAD_REQUEST,
+		}
 	}
 
 	fn error_response(&self) -> HttpResponse {
-		HttpResponse::InternalServerError()
+		let status = self.status_code();
+		if status.as_u16() < 500 {
+			log::warn!("{}", self)
+		} else {
+			log::error!("{}", self)
+		}
+
+		HttpResponse::build(status)
 			.content_type(ContentType::html())
 			.body(self.to_string())
 	}
 }
 
-impl From<String> for Error {
-	fn from(error: String) -> Self {
-		log::error!("{}", error);
-		return Error { cause: error };
+#[derive(Debug, Display, Error, Clone)]
+#[cfg_attr(debug_assertions, display(fmt = "Internal Server Error: {}", cause))]
+#[cfg_attr(not(debug_assertions), display(fmt = "Internal Server Error"))]
+pub struct Error {
+	cause: String,
+	app_error: Option<AppErrorKind>,
+}
+
+impl ResponseError for Error {
+	fn status_code(&self) -> StatusCode {
+		if let Some(app_error) = &self.app_error {
+			app_error.status_code()
+		} else {
+			StatusCode::INTERNAL_SERVER_ERROR
+		}
+	}
+
+	fn error_response(&self) -> HttpResponse {
+		if let Some(app_error) = &self.app_error {
+			app_error.error_response()
+		} else {
+			log::error!("{}", self.cause);
+			HttpResponse::InternalServerError()
+				.content_type(ContentType::html())
+				.body(self.to_string())
+		}
 	}
 }
 
-impl From<ErrorKind> for Error {
-	fn from(error: ErrorKind) -> Self {
-		format!("Application error: {}", error).into()
+impl From<String> for Error {
+	fn from(error: String) -> Self {
+		Self {
+			cause: error,
+			app_error: None,
+		}
+	}
+}
+
+impl From<AppErrorKind> for Error {
+	fn from(error: AppErrorKind) -> Self {
+		Self {
+			cause: String::default(),
+			app_error: Some(error),
+		}
 	}
 }
 

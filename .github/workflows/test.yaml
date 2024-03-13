@@ -33,6 +33,16 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features sqlite
+
+      - name: Migrate database
+        run: |
+          sqlx database create
+          sqlx migrate run
+        env:
+          DATABASE_URL: sqlite://database.sqlite3?mode=rwc
+
       - name: Test
         run: cargo test --release --target ${{ matrix.target }}
         env:

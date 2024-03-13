@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{query, query_as, SqlitePool};
 
-use crate::error::{Error, ErrorKind};
+use crate::error::{Error, AppErrorKind};
 use crate::CONFIG;
 use crate::oidc::AuthorizeRequest;
 use crate::user::{random_string, User};
@@ -34,7 +34,7 @@ impl OIDCSession {
 			.find(|c| c.id == request.client_id);
 
 		if config_client.is_none() {
-			return Err(ErrorKind::InvalidClientID.into());
+			return Err(AppErrorKind::InvalidClientID.into());
 		}
 
 		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.oidc_code_duration).unwrap();
