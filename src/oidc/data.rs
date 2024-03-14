@@ -40,10 +40,10 @@ impl<'a> Discovery<'a> {
 		Discovery {
 			issuer: base,
 
-			authorization_endpoint: format!("{}/oidc/authorize", base),
-			token_endpoint: format!("{}/oidc/token", base),
-			userinfo_endpoint: format!("{}/oidc/userinfo", base),
-			jwks_uri: format!("{}/oidc/jwks", base),
+			authorization_endpoint: format!("{}oidc/authorize", base),
+			token_endpoint: format!("{}oidc/token", base),
+			userinfo_endpoint: format!("{}oidc/userinfo", base),
+			jwks_uri: format!("{}oidc/jwks", base),
 
 			scopes_supported: vec!["openid", "profile", "email"],
 			response_types_supported: vec!["code", "id_token", "id_token token"],
@@ -62,7 +62,7 @@ pub struct AuthorizeRequest {
 	pub scope: String,
 	pub response_type: String,
 	pub client_id: String,
-	pub redirect_uri: String,
+	pub redirect_uri: Option<String>,
 	pub state: Option<String>,
 }
 

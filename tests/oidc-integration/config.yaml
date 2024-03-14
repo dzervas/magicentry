@@ -1,0 +1,24 @@
+database_url: "sqlite:///database.sqlite3"
+
+request_enable: true
+request_url: http://tester:3333/?link={link}
+request_data:
+request_method: GET
+
+oidc_clients:
+  - id: my_client
+    secret: my_secret
+    redirect_uris:
+      - http://localhost:8081/login
+      - https://oidcdebugger.com/debug
+      - https://oauthdebugger.com/debug
+    realms:
+      - example
+
+users:
+  - username: integration
+    email: valid-integration@example.com
+    name: Integration User
+    realms:
+      - example
+      - public

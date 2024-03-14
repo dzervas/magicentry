@@ -20,5 +20,6 @@
 	],
 	"yaml.schemas": {
 		"https://json.schemastore.org/helmfile.json": "file:///home/dzervas/Lab/just-passwordless/chart/just-passwordless/templates/ingress.yaml"
-	}
+	},
+	"python.analysis.typeCheckingMode": "off"
 }

@@ -79,15 +79,21 @@ impl OIDCSession {
 				return Ok(None);
 			}
 
-			let redirect_url = urlencoding::decode(&record.request.redirect_uri).unwrap().to_string();
-
 			let config_client = CONFIG.oidc_clients
 				.iter()
 				.find(|c|
-					c.id == record.request.client_id &&
-					c.redirect_uris.contains(&redirect_url));
+					c.id == record.request.client_id);
 
 			if let Some(client) = config_client {
+				if let Some(redirect_url_enc) = &record.request.redirect_uri {
+					// TODO: This can crash
+					let redirect_uri = urlencoding::decode(&redirect_url_enc).unwrap().to_string();
+					if !client.redirect_uris.contains(&redirect_uri) {
+						warn!("Invalid redirect_uri: {} for client_id: {}", redirect_uri, record.request.client_id);
+						return Ok(None);
+					}
+				}
+
 				return Ok(Some((client.clone(), record.clone())));
 			}
 		}
@@ -96,7 +102,11 @@ impl OIDCSession {
 	}
 
 	pub fn get_redirect_url(&self) -> Option<String> {
-		let redirect_url = urlencoding::decode(&self.request.redirect_uri).unwrap().to_string();
+		let redirect_url = if let Some(redirect_url_enc) = &self.request.redirect_uri {
+			urlencoding::decode(&redirect_url_enc).ok()?.to_string()
+		} else {
+			return None;
+		};
 
 		let config_client = CONFIG.oidc_clients
 			.iter()

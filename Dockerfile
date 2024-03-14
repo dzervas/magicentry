@@ -22,3 +22,5 @@ ENV RUST_LOG=info
 
 EXPOSE 8080/tcp
 CMD ["/usr/local/bin/just-passwordless"]
+
+# TODO: Add healthcheck

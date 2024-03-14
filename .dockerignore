@@ -1,8 +1,11 @@
 .git
 .gitignore
-/.github
-/.vscode
+.github
+.vscode
+/*.html
 /target
+/tests
+/chart
 /config.*
 *.db
 *.db-*

@@ -71,7 +71,13 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 }
 
 #[get("/login")]
-async fn login_get() -> Response {
+async fn login_get(session: Session, db: web::Data<SqlitePool>) -> Response {
+	if User::from_session(&db, session).await?.is_some() {
+		return Ok(HttpResponse::Found()
+			.append_header(("Location", "/"))
+			.finish())
+	}
+
 	// TODO: Add realm
 	let login_page = formatx!(
 		LOGIN_PAGE_HTML.as_str(),
@@ -106,7 +112,7 @@ async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<
 
 	let link = UserLink::new(&db, user.email.clone()).await?;
 	let base_url = CONFIG.url_from_request(&req);
-	let magic_link = format!("{}/login/{}", base_url, link.magic);
+	let magic_link = format!("{}login/{}", base_url, link.magic);
 	let name = &user.name.unwrap_or_default();
 	let username = &user.username.unwrap_or_default();
 
@@ -343,7 +349,22 @@ mod tests {
 
 	#[actix_web::test]
 	async fn test_login_get() {
-		let mut app = actix_test::init_service(App::new().service(login_get)).await;
+		let db = &db_connect().await;
+		let secret = Key::from(&[0; 64]);
+		let mut app = actix_test::init_service(
+			App::new()
+				.app_data(web::Data::new(db.clone()))
+				.service(login_get)
+				.wrap(
+					SessionMiddleware::builder(
+						CookieSessionStore::default(),
+						secret
+					)
+					.cookie_secure(false)
+					.cookie_same_site(SameSite::Strict)
+					.build())
+		)
+		.await;
 
 		let req = actix_test::TestRequest::get()
 			.uri("/login")
@@ -351,7 +372,7 @@ mod tests {
 
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
-		// assert_eq!(resp.headers().get("Content-Type").unwrap(), "text/html; charset=utf-8");
+		assert_eq!(resp.headers().get("Content-Type").unwrap().to_str().unwrap(), ContentType::html().to_string().as_str());
 	}
 
 	#[actix_web::test]
