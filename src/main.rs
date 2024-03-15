@@ -87,6 +87,7 @@ async fn main() -> std::io::Result<()> {
 
 	// Database setup
 	let db = SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create sqlite pool.");
+	sqlx::migrate!().run(&db).await.expect("Failed to run database migrations.");
 	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
 		let master = hex::decode(secret).expect("Failed to decode secret - is something wrong with the database?");
 		Key::from(&master)
