@@ -1,11 +1,13 @@
 use actix_web::HttpRequest;
 use chrono::{NaiveDateTime, Utc};
+use jwt_simple::prelude::*;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{query, query_as, SqlitePool};
 
 use crate::error::{Error, AppErrorKind};
+use crate::oidc::handle_token::JWTData;
 use crate::CONFIG;
 use crate::user::{random_string, User};
 use crate::error::SqlResult;
@@ -43,7 +45,7 @@ impl OIDCSession {
 		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.oidc_code_duration).unwrap();
 		let code = random_string();
 		query!(
-				"INSERT INTO oidc_codes (code, email, expires_at, scope, response_type, client_id, redirect_uri, state) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO oidc_codes (code, email, expires_at, scope, response_type, client_id, redirect_uri, state, code_challenge, code_challenge_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 				code,
 				email,
 				expires_at,
@@ -52,6 +54,8 @@ impl OIDCSession {
 				request.client_id,
 				request.redirect_uri,
 				request.state,
+				request.code_challenge,
+				request.code_challenge_method,
 			)
 			.execute(db)
 			.await?;
@@ -126,6 +130,26 @@ impl OIDCSession {
 			redirect_url,
 			self.code,
 			self.request.state.clone().unwrap_or_default()))
+	}
+
+	pub async fn generate_id_token(&self, url: &str, keypair: &RS256KeyPair) -> Result<String, Error> {
+		let jwt_data = JWTData {
+			user: self.email.clone(),
+			client_id: self.request.client_id.clone(),
+			..JWTData::new(url)
+		};
+		println!("JWT Data: {:?}", jwt_data);
+
+		let claims = Claims::with_custom_claims(
+			jwt_data,
+			Duration::from_millis(
+				CONFIG.session_duration
+				.num_milliseconds()
+				.try_into()
+				.map_err(|_| AppErrorKind::InvalidDuration)?));
+		let id_token = keypair.sign(claims)?;
+
+		Ok(id_token)
 	}
 }
 

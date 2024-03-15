@@ -99,7 +99,13 @@ impl ConfigFile {
 			"https"
 		};
 
-		format!("{}://{}{}", scheme, host, self.path_prefix)
+		let path_prefix = if self.path_prefix.ends_with('/') {
+			&self.path_prefix[..self.path_prefix.len() - 1]
+		} else {
+			&self.path_prefix
+		};
+
+		format!("{}://{}{}", scheme, host, path_prefix)
 	}
 }
 

@@ -1,4 +1,5 @@
 use actix_session::Session;
+use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use log::info;
 use sqlx::FromRow;
@@ -8,7 +9,7 @@ use jwt_simple::prelude::*;
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
 use crate::user::User;
-use crate::AUTHORIZATION_COOKIE;
+use crate::{AUTHORIZATION_COOKIE, CONFIG};
 
 use super::model::OIDCSession;
 
@@ -19,7 +20,8 @@ pub struct AuthorizeRequest {
 	pub client_id: String,
 	pub redirect_uri: Option<String>,
 	pub state: Option<String>,
-	// TODO: code_challenge?
+	pub code_challenge: Option<String>,
+	pub code_challenge_method: Option<String>,
 }
 
 impl AuthorizeRequest {
@@ -28,15 +30,27 @@ impl AuthorizeRequest {
 	}
 }
 
-async fn authorize(session: Session, db: web::Data<SqlitePool>, auth_req: AuthorizeRequest) -> Response {
+async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>, auth_req: AuthorizeRequest) -> Response {
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
+
+	if let Some(code_challenge_method) = auth_req.code_challenge_method.as_ref() {
+		if code_challenge_method != "S256" {
+			return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
+		}
+
+		if auth_req.code_challenge.is_none() {
+			return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
+		}
+	}
+
 	// TODO: Can you inject stuff?
 	session.insert(AUTHORIZATION_COOKIE, auth_req.clone()).unwrap();
 
 	let user = if let Some(user) = User::from_session(&db, session).await? {
 		user
 	} else {
-		let target_url = format!("/login?{}", serde_qs::to_string(&auth_req)?);
+		let base_url = CONFIG.url_from_request(&req);
+		let target_url = format!("{}/login?{}", base_url, serde_qs::to_string(&auth_req)?);
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url))
 			.finish())
@@ -54,11 +68,11 @@ async fn authorize(session: Session, db: web::Data<SqlitePool>, auth_req: Author
 }
 
 #[get("/oidc/authorize")]
-pub async fn authorize_get(session: Session, db: web::Data<SqlitePool>, data: web::Query<AuthorizeRequest>) -> impl Responder {
-	authorize(session, db, data.into_inner()).await
+pub async fn authorize_get(req: HttpRequest, session: Session, db: web::Data<SqlitePool>, data: web::Query<AuthorizeRequest>) -> impl Responder {
+	authorize(req, session, db, data.into_inner()).await
 }
 
 #[post("/oidc/authorize")]
-pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: web::Form<AuthorizeRequest>) -> impl Responder {
-	authorize(session, db, data.into_inner()).await
+pub async fn authorize_post(req: HttpRequest, session: Session, db: web::Data<SqlitePool>, data: web::Form<AuthorizeRequest>) -> impl Responder {
+	authorize(req, session, db, data.into_inner()).await
 }

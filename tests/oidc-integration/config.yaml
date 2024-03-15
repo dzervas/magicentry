@@ -1,7 +1,8 @@
-database_url: "sqlite:///database.sqlite3"
+# database_url: "sqlite:///database.sqlite3"
 
 request_enable: true
-request_url: http://tester:3333/?link={link}
+# request_url: http://tester:3333/?link={link}
+request_url: http://127.0.0.1:3333/?link={link}
 request_data:
 request_method: GET
 

@@ -1,9 +1,11 @@
 use actix_web::HttpRequest;
 use actix_web::{post, web, HttpResponse};
 use chrono::Utc;
-use log::{info, warn};
+use jwt_simple::algorithms::RS256KeyPair;
+use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
-use jwt_simple::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
 use crate::CONFIG;
@@ -16,7 +18,7 @@ pub struct TokenRequest {
 	pub code: String,
 	pub client_id: Option<String>,
 	pub client_secret: Option<String>,
-	// OAuth 2.0 allows for empty redirect_uri
+	pub code_verifier: Option<String>,
 	pub redirect_uri: Option<String>,
 }
 
@@ -57,48 +59,45 @@ impl JWTData {
 
 #[post("/oidc/token")]
 pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, req_token: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
-	println!("Token Request: {:?}", req);
-	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &req_token.code).await? {
-		client_session
+	#[cfg(debug_assertions)]
+	log::info!("Token request: {:?}", req_token);
+
+	let (client, session) = OIDCSession::from_code(&db, &req_token.code).await?.ok_or(AppErrorKind::InvalidOIDCCode)?;
+
+	#[cfg(debug_assertions)]
+	log::info!("Token session from DB: {:?}", session);
+
+	// TODO: Check the request origin
+
+	if let Some(code_verifier) = req_token.code_verifier.clone() {
+		// We're using PCRE with code_challenge - code_verifier
+		// Client secret is not required and only the request origin should be checked
+		let mut hasher = Sha256::new();
+		hasher.update(code_verifier.as_bytes());
+		let generated_code_challenge_bytes = hasher.finalize().clone();
+		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+
+		if Some(generated_code_challenge) != session.request.code_challenge {
+			return Err(AppErrorKind::InvalidCodeVerifier.into());
+		}
+	} else if let Some(req_client_secret) = req_token.client_secret.clone() {
+		// We're using client_id - client_secret
+		let req_client_id = req_token.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
+		let session_client_id = session.request.client_id.clone();
+
+		if req_client_id != session_client_id {
+			return Err(AppErrorKind::NotMatchingClientID.into());
+		}
+
+		if client.id != req_client_id || client.secret != req_client_secret {
+			return Err(AppErrorKind::InvalidClientSecret.into());
+		}
 	} else {
-		#[cfg(debug_assertions)]
-		info!("Someone tried to get a token with an invalid invalid OIDC code: {}", req_token.code);
-		#[cfg(not(debug_assertions))]
-		info!("Someone tried to get a token with an invalid invalid OIDC code");
-
-		return Ok(HttpResponse::BadRequest().finish());
-	};
-
-	let req_client_id = req_token.client_id.as_ref().ok_or(AppErrorKind::NoClientID)?;
-	let req_client_secret = req_token.client_secret.as_ref().ok_or(AppErrorKind::NoClientSecret)?;
-
-	if
-		&client.id != req_client_id ||
-		&client.secret != req_client_secret {
-		#[cfg(debug_assertions)]
-		warn!("Incorrect Client ID ({}) or Secret ({}) for OIDC code: {}", req_client_id, req_client_secret, req_token.code);
-		#[cfg(not(debug_assertions))]
-		warn!("Incorrect Client ID or Secret for OIDC code");
-
-		return Ok(HttpResponse::BadRequest().finish());
+		return Err(AppErrorKind::NoClientCredentialsProvided.into());
 	}
 
-	let jwt_data = JWTData {
-		user: session.email.clone(),
-		client_id: session.request.client_id.clone(),
-		..JWTData::new(&CONFIG.url_from_request(&req))
-	};
-	println!("JWT Data: {:?}", jwt_data);
-
-	let claims = Claims::with_custom_claims(
-		jwt_data,
-		Duration::from_millis(
-			CONFIG.session_duration
-			.num_milliseconds()
-			.try_into()
-			.map_err(|_| AppErrorKind::InvalidDuration)?));
-	let id_token = jwt_keypair.as_ref().sign(claims)?;
-
+	let base_url = CONFIG.url_from_request(&req);
+	let id_token = session.generate_id_token(&base_url, jwt_keypair.as_ref()).await?;
 	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {

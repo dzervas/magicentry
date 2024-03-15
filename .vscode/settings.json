@@ -6,6 +6,7 @@
 		"actix",
 		"chrono",
 		"formatx",
+		"hasher",
 		"jwks",
 		"keypair",
 		"lettre",

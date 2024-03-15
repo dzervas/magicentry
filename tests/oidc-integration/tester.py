@@ -28,8 +28,10 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.oidc_config["token_endpoint"], authorization_response=self.path
         )
         print(token)
-        # userinfo = oidc_client.get(oidc_client.metadata["userinfo_endpoint"], token=token)
-        # print(userinfo.json())
+        userinfo = self.oidc_client.get(
+            self.oidc_client.metadata["userinfo_endpoint"], token=token
+        )
+        print(userinfo.json())
 
 
 def init():
@@ -64,9 +66,7 @@ def init():
         pass
 
     auth = session.get(authorization_url, allow_redirects=False)
-    auth_url = urlparse(auth.url)
-    location = auth.headers.get("location")
-    login_uri = f"{auth_url.scheme}://{auth_url.netloc}{location}"
+    login_uri = auth.headers.get("location")
     session.post(login_uri, data={"email": "valid-integration@example.com"})
 
     httpd.shutdown()

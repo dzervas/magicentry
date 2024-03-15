@@ -15,22 +15,37 @@ pub enum AppErrorKind {
 	InvalidDuration,
 	#[display(fmt = "Client sent a redirect URL different from the one in the config")]
 	IncorrectRedirectUrl,
+	#[display(fmt = "The client_id shown during authorization does not match the client_id provided")]
+	NotMatchingClientID,
 	#[display(fmt = "Client sent a client_id that is not in the config")]
 	InvalidClientID,
+	#[display(fmt = "Client sent a client_secret that does not correspond to the client_id it sent")]
+	InvalidClientSecret,
 	#[display(fmt = "Client did not send a client_id")]
 	NoClientID,
 	#[display(fmt = "Client did not send a client_secret")]
 	NoClientSecret,
+	#[display(fmt = "Client did not send a client_secret or a code_challenge")]
+	NoClientSecretOrCodeChallenge,
+	#[display(fmt = "Client sent a code_challenge_method that is not S256")]
+	InvalidCodeChallengeMethod,
+	#[display(fmt = "Client sent a code_verifier but did not send a code_challenge")]
+	NoCodeChallenge,
+	#[display(fmt = "Someone tried to get a token with an invalid invalid OIDC code")]
+	InvalidOIDCCode,
+	#[display(fmt = "The code_verifier does not match the code_challenge")]
+	InvalidCodeVerifier,
+	#[display(fmt = "The client tried to create a token without providing any credentials (client_verifier or client_secret)")]
+	NoClientCredentialsProvided,
 }
 
 impl ResponseError for AppErrorKind {
 	fn status_code(&self) -> StatusCode {
 		match self {
-			AppErrorKind::MissingAuthorizationHeader => StatusCode::BAD_REQUEST,
-			AppErrorKind::CouldNotParseAuthorizationHeader => StatusCode::BAD_REQUEST,
 			AppErrorKind::InvalidClientID => StatusCode::UNAUTHORIZED,
-			AppErrorKind::NoClientID => StatusCode::BAD_REQUEST,
-			AppErrorKind::NoClientSecret => StatusCode::BAD_REQUEST,
+			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
+			AppErrorKind::InvalidOIDCCode => StatusCode::UNAUTHORIZED,
+
 			_ => StatusCode::BAD_REQUEST,
 		}
 	}

@@ -33,10 +33,10 @@ impl<'a> Discovery<'a> {
 		Discovery {
 			issuer: base,
 
-			authorization_endpoint: format!("{}oidc/authorize", base),
-			token_endpoint: format!("{}oidc/token", base),
-			userinfo_endpoint: format!("{}oidc/userinfo", base),
-			jwks_uri: format!("{}oidc/jwks", base),
+			authorization_endpoint: format!("{}/oidc/authorize", base),
+			token_endpoint: format!("{}/oidc/token", base),
+			userinfo_endpoint: format!("{}/oidc/userinfo", base),
+			jwks_uri: format!("{}/oidc/jwks", base),
 
 			scopes_supported: vec!["openid", "profile", "email"],
 			response_types_supported: vec!["code", "id_token", "id_token token"],

@@ -136,6 +136,7 @@ mod tests {
 				code,
 				client_id: Some(client_id.to_string()),
 				client_secret: Some(client_secret.to_string()),
+				code_verifier: None,
 				redirect_uri: Some(redirect.to_string()),
 			})
 			.to_request();
