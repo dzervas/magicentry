@@ -1,3 +1,4 @@
+use actix_web::http::header::ContentType;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
 use lettre::AsyncTransport;
@@ -7,7 +8,7 @@ use sqlx::SqlitePool;
 
 use crate::error::Response;
 use crate::user::{User, UserLink};
-use crate::{SmtpTransport, CONFIG};
+use crate::{get_partial, SmtpTransport, CONFIG};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 struct LoginInfo {
@@ -76,7 +77,11 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 		req.send().await?;
 	}
 
-	Ok(HttpResponse::Ok().finish())
+	let login_action_page = get_partial("login_action");
+
+	Ok(HttpResponse::Ok()
+		.content_type(ContentType::html())
+		.body(login_action_page))
 }
 
 #[cfg(test)]

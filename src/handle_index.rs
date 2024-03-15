@@ -1,10 +1,12 @@
 use actix_session::Session;
+use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
+use formatx::formatx;
 use sqlx::SqlitePool;
 
 use crate::error::Response;
 use crate::user::User;
-use crate::CONFIG;
+use crate::{get_partial, CONFIG};
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
@@ -16,14 +18,19 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 			.finish())
 	};
 
+	let index_page = formatx!(
+		get_partial("index"),
+		email = &user.email
+	)?;
+
 	Ok(HttpResponse::Ok()
 		// TODO: Add realm
 		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
 		.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
 		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
 		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
-		// TODO: Display something useful
-		.body(user.email))
+		.content_type(ContentType::html())
+		.body(index_page))
 }
 
 #[cfg(test)]

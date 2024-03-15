@@ -1,0 +1,8 @@
+# cargo-watch ignore
+.github
+.sqlx
+.vscode
+/chart
+/migrations
+/static
+/tests
