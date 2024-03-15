@@ -175,7 +175,7 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 	session.insert(SESSION_COOKIE, user_session.session_id)?;
 
 	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
-	if let Some(oidc_authorize) = session.remove_as::<oidc::data::AuthorizeRequest>(AUTHORIZATION_COOKIE) {
+	if let Some(oidc_authorize) = session.remove_as::<oidc::handle_authorize::AuthorizeRequest>(AUTHORIZATION_COOKIE) {
 		println!("Session Authorize Request: {:?}", oidc_authorize);
 		let oidc_session = oidc_authorize.unwrap().generate_session_code(&db, user.email.as_str()).await?;
 		// TODO: Use `?` instead of `unwrap`
@@ -295,12 +295,12 @@ async fn main() -> std::io::Result<()> {
 		// OIDC routes
 		if CONFIG.oidc_enable {
 			app.app_data(web::Data::new(oidc_key.clone()))
-				.service(oidc::configuration)
-				.service(oidc::authorize_get)
-				.service(oidc::authorize_post)
-				.service(oidc::token)
-				.service(oidc::jwks)
-				.service(oidc::userinfo)
+				.service(oidc::handle_discover::discover)
+				.service(oidc::handle_authorize::authorize_get)
+				.service(oidc::handle_authorize::authorize_post)
+				.service(oidc::handle_token::token)
+				.service(oidc::handle_jwks::jwks)
+				.service(oidc::handle_userinfo::userinfo)
 		} else {
 			app
 		}

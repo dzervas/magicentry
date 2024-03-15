@@ -7,9 +7,10 @@ use sqlx::{query, query_as, SqlitePool};
 
 use crate::error::{Error, AppErrorKind};
 use crate::CONFIG;
-use crate::oidc::AuthorizeRequest;
 use crate::user::{random_string, User};
 use crate::error::SqlResult;
+
+use super::handle_authorize::AuthorizeRequest;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OIDCClient {

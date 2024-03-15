@@ -1,18 +1,12 @@
-use actix_session::Session;
-use actix_web::{get, post, web, HttpRequest, HttpResponse, Responder};
-use log::{info, warn};
+use jwt_simple::algorithms::RS256KeyPair;
 use sqlx::SqlitePool;
-use jwt_simple::prelude::*;
-
-use crate::error::{AppErrorKind, Response};
-use crate::user::User;
-use crate::{AUTHORIZATION_COOKIE, CONFIG};
 
 pub mod model;
-pub mod data;
-
-use model::{OIDCAuth, OIDCSession};
-use data::*;
+pub mod handle_discover;
+pub mod handle_authorize;
+pub mod handle_token;
+pub mod handle_jwks;
+pub mod handle_userinfo;
 
 pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 	if let Some(keypair) = crate::config::ConfigKV::get(&db, "jwt_keypair").await {
@@ -29,140 +23,6 @@ pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 	.with_key_id("default")
 }
 
-#[get("/.well-known/openid-configuration")]
-pub async fn configuration(req: HttpRequest) -> impl Responder {
-	let base_url = CONFIG.url_from_request(&req);
-	let discovery = Discovery::new(&base_url);
-	HttpResponse::Ok().json(discovery)
-}
-
-async fn authorize(session: Session, db: web::Data<SqlitePool>, auth_req: AuthorizeRequest) -> Response {
-	info!("Beginning OIDC flow for {}", auth_req.client_id);
-	// TODO: Can you inject stuff?
-	session.insert(AUTHORIZATION_COOKIE, auth_req.clone()).unwrap();
-
-	let user = if let Some(user) = User::from_session(&db, session).await? {
-		user
-	} else {
-		let target_url = format!("/login?{}", serde_qs::to_string(&auth_req)?);
-		return Ok(HttpResponse::Found()
-			.append_header(("Location", target_url))
-			.finish())
-	};
-
-	let oidc_session = auth_req.generate_session_code(&db, user.email.as_str()).await?;
-
-	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::IncorrectRedirectUrl)?;
-	Ok(HttpResponse::Found()
-		.append_header(("Location", redirect_url.as_str()))
-		.finish())
-	// Either send to ?code=<code>&state=<state>
-	// Or send to ?error=<error>&error_description=<error_description>&state=<state>
-}
-
-#[get("/oidc/authorize")]
-pub async fn authorize_get(session: Session, db: web::Data<SqlitePool>, data: web::Query<AuthorizeRequest>) -> impl Responder {
-	authorize(session, db, data.into_inner()).await
-}
-
-#[post("/oidc/authorize")]
-pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: web::Form<AuthorizeRequest>) -> impl Responder {
-	authorize(session, db, data.into_inner()).await
-}
-
-#[post("/oidc/token")]
-pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, req_token: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
-	println!("Token Request: {:?}", req);
-	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &req_token.code).await? {
-		client_session
-	} else {
-		#[cfg(debug_assertions)]
-		info!("Someone tried to get a token with an invalid invalid OIDC code: {}", req_token.code);
-		#[cfg(not(debug_assertions))]
-		info!("Someone tried to get a token with an invalid invalid OIDC code");
-
-		return Ok(HttpResponse::BadRequest().finish());
-	};
-
-	let req_client_id = req_token.client_id.as_ref().ok_or(AppErrorKind::NoClientID)?;
-	let req_client_secret = req_token.client_secret.as_ref().ok_or(AppErrorKind::NoClientSecret)?;
-
-	if
-		&client.id != req_client_id ||
-		&client.secret != req_client_secret {
-		#[cfg(debug_assertions)]
-		warn!("Incorrect Client ID ({}) or Secret ({}) for OIDC code: {}", req_client_id, req_client_secret, req_token.code);
-		#[cfg(not(debug_assertions))]
-		warn!("Incorrect Client ID or Secret for OIDC code");
-
-		return Ok(HttpResponse::BadRequest().finish());
-	}
-
-	let jwt_data = JWTData {
-		user: session.email.clone(),
-		client_id: session.request.client_id.clone(),
-		..JWTData::new(&CONFIG.url_from_request(&req))
-	};
-	println!("JWT Data: {:?}", jwt_data);
-
-	let claims = Claims::with_custom_claims(
-		jwt_data,
-		Duration::from_millis(
-			CONFIG.session_duration
-			.num_milliseconds()
-			.try_into()
-			.map_err(|_| AppErrorKind::InvalidDuration)?));
-	let id_token = jwt_keypair.as_ref().sign(claims)?;
-
-	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
-
-	Ok(HttpResponse::Ok().json(TokenResponse {
-		access_token,
-		token_type: "Bearer".to_string(),
-		expires_in: CONFIG.session_duration.num_seconds(),
-		id_token,
-		refresh_token: None,
-	}))
-	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
-	// TODO: Send error response
-	// Or error=<error>&error_description=<error_description>
-}
-
-#[get("/oidc/jwks")]
-pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response  {
-	let comp = key.as_ref().public_key().to_components();
-
-	let item = JWKSResponseItem {
-		modulus: Base64::encode_to_string(comp.n)?,
-		exponent: Base64::encode_to_string(comp.e)?,
-		..Default::default()
-	};
-
-	let resp = JwksResponse {
-		keys: vec![item],
-	};
-
-	Ok(HttpResponse::Ok().json(resp))
-}
-
-#[get("/oidc/userinfo")]
-pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> Response {
-	if let Ok(Some(user)) = OIDCAuth::from_request(&db, req).await {
-		let username = user.username.unwrap_or(user.email.clone());
-
-		let resp = UserInfoResponse {
-			user: user.email.clone(),
-			email: user.email.clone(),
-			preferred_username: username,
-		};
-
-		Ok(HttpResponse::Ok().json(resp))
-	} else {
-		Ok(HttpResponse::Unauthorized().finish())
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -172,11 +32,16 @@ mod tests {
 	use actix_session::SessionMiddleware;
 	use actix_web::cookie::Cookie;
 	use actix_web::cookie::Key;
+	use actix_web::web;
 	use actix_web::App;
 	use actix_web::test as actix_test;
 	use actix_web::http::StatusCode;
 	use chrono::Utc;
 	use sqlx::query;
+
+	use tests::handle_token::TokenRequest;
+	use tests::handle_token::TokenResponse;
+	use tests::handle_userinfo::UserInfoResponse;
 
 	#[actix_web::test]
 	async fn test_oidc() {
@@ -191,10 +56,10 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(keypair))
 				.service(crate::login_magic_action)
-				.service(authorize_get)
-				.service(authorize_post)
-				.service(token)
-				.service(userinfo)
+				.service(handle_authorize::authorize_get)
+				.service(handle_authorize::authorize_post)
+				.service(handle_token::token)
+				.service(handle_userinfo::userinfo)
 				.wrap(
 					SessionMiddleware::builder(
 						CookieSessionStore::default(),
@@ -287,7 +152,7 @@ mod tests {
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
 		let resp_userinfo = serde_json::from_slice::<UserInfoResponse>(&body).unwrap();
-		assert_eq!(resp_userinfo, UserInfoResponse{
+		assert_eq!(resp_userinfo, UserInfoResponse {
 			user: "valid@example.com".to_string(),
 			email: "valid@example.com".to_string(),
 			preferred_username: "valid".to_string(),
