@@ -55,7 +55,7 @@ mod tests {
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(keypair))
-				.service(crate::login_magic_action)
+				.service(crate::handle_login_link::login_link)
 				.service(handle_authorize::authorize_get)
 				.service(handle_authorize::authorize_post)
 				.service(handle_token::token)
