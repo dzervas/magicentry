@@ -25,12 +25,18 @@ use user::{User, UserLink, UserSession};
 use error::Response;
 
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
+pub(crate) const SESSION_COOKIE: &str = "session_id";
+pub(crate) const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
 
+#[cfg(not(test))]
+type SmtpTransport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
 #[cfg(not(test))]
 lazy_static! {
 	static ref CONFIG_FILE: String = std::env::var("CONFIG_FILE").unwrap_or("config.yaml".to_string());
 }
 
+#[cfg(test)]
+type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
 #[cfg(test)]
 lazy_static! {
 	static ref CONFIG_FILE: String = "config.sample.yaml".to_string();
@@ -55,19 +61,14 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 			.finish())
 	};
 
-	let alias = if let Some(alias) = user.username.clone() {
-		alias
-	} else {
-		user.email.clone()
-	};
-
 	Ok(HttpResponse::Ok()
 		// TODO: Add realm
-		.append_header((CONFIG.auth_url_user_header.as_str(), alias.clone()))
 		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
+		.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
 		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
 		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
-		.body(alias))
+		// TODO: Display something useful
+		.body(user.email))
 }
 
 #[get("/login")]
@@ -96,18 +97,13 @@ struct LoginInfo {
 	email: String,
 }
 
-#[cfg(not(test))]
-type SmtpTransport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
-
-#[cfg(test)]
-type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
-
 #[post("/login")]
 async fn login_post(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
 	let user = if let Some(user) = User::from_config(&form.email) {
 		user
 	} else {
-		return Ok(HttpResponse::Unauthorized().finish())
+		// Return 200 to avoid leaking valid emails
+		return Ok(HttpResponse::Ok().finish())
 	};
 
 	let link = UserLink::new(&db, user.email.clone()).await?;
@@ -176,13 +172,12 @@ async fn login_magic_action(magic: web::Path<String>, session: Session, db: web:
 
 	let user_session = UserSession::new(&db, &user).await?;
 	info!("User {} logged in", &user.email);
-	// TODO: Move to cookies
-	session.insert("session", user_session.session_id).unwrap();
+	session.insert(SESSION_COOKIE, user_session.session_id)?;
 
 	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
-	if let Some(oidc_authorize) = session.remove_as::<oidc::data::AuthorizeRequest>("oidc_authorize") {
+	if let Some(oidc_authorize) = session.remove_as::<oidc::data::AuthorizeRequest>(AUTHORIZATION_COOKIE) {
 		println!("Session Authorize Request: {:?}", oidc_authorize);
-		let oidc_session = oidc_authorize.unwrap().generate_code(&db, user.email.as_str()).await?;
+		let oidc_session = oidc_authorize.unwrap().generate_session_code(&db, user.email.as_str()).await?;
 		// TODO: Use `?` instead of `unwrap`
 		let redirect_url = oidc_session.get_redirect_url().unwrap();
 		info!("Redirecting to client {}", &oidc_session.request.client_id);
@@ -203,9 +198,8 @@ pub struct LogoutRequest {
 
 #[get("/logout")]
 async fn logout(req: web::Query<LogoutRequest>, session: Session, db: web::Data<SqlitePool>) -> Response {
-	if let Some(session_id) = session.get::<String>("session").unwrap_or(None) {
-		session.remove("session");
-		UserSession::delete_id(&db, &session_id).await?;
+	if let Some(Ok(user_session_id)) = session.remove_as::<String>(SESSION_COOKIE) {
+		UserSession::delete_id(&db, &user_session_id).await?;
 	}
 
 	// XXX: Open redirect
@@ -403,7 +397,13 @@ mod tests {
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+		assert_eq!(resp.status(), StatusCode::OK);
+
+		let links = query!("SELECT * FROM links WHERE email = 'invalid@example.com'")
+			.fetch_optional(db)
+			.await
+			.unwrap();
+		assert!(links.is_none());
 	}
 
 	#[actix_web::test]
@@ -449,7 +449,7 @@ mod tests {
 		let db = &db_connect().await;
 		let mut session_map = HashMap::new();
 		let secret = Key::from(&[0; 64]);
-		session_map.insert("session".to_string(), "valid_session_id".to_string());
+		session_map.insert(SESSION_COOKIE, "valid_session_id");
 
 		let mut app = actix_test::init_service(
 			App::new()

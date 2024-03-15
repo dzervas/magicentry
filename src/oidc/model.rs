@@ -1,3 +1,4 @@
+use actix_web::HttpRequest;
 use chrono::{NaiveDateTime, Utc};
 use log::warn;
 use serde::{Deserialize, Serialize};
@@ -31,6 +32,7 @@ impl OIDCSession {
 	pub async fn generate(db: &SqlitePool, email: String, request: AuthorizeRequest) -> std::result::Result<OIDCSession, Error> {
 		let config_client = CONFIG.oidc_clients
 			.iter()
+			// TODO: Check redirect_uri
 			.find(|c| c.id == request.client_id);
 
 		if config_client.is_none() {
@@ -151,6 +153,34 @@ impl OIDCAuth {
 			email,
 			expires_at,
 		})
+	}
+
+	pub async fn from_request(db: &SqlitePool, req: HttpRequest) -> SqlResult<Option<User>> {
+		let auth_header = if let Some(header) = req.headers().get("Authorization") {
+			header
+		} else {
+			return Ok(None)
+		};
+
+		let auth_header_str = if let Ok(header_str) = auth_header.to_str() {
+			header_str
+		} else {
+			return Ok(None)
+		};
+
+		let auth_header_parts = auth_header_str.split_whitespace().collect::<Vec<&str>>();
+
+		if auth_header_parts.len() != 2 || auth_header_parts[0] != "Bearer" {
+			return Ok(None)
+		}
+
+		let auth = if let Some(auth) = auth_header_parts.get(1) {
+			auth
+		} else {
+			return Ok(None)
+		};
+
+		Self::get_user(db, auth).await
 	}
 
 	pub async fn get_user(db: &SqlitePool, auth: &str) -> SqlResult<Option<User>> {

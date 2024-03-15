@@ -4,7 +4,7 @@ use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 use sqlx::{query, query_as, SqlitePool};
 
-use crate::{CONFIG, RANDOM_STRING_LEN};
+use crate::{CONFIG, RANDOM_STRING_LEN, SESSION_COOKIE};
 use crate::error::SqlResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -17,7 +17,7 @@ pub struct User {
 
 impl User {
 	pub async fn from_session(db: &SqlitePool, session: actix_session::Session) -> SqlResult<Option<User>> {
-		if let Some(session_id) = session.get::<String>("session").unwrap_or(None) {
+		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
 			User::from_session_id(db, session_id.as_str()).await
 		} else {
 			Ok(None)
@@ -133,6 +133,17 @@ impl UserSession {
 
 	pub async fn delete(&self, db: &SqlitePool) -> SqlResult<()> {
 		UserSession::delete_id(db, &self.session_id).await
+	}
+}
+
+impl From<String> for UserSession {
+	fn from(email: String) -> Self {
+		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
+		UserSession {
+			session_id: random_string(),
+			email,
+			expires_at,
+		}
 	}
 }
 

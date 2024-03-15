@@ -6,7 +6,7 @@ use jwt_simple::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
 use crate::user::User;
-use crate::CONFIG;
+use crate::{AUTHORIZATION_COOKIE, CONFIG};
 
 pub mod model;
 pub mod data;
@@ -36,20 +36,21 @@ pub async fn configuration(req: HttpRequest) -> impl Responder {
 	HttpResponse::Ok().json(discovery)
 }
 
-async fn authorize(session: Session, db: web::Data<SqlitePool>, data: AuthorizeRequest) -> Response {
-	info!("Beginning OIDC flow for {}", data.client_id);
-	session.insert("oidc_authorize", data.clone()).unwrap();
+async fn authorize(session: Session, db: web::Data<SqlitePool>, auth_req: AuthorizeRequest) -> Response {
+	info!("Beginning OIDC flow for {}", auth_req.client_id);
+	// TODO: Can you inject stuff?
+	session.insert(AUTHORIZATION_COOKIE, auth_req.clone()).unwrap();
 
 	let user = if let Some(user) = User::from_session(&db, session).await? {
 		user
 	} else {
-		let target_url = format!("/login?{}", serde_qs::to_string(&data)?);
+		let target_url = format!("/login?{}", serde_qs::to_string(&auth_req)?);
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url))
 			.finish())
 	};
 
-	let oidc_session = data.generate_code(&db, user.email.as_str()).await?;
+	let oidc_session = auth_req.generate_session_code(&db, user.email.as_str()).await?;
 
 	// TODO: Check the state with the cookie for CSRF
 	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::IncorrectRedirectUrl)?;
@@ -71,26 +72,27 @@ pub async fn authorize_post(session: Session, db: web::Data<SqlitePool>, data: w
 }
 
 #[post("/oidc/token")]
-pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<TokenRequest>, key: web::Data<RS256KeyPair>) -> Response {
-	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &data.code).await? {
+pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, req_token: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
+	println!("Token Request: {:?}", req);
+	let (client, session) = if let Some(client_session) = OIDCSession::from_code(&db, &req_token.code).await? {
 		client_session
 	} else {
 		#[cfg(debug_assertions)]
-		info!("Someone tried to get a token with an invalid invalid OIDC code: {}", data.code);
+		info!("Someone tried to get a token with an invalid invalid OIDC code: {}", req_token.code);
 		#[cfg(not(debug_assertions))]
 		info!("Someone tried to get a token with an invalid invalid OIDC code");
 
 		return Ok(HttpResponse::BadRequest().finish());
 	};
 
-	let req_client_id = data.client_id.as_ref().ok_or(AppErrorKind::NoClientID)?;
-	let req_client_secret = data.client_secret.as_ref().ok_or(AppErrorKind::NoClientSecret)?;
+	let req_client_id = req_token.client_id.as_ref().ok_or(AppErrorKind::NoClientID)?;
+	let req_client_secret = req_token.client_secret.as_ref().ok_or(AppErrorKind::NoClientSecret)?;
 
 	if
 		&client.id != req_client_id ||
 		&client.secret != req_client_secret {
 		#[cfg(debug_assertions)]
-		warn!("Incorrect Client ID ({}) or Secret ({}) for OIDC code: {}", req_client_id, req_client_secret, data.code);
+		warn!("Incorrect Client ID ({}) or Secret ({}) for OIDC code: {}", req_client_id, req_client_secret, req_token.code);
 		#[cfg(not(debug_assertions))]
 		warn!("Incorrect Client ID or Secret for OIDC code");
 
@@ -111,7 +113,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 			.num_milliseconds()
 			.try_into()
 			.map_err(|_| AppErrorKind::InvalidDuration)?));
-	let id_token = key.as_ref().sign(claims)?;
+	let id_token = jwt_keypair.as_ref().sign(claims)?;
 
 	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
 
@@ -122,9 +124,9 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, data: web::Form<
 		id_token,
 		refresh_token: None,
 	}))
-	// Either send to ?access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
+	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
 	// TODO: Send error response
-	// Or send to ?error=<error>&error_description=<error_description>
+	// Or error=<error>&error_description=<error_description>
 }
 
 #[get("/oidc/jwks")]
@@ -146,33 +148,14 @@ pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response  {
 
 #[get("/oidc/userinfo")]
 pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> Response {
-	println!("Userinfo Request: {:?}", req);
-	let auth_header = req.headers().get("Authorization").ok_or(AppErrorKind::MissingAuthorizationHeader)?;
-	let auth_header_parts = auth_header
-		.to_str()
-		.map_err(|_| AppErrorKind::CouldNotParseAuthorizationHeader)?
-		.split_whitespace()
-		.collect::<Vec<&str>>();
-
-	if auth_header_parts.len() != 2 || auth_header_parts[0] != "Bearer" {
-		return Ok(HttpResponse::BadRequest().finish())
-	}
-
-	let auth = auth_header_parts[1];
-
-	if let Ok(Some(user)) = OIDCAuth::get_user(&db, auth).await {
-		let username = if let Some(alias) = user.username.clone() {
-			alias
-		} else {
-			user.email.clone()
-		};
+	if let Ok(Some(user)) = OIDCAuth::from_request(&db, req).await {
+		let username = user.username.unwrap_or(user.email.clone());
 
 		let resp = UserInfoResponse {
 			user: user.email.clone(),
 			email: user.email.clone(),
 			preferred_username: username,
 		};
-		println!("Userinfo Response: {:?}", resp);
 
 		Ok(HttpResponse::Ok().json(resp))
 	} else {

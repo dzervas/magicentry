@@ -64,10 +64,11 @@ pub struct AuthorizeRequest {
 	pub client_id: String,
 	pub redirect_uri: Option<String>,
 	pub state: Option<String>,
+	// TODO: code_challenge?
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_code(&self, db: &SqlitePool, email: &str) -> std::result::Result<OIDCSession, Error> {
+	pub async fn generate_session_code(&self, db: &SqlitePool, email: &str) -> std::result::Result<OIDCSession, Error> {
 		OIDCSession::generate(db, email.to_string(), self.clone()).await
 	}
 }

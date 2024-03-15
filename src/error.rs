@@ -96,6 +96,18 @@ impl From<AppErrorKind> for Error {
 	}
 }
 
+impl From<actix_session::SessionGetError> for Error {
+	fn from(error: actix_session::SessionGetError) -> Self {
+		format!("Session Get error: {}", error).into()
+	}
+}
+
+impl From<actix_session::SessionInsertError> for Error {
+	fn from(error: actix_session::SessionInsertError) -> Self {
+		format!("Session Insert error: {}", error).into()
+	}
+}
+
 impl From<sqlx::Error> for Error {
 	fn from(error: sqlx::Error) -> Self {
 		format!("Database error: {}", error).into()
