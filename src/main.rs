@@ -117,7 +117,14 @@ async fn main() -> std::io::Result<()> {
 				// .cookie_path(CONFIG.path_prefix.clone())
 				.session_lifecycle(
 					actix_session::config::PersistentSession::default()
-						.session_ttl(actix_web::cookie::time::Duration::try_from(CONFIG.session_duration.to_std().expect("Couldn't parse session_duration")).unwrap())
+						.session_ttl(
+							actix_web::cookie::time::Duration::try_from(
+								CONFIG
+								.session_duration
+								.to_std()
+								.expect("Couldn't parse session_duration")
+							)
+							.expect("Couldn't set session_ttl - something is wrong with session_duration"))
 				)
 				.build());
 

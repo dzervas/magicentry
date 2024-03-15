@@ -22,16 +22,16 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         resp = session.get(query_parameters["link"][0], allow_redirects=False)
-        print(resp.headers)
+        print(resp.headers.get("location"))
 
-        token = self.oidc_client.fetch_token(
-            self.oidc_config["token_endpoint"], authorization_response=self.path
-        )
-        print(token)
-        userinfo = self.oidc_client.get(
-            self.oidc_client.metadata["userinfo_endpoint"], token=token
-        )
-        print(userinfo.json())
+        # token = self.oidc_client.fetch_token(
+        #     self.oidc_config["token_endpoint"], authorization_response=self.path
+        # )
+        # print(token)
+        # userinfo = self.oidc_client.get(
+        #     self.oidc_client.metadata["userinfo_endpoint"], token=token
+        # )
+        # print(userinfo.json())
 
 
 def init():

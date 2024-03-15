@@ -42,7 +42,11 @@ impl OIDCSession {
 			return Err(AppErrorKind::InvalidClientID.into());
 		}
 
-		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.oidc_code_duration).unwrap();
+		let expires_at = Utc::now()
+			.naive_utc()
+			.checked_add_signed(CONFIG.session_duration.to_owned())
+			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
+
 		let code = random_string();
 		query!(
 				"INSERT INTO oidc_codes (code, email, expires_at, scope, response_type, client_id, redirect_uri, state, code_challenge, code_challenge_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -162,8 +166,12 @@ pub struct OIDCAuth {
 
 impl OIDCAuth {
 	pub async fn generate(db: &SqlitePool, email: String) -> SqlResult<OIDCAuth> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
 		let auth = random_string();
+		let expires_at = Utc::now()
+			.naive_utc()
+			.checked_add_signed(CONFIG.session_duration.to_owned())
+			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
+
 		query!(
 				"INSERT INTO oidc_auth (auth, email, expires_at) VALUES (?, ?, ?)",
 				auth,

@@ -43,8 +43,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 		}
 	}
 
-	// TODO: Can you inject stuff?
-	session.insert(AUTHORIZATION_COOKIE, auth_req.clone()).unwrap();
+	session.insert(AUTHORIZATION_COOKIE, auth_req.clone())?;
 
 	let user = if let Some(user) = User::from_session(&db, session).await? {
 		user
@@ -59,7 +58,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 	let oidc_session = auth_req.generate_session_code(&db, user.email.as_str()).await?;
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::IncorrectRedirectUrl)?;
+	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	Ok(HttpResponse::Found()
 		.append_header(("Location", redirect_url.as_str()))
 		.finish())

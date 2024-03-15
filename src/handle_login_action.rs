@@ -49,7 +49,7 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 	}
 
 	if let Some(client) = http_client.as_ref() {
-		let method = reqwest::Method::from_bytes(CONFIG.request_method.as_bytes()).unwrap();
+		let method = reqwest::Method::from_bytes(CONFIG.request_method.as_bytes()).expect("Invalid request_method provided in the config");
 		let url = formatx!(
 			&CONFIG.request_url,
 			title = &CONFIG.title,

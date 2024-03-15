@@ -29,7 +29,7 @@ impl User {
 		if let Some(session) = session {
 			let user = User::from_config(&session.email);
 			if user.is_none() {
-				session.delete(&db).await.unwrap();
+				session.delete(&db).await?;
 			}
 			Ok(user)
 		} else {
@@ -60,7 +60,11 @@ pub struct UserSession {
 
 impl UserSession {
 	pub async fn new(db: &SqlitePool, user: &User) -> SqlResult<UserSession> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
+		let expires_at = Utc::now()
+			.naive_utc()
+			.checked_add_signed(CONFIG.session_duration.to_owned())
+			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
+
 		let record = UserSession {
 			session_id: random_string(),
 			email: user.email.clone(),
@@ -138,7 +142,10 @@ impl UserSession {
 
 impl From<String> for UserSession {
 	fn from(email: String) -> Self {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.session_duration.to_owned()).unwrap();
+		let expires_at = Utc::now()
+			.naive_utc()
+			.checked_add_signed(CONFIG.session_duration.to_owned())
+			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
 		UserSession {
 			session_id: random_string(),
 			email,
@@ -156,7 +163,11 @@ pub struct UserLink {
 
 impl UserLink {
 	pub async fn new(db: &SqlitePool, target: String) -> SqlResult<UserLink> {
-		let expires_at = Utc::now().naive_utc().checked_add_signed(CONFIG.link_duration.to_owned()).unwrap();
+		let expires_at = Utc::now()
+			.naive_utc()
+			.checked_add_signed(CONFIG.session_duration.to_owned())
+			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
+
 		let record = UserLink {
 			magic: random_string(),
 			email: target.clone(),

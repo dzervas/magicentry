@@ -13,8 +13,8 @@ pub enum AppErrorKind {
 	CouldNotParseAuthorizationHeader,
 	#[display(fmt = "The Duration provided is incorrect or too big (max i64)")]
 	InvalidDuration,
-	#[display(fmt = "Client sent a redirect URL different from the one in the config")]
-	IncorrectRedirectUrl,
+	#[display(fmt = "Client sent a redirect_uri different from the one in the config")]
+	InvalidRedirectUri,
 	#[display(fmt = "The client_id shown during authorization does not match the client_id provided")]
 	NotMatchingClientID,
 	#[display(fmt = "Client sent a client_id that is not in the config")]
