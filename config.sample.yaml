@@ -1,8 +1,8 @@
 # Apart from oidc_clients and users, the following are the default values
 # To create a new config, just set the `users` and any other settings you want to change
-database_url: sqlite://database.sqlite3
+database_url: sqlite://database.sqlite3?mode=rwc
 
-listen_host: 0.0.0.0
+listen_host: 127.0.0.1
 listen_port: 8080
 path_prefix:
 hostname: localhost

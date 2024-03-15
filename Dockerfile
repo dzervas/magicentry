@@ -1,3 +1,12 @@
+FROM node:alpine as frontend
+
+WORKDIR /usr/src/app
+
+COPY static static
+COPY *.js *.json ./
+RUN npm install --dev
+RUN npm run build
+
 FROM rust:alpine as builder
 
 # RUN cargo install cargo-build-dependencies && cargo new --bin /usr/src/app
@@ -16,6 +25,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-gi
 FROM gcr.io/distroless/cc-debian12
 
 COPY --from=builder /usr/src/app/just-passwordless /usr/local/bin/
+COPY --from=frontend /usr/src/app/static /static
 
 ENV CONFIG_FILE=/config.yaml
 ENV RUST_LOG=info

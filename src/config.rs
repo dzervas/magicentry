@@ -50,7 +50,7 @@ pub struct ConfigFile {
 impl Default for ConfigFile {
 	fn default() -> Self {
 		Self {
-			database_url: "sqlite://database.sqlite3".to_string(),
+			database_url: "sqlite://database.sqlite3?mode=rwc".to_string(),
 
 			listen_host: "127.0.0.1".to_string(),
 			listen_port: 8080,

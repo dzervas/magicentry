@@ -6,7 +6,7 @@ use sqlx::SqlitePool;
 
 use crate::error::Response;
 use crate::user::User;
-use crate::{CONFIG, LOGIN_PAGE_HTML};
+use crate::{get_partial, CONFIG};
 
 #[get("/login")]
 async fn login_page(session: Session, db: web::Data<SqlitePool>) -> Response {
@@ -18,7 +18,7 @@ async fn login_page(session: Session, db: web::Data<SqlitePool>) -> Response {
 
 	// TODO: Add realm
 	let login_page = formatx!(
-		LOGIN_PAGE_HTML.as_str(),
+		get_partial("login"),
 		title = &CONFIG.title,
 		realm = "default",
 		path_prefix = &CONFIG.path_prefix

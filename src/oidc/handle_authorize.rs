@@ -34,6 +34,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 
 	if let Some(code_challenge_method) = auth_req.code_challenge_method.as_ref() {
+		// TODO: Support plain
 		if code_challenge_method != "S256" {
 			return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
 		}

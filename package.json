@@ -1,0 +1,12 @@
+{
+  "name": "just-passwordless",
+  "source": "src/main.css",
+  "browserslist": "> 0.5%, last 2 versions, not dead",
+  "scripts": {
+    "start": "tailwindcss -i static/main.css -o static/main.build.css --watch",
+    "build": "tailwindcss -i static/main.css -o static/main.build.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}

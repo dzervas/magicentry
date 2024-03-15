@@ -90,7 +90,7 @@ mod tests {
 
 		// Unauthenticated user should be redirected to login
 		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
-		assert!(target.starts_with("/login"));
+		assert!(target.starts_with("http://localhost:8080/login"));
 
 		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
 		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(magic) DO UPDATE SET expires_at = ?",

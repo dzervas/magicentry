@@ -1,3 +1,6 @@
+use std::fs;
+
+use actix_web::{get, HttpResponse};
 use config::ConfigFile;
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
@@ -40,7 +43,31 @@ lazy_static! {
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
-	static ref LOGIN_PAGE_HTML: String = std::fs::read_to_string(format!("{}/login.html", &CONFIG.static_path)).expect(format!("Unable to open login page `{:?}/login.html`", &CONFIG.static_path).as_str());
+}
+
+pub fn get_partial(name: &str) -> String {
+	let path_prefix = if CONFIG.path_prefix.ends_with('/') {
+		&CONFIG.path_prefix[..CONFIG.path_prefix.len() - 1]
+	} else {
+		&CONFIG.path_prefix
+	};
+
+	let outer_content = fs::read_to_string("static/outer.html").expect("Unable to open static/outer.html");
+	let inner_content = fs::read_to_string(format!("static/{}.html", name)).expect(format!("Unable to open static/{}.html", name).as_str());
+
+	formatx::formatx!(
+		outer_content,
+		title = &CONFIG.title,
+		path_prefix = path_prefix,
+		content = inner_content
+	).expect(format!("Unable to format static/outer.html with title `{:?}` and path_prefix `{:?}`", &CONFIG.title, path_prefix).as_str())
+}
+
+#[get("/static/main.css")]
+async fn main_css() -> HttpResponse {
+	HttpResponse::Ok()
+		.content_type("text/css")
+		.body(fs::read_to_string("static/main.build.css").expect("Unable to open main.build.css"))
 }
 
 // Do not compile in tests at all as the SmtpTransport is not available
@@ -98,6 +125,8 @@ async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(db.clone()))
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
+
+			.service(main_css)
 
 			// Auth routes
 			.service(handle_index::index)
