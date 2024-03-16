@@ -26,3 +26,6 @@ uuid = { version = "1.7", features = ["serde", "v4"] }
 derive_more = "0.99.17"
 sha2 = "0.10.8"
 hex = "0.4.3"
+
+[dev-dependencies]
+scraper = "0.19.0"

@@ -122,10 +122,18 @@ mod tests {
 			.cookie(parsed_cookie.clone())
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::FOUND);
-		let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
-		assert!(location_header.starts_with(redirect_url));
-		let location_url = reqwest::Url::parse(location_header).unwrap();
+		let body = actix_test::read_body(resp).await;
+		let body_str = std::str::from_utf8(&body).unwrap();
+		let html_parse = scraper::Html::parse_document(&body_str);
+		let a_href = html_parse
+			.select(&scraper::Selector::parse("a").unwrap())
+			.next()
+			.unwrap()
+			.value()
+			.attr("href")
+			.unwrap();
+		assert!(a_href.starts_with(redirect_url));
+		let location_url = reqwest::Url::parse(a_href).unwrap();
 		let code = location_url.query_pairs().find(|(k, _)| k == "code").unwrap().1.to_string();
 		println!("New Code: {}", code);
 
