@@ -1,6 +1,8 @@
 use actix_session::Session;
+use actix_web::http::header::ContentType;
 use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
+use formatx::formatx;
 use log::info;
 use sqlx::FromRow;
 use sqlx::SqlitePool;
@@ -9,7 +11,7 @@ use jwt_simple::prelude::*;
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
 use crate::user::User;
-use crate::{AUTHORIZATION_COOKIE, CONFIG};
+use crate::{get_partial, AUTHORIZATION_COOKIE, CONFIG};
 
 use super::model::OIDCSession;
 
@@ -60,9 +62,17 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 
 	// TODO: Check the state with the cookie for CSRF
 	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::InvalidRedirectUri)?;
-	Ok(HttpResponse::Found()
-		.append_header(("Location", redirect_url.as_str()))
-		.finish())
+	let authorize_page_str = get_partial("authorize");
+	let authorize_page = formatx!(
+		authorize_page_str,
+		email = &user.email,
+		client = "TODO",
+		link = redirect_url
+	)?;
+
+	Ok(HttpResponse::Ok()
+		.content_type(ContentType::html())
+		.body(authorize_page))
 	// Either send to ?code=<code>&state=<state>
 	// Or send to ?error=<error>&error_description=<error_description>&state=<state>
 }
