@@ -7,6 +7,8 @@ pub type Response = std::result::Result<HttpResponse, Error>;
 
 #[derive(Debug, Display, Error, Clone)]
 pub enum AppErrorKind {
+	#[display(fmt = "You are not logged in!")]
+	NotLoggedIn,
 	#[display(fmt = "Missing Authorization header")]
 	MissingAuthorizationHeader,
 	#[display(fmt = "Could not parse Authorization header")]
@@ -42,6 +44,7 @@ pub enum AppErrorKind {
 impl ResponseError for AppErrorKind {
 	fn status_code(&self) -> StatusCode {
 		match self {
+			AppErrorKind::NotLoggedIn => StatusCode::UNAUTHORIZED,
 			AppErrorKind::InvalidClientID => StatusCode::UNAUTHORIZED,
 			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
 			AppErrorKind::InvalidOIDCCode => StatusCode::UNAUTHORIZED,

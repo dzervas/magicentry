@@ -18,6 +18,7 @@ pub mod handle_login_page;
 pub mod handle_login_action;
 pub mod handle_login_link;
 pub mod handle_logout;
+pub mod handle_status;
 
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
 pub(crate) const SESSION_COOKIE: &str = "session_id";
@@ -135,6 +136,7 @@ async fn main() -> std::io::Result<()> {
 			.service(handle_login_action::login_action)
 			.service(handle_login_link::login_link)
 			.service(handle_logout::logout)
+			.service(handle_status::status)
 
 			// Middleware
 			.wrap(Logger::default())
