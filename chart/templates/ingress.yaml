@@ -39,7 +39,7 @@ spec:
               service:
                 name: "{{ $.Chart.Name }}-service"
                 port:
-                  number: {{ $.Values.service.port }}
+                  name: http
           {{- end }}
     {{- end }}
 {{- end }}

@@ -14,7 +14,8 @@ spec:
   minReadySeconds: 10
   selector:
     matchLabels:
-      app.kubernetes.io/component: "{{ .Chart.Name }}"
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
   replicas: {{ .Values.replicaCount | default 1 }}
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
@@ -22,7 +23,11 @@ spec:
   template:
     metadata:
       labels:
-        app.kubernetes.io/component: {{ .Chart.Name }}
+        helm.sh/chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
     spec:
       securityContext:
         runAsUser: 1000
@@ -44,11 +49,9 @@ spec:
           - name: LISTEN_HOST
             value: 0.0.0.0
         ports:
-        {{- if eq .Values.service.type "hostPort" }}
-          - containerPort: 2222
+          - containerPort: {{ .Values.config.listen_port | default 80 }}
             protocol: TCP
-            name: borg
-        {{- end }}
+            name: http
         volumeMounts:
         - name: "{{ .Chart.Name }}-database"
           mountPath: /db

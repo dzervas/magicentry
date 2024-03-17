@@ -14,19 +14,19 @@ RUN apk add --no-cache musl-dev
 
 WORKDIR /usr/src/app
 
-RUN cargo init --bin
+RUN cargo init --vcs none --bin
 COPY Cargo.toml Cargo.lock ./
 # Enable mount-type caching and dependency caching to be compatible with github actions
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
 	--mount=type=cache,target=/usr/local/cargo/registry,id=just-passwordless-cargo-registry-cache \
 	--mount=type=cache,target=/usr/src/app/target,id=just-passwordless-cargo-target-cache \
-	cargo build --release
+	cargo build --release && \
+	rm target/release/deps/just_passwordless*
 
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
 	--mount=type=cache,target=/usr/local/cargo/registry,id=just-passwordless-cargo-registry-cache \
 	--mount=type=cache,target=/usr/src/app/target,id=just-passwordless-cargo-target-cache \
-	rm target/release/deps/just_passwordless* && \
 	cargo build --release && \
 	cp target/release/just-passwordless .
 

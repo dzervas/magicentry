@@ -16,7 +16,7 @@ spec:
     app.kubernetes.io/name: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
   ports:
-    - port: {{ .Values.service.port | default 8080 }}
+    - port: {{ .Values.service.port | default 80 }}
       targetPort: http
       protocol: TCP
       name: http
