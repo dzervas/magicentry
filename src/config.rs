@@ -12,7 +12,6 @@ pub struct ConfigFile {
 	pub listen_host: String,
 	pub listen_port: u16,
 	pub path_prefix: String,
-	pub hostname: String,
 
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub link_duration: Duration,
@@ -50,12 +49,11 @@ pub struct ConfigFile {
 impl Default for ConfigFile {
 	fn default() -> Self {
 		Self {
-			database_url: "sqlite://database.sqlite3?mode=rwc".to_string(),
+			database_url: std::env::var("DATABASE_URL").unwrap_or("sqlite://database.sqlite3?mode=rwc".to_string()),
 
-			listen_host: "127.0.0.1".to_string(),
-			listen_port: 8080,
+			listen_host: std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
+			listen_port: std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
 			path_prefix: "/".to_string(),
-			hostname   : "localhost".to_string(),
 
 			link_duration   : Duration::try_hours(12).unwrap(),
 			session_duration: Duration::try_days(30).unwrap(),

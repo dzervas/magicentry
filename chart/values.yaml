@@ -100,13 +100,12 @@ persistence:
     - ReadWriteOnce
   size: 128Mi
 
-config:
-  database_url: sqlite:///db/database.sqlite3
+config: |
+  database_url: sqlite:///db/database.sqlite3?mode=rwc
 
   listen_host: 0.0.0.0
   listen_port: 8080
   path_prefix:
-  hostname: localhost
 
   link_duration: 1h
   session_duration: 1mon
@@ -138,7 +137,7 @@ config:
 
   request_enable: true
   request_url: https://www.cinotify.cc/api/notify
-  request_data: to={email}&subject=Just Passwordless Login&body={link}
+  request_data: "to={email}&subject={title} Login&body=Click the link to login: {link}"
   request_method: POST
 
   users: []

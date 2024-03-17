@@ -36,6 +36,13 @@ spec:
       - name: just-passwordless
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          - name: CONFIG_FILE
+            value: /config/config.yaml
+          - name: DATABASE_URL
+            value: sqlite:///db/database.sqlite3?mode=rwc
+          - name: LISTEN_HOST
+            value: 0.0.0.0
         ports:
         {{- if eq .Values.service.type "hostPort" }}
           - containerPort: 2222
@@ -43,12 +50,22 @@ spec:
             name: borg
         {{- end }}
         volumeMounts:
-        - name: database
-          mountPath: /database
+        - name: "{{ .Chart.Name }}-database"
+          mountPath: /db
+        - name: config
+          mountPath: /config/config.yaml
+          subPath: config.yaml
+          readOnly: true
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
       volumes:
+        - name: config
+          configMap:
+            name: "{{ .Chart.Name }}-config"
+            items:
+              - key: config.yaml
+                path: config.yaml
       {{- if not .Values.persistence.enabled }}
-        - name: database
+        - name: "{{ .Chart.Name }}-database"
           emptyDir: {}
       {{- else }}
   volumeClaimTemplates:
