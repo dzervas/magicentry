@@ -7,4 +7,4 @@ metadata:
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
 data:
-  config.yaml: {{ .Values.config | quote }}
+  config.yaml: {{ .Values.config | toYaml | quote }}

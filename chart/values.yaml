@@ -100,7 +100,7 @@ persistence:
     - ReadWriteOnce
   size: 128Mi
 
-config: |
+config:
   database_url: sqlite:///db/database.sqlite3?mode=rwc
 
   listen_host: 0.0.0.0

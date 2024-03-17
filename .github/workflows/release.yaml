@@ -56,7 +56,7 @@ jobs:
         with:
           branch: main
           commit_message: Bump version to ${{ steps.new_app.outputs.new_version }}
-          file_pattern: chart/Chart.yaml
+          file_pattern: Cargo.toml chart/Chart.yaml
 
   release:
     runs-on: ubuntu-latest

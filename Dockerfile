@@ -13,8 +13,14 @@ FROM rust:alpine as builder
 RUN apk add --no-cache musl-dev
 
 WORKDIR /usr/src/app
-# COPY Cargo.toml Cargo.lock ./
-# RUN cargo build-dependencies --release
+
+RUN cargo init --bin
+COPY Cargo.toml Cargo.lock ./
+# Enable mount-type caching and dependency caching to be compatible with github actions
+RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
+	--mount=type=cache,target=/usr/local/cargo/registry,id=just-passwordless-cargo-registry-cache \
+	--mount=type=cache,target=/usr/src/app/target,id=just-passwordless-cargo-target-cache \
+	cargo build --release
 
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
