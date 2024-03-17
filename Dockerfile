@@ -26,7 +26,9 @@ COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
 	--mount=type=cache,target=/usr/local/cargo/registry,id=just-passwordless-cargo-registry-cache \
 	--mount=type=cache,target=/usr/src/app/target,id=just-passwordless-cargo-target-cache \
-	cargo build --release && cp target/release/just-passwordless .
+	rm target/release/deps/just_passwordless* && \
+	cargo build --release && \
+	cp target/release/just-passwordless .
 
 FROM gcr.io/distroless/cc-debian12
 
