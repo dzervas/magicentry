@@ -1,6 +1,5 @@
 use std::fs;
 
-use actix_web::{get, HttpResponse};
 use config::ConfigFile;
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
@@ -19,6 +18,7 @@ pub mod handle_login_action;
 pub mod handle_login_link;
 pub mod handle_logout;
 pub mod handle_status;
+pub mod handle_static;
 
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
 pub(crate) const SESSION_COOKIE: &str = "session_id";
@@ -62,13 +62,6 @@ pub fn get_partial(name: &str) -> String {
 		path_prefix = path_prefix,
 		content = inner_content
 	).expect(format!("Unable to format static/outer.html with title `{:?}` and path_prefix `{:?}`", &CONFIG.title, path_prefix).as_str())
-}
-
-#[get("/static/main.css")]
-async fn main_css() -> HttpResponse {
-	HttpResponse::Ok()
-		.content_type("text/css")
-		.body(fs::read_to_string("static/main.build.css").expect("Unable to open main.build.css"))
 }
 
 // Do not compile in tests at all as the SmtpTransport is not available
@@ -128,7 +121,6 @@ async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
 
-			.service(main_css)
 
 			// Auth routes
 			.service(handle_index::index)
@@ -137,6 +129,8 @@ async fn main() -> std::io::Result<()> {
 			.service(handle_login_link::login_link)
 			.service(handle_logout::logout)
 			.service(handle_status::status)
+			.service(handle_static::static_files)
+			.service(handle_static::favicon)
 
 			// Middleware
 			.wrap(Logger::default())
