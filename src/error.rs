@@ -1,3 +1,5 @@
+use std::string::FromUtf8Error;
+
 use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error};
@@ -10,6 +12,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum AppErrorKind {
 	TokenNotFound,
 	NoParentToken,
+	MissingMetadata,
+	IncorrectMetadata,
+	InvalidTargetUser,
 
 	#[display(fmt = "You are not logged in!")]
 	NotLoggedIn,
@@ -141,6 +146,12 @@ impl From<actix_session::SessionInsertError> for Error {
 impl From<sqlx::Error> for Error {
 	fn from(error: sqlx::Error) -> Self {
 		format!("Database error: {}", error).into()
+	}
+}
+
+impl From<FromUtf8Error> for Error {
+	fn from(error: FromUtf8Error) -> Self {
+		format!("Decoding error: {}", error).into()
 	}
 }
 

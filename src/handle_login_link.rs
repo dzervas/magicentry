@@ -16,16 +16,17 @@ async fn login_link(magic: web::Path<String>, session: Session, db: web::Data<Sq
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
-	let user_session = Token::generate(&db, TokenKind::Session, &user, None).await?;
+	let user_session = Token::new(&db, TokenKind::Session, &user, None, None).await?;
 	info!("User {} logged in", &user.email);
+	let oidc_authorize_req_opt = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE);
 	session.insert(SESSION_COOKIE, user_session.code)?;
 
 	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
-	if let Some(Ok(oidc_authorize)) = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE) {
-		println!("Session Authorize Request: {:?}", oidc_authorize);
-		let oidc_session = oidc_authorize.generate_session_code(&db, user.email.as_str()).await?;
-		let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::InvalidRedirectUri)?;
-		info!("Redirecting to client {}", &oidc_session.request.client_id);
+	if let Some(Ok(oidc_auth_req)) = oidc_authorize_req_opt {
+		println!("Session Authorize Request: {:?}", oidc_auth_req);
+		let oidc_code = oidc_auth_req.generate_session_code(&db, &user).await?.code;
+		let redirect_url = oidc_auth_req.get_redirect_url(&oidc_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+		info!("Redirecting to client {}", &oidc_auth_req.client_id);
 		Ok(HttpResponse::Found()
 			.append_header(("Location", redirect_url.as_str()))
 			.finish())
@@ -55,7 +56,7 @@ mod tests {
 		)
 		.await;
 
-		let token = Token::generate(&db, TokenKind::MagicLink, &user, None).await.unwrap();
+		let token = Token::new(&db, TokenKind::MagicLink, &user, None, None).await.unwrap();
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()

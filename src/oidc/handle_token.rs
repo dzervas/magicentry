@@ -8,9 +8,9 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
+use crate::oidc::handle_authorize::AuthorizeRequest;
+use crate::user::{Token, TokenKind, User};
 use crate::CONFIG;
-
-use super::model::{OIDCAuth, OIDCSession};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TokenRequest {
@@ -58,18 +58,16 @@ impl JWTData {
 }
 
 #[post("/oidc/token")]
-pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, req_token: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
+pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, token_req: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
 	#[cfg(debug_assertions)]
-	log::info!("Token request: {:?}", req_token);
+	log::info!("Token request: {:?}", token_req);
 
-	let (client, session) = OIDCSession::from_code(&db, &req_token.code).await?.ok_or(AppErrorKind::InvalidOIDCCode)?;
-
-	#[cfg(debug_assertions)]
-	log::info!("Token session from DB: {:?}", session);
+	let session = Token::from_code(&db, &token_req.code, TokenKind::OIDCCode).await?;
+	println!("Session: {:?}", session);
+	let auth_req = AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
 
 	// TODO: Check the request origin
-
-	if let Some(code_verifier) = req_token.code_verifier.clone() {
+	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
 		// Client secret is not required and only the request origin should be checked
 		let mut hasher = Sha256::new();
@@ -77,19 +75,20 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, req_token: web::
 		let generated_code_challenge_bytes = hasher.finalize().clone();
 		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
 
-		if Some(generated_code_challenge) != session.request.code_challenge {
+		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(AppErrorKind::InvalidCodeVerifier.into());
 		}
-	} else if let Some(req_client_secret) = req_token.client_secret.clone() {
+	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
-		let req_client_id = req_token.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
-		let session_client_id = session.request.client_id.clone();
+		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
+		let session_client_id = auth_req.client_id.clone();
+		let config_client = CONFIG.oidc_clients.iter().find(|c| c.id == session_client_id).ok_or(AppErrorKind::InvalidClientID)?;
 
 		if req_client_id != session_client_id {
 			return Err(AppErrorKind::NotMatchingClientID.into());
 		}
 
-		if client.id != req_client_id || client.secret != req_client_secret {
+		if config_client.id != req_client_id || config_client.secret != req_client_secret {
 			return Err(AppErrorKind::InvalidClientSecret.into());
 		}
 	} else {
@@ -97,8 +96,9 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, req_token: web::
 	}
 
 	let base_url = CONFIG.url_from_request(&req);
-	let id_token = session.generate_id_token(&base_url, jwt_keypair.as_ref()).await?;
-	let access_token = OIDCAuth::generate(&db, session.email.clone()).await?.auth;
+	let user = User::from_config(&session.user).ok_or(AppErrorKind::InvalidTargetUser)?;
+	let id_token = auth_req.generate_id_token(&user, &base_url, jwt_keypair.as_ref()).await?;
+	let access_token = Token::new(&db, TokenKind::OIDCBearer, &user, None, None).await?.code;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,

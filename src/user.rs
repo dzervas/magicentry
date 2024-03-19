@@ -116,11 +116,8 @@ pub struct Token {
 	/// The parent token it's bound to (if any) - e.g. a `ScopedSession` is bound to a `Session`.
 	/// It describes that the longevity of the child can never exceed the parent
 	/// while limiting the scope of the child to the parent.
-	#[serde(skip_serializing_if = "Option::is_none")]
 	// NOTE: This would be nice to be a concrete Token
 	pub bound_to: Option<String>,
-
-	#[serde(skip_serializing_if = "Option::is_none")]
 	// NOTE: This would be nice to be a generic
 	pub metadata: Option<String>,
 }
@@ -200,7 +197,7 @@ impl Token {
 		Ok(token)
 	}
 
-	pub async fn generate(db: &SqlitePool, kind: TokenKind, user: &User, bound_to: Option<&Self>) -> Result<Self> {
+	pub async fn new(db: &SqlitePool, kind: TokenKind, user: &User, bound_to: Option<&Self>, metadata: Option<String>) -> Result<Self> {
 		let expires_at = if let Some(bound_token) = bound_to {
 			bound_token.expires_at
 		} else {
@@ -213,16 +210,17 @@ impl Token {
 			user: user.email.clone(),
 			expires_at,
 			bound_to: bound_to.map(|b| b.code.clone()),
-			metadata: None,
+			metadata: metadata,
 		};
 
 		query!(
-				"INSERT INTO tokens (code, kind, user, expires_at, bound_to) VALUES (?, ?, ?, ?, ?)",
+				"INSERT INTO tokens (code, kind, user, expires_at, bound_to, metadata) VALUES (?, ?, ?, ?, ?, ?)",
 				token.code,
 				token.kind,
 				token.user,
 				token.expires_at,
-				token.bound_to
+				token.bound_to,
+				token.metadata
 			)
 			.execute(db)
 			.await?;
@@ -264,7 +262,7 @@ mod tests {
 		let db = &db_connect().await;
 		let user = get_valid_user();
 
-		let link = Token::generate(db, TokenKind::MagicLink, &user, None).await.unwrap();
+		let link = Token::new(db, TokenKind::MagicLink, &user, None, None).await.unwrap();
 
 		assert_eq!(link.user, user.email);
 		assert_eq!(link.code.len(), RANDOM_STRING_LEN * 2);

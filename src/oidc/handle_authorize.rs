@@ -10,11 +10,10 @@ use jwt_simple::prelude::*;
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
-use crate::user::User;
+use crate::oidc::handle_token::JWTData;
+use crate::user::{TokenKind, User};
 use crate::{AUTHORIZATION_COOKIE, CONFIG};
 use crate::utils::get_partial;
-
-use super::model::OIDCSession;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
 pub struct AuthorizeRequest {
@@ -28,8 +27,67 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_session_code(&self, db: &SqlitePool, email: &str) -> std::result::Result<OIDCSession, Error> {
-		OIDCSession::generate(db, email.to_string(), self.clone()).await
+	pub async fn generate_session_code(&self, db: &SqlitePool, user: &User) -> std::result::Result<crate::user::Token, Error> {
+		let self_string = String::try_from(self)?;
+		crate::user::Token::new(db, TokenKind::OIDCCode, user, None, Some(self_string)).await
+	}
+
+	pub fn get_redirect_url(&self, code: &str) -> Option<String> {
+		let redirect_url = if let Some(redirect_url_enc) = &self.redirect_uri {
+			urlencoding::decode(&redirect_url_enc).ok()?.to_string()
+		} else {
+			return None;
+		};
+
+		let config_client = CONFIG.oidc_clients
+			.iter()
+			.find(|c|
+				c.id == self.client_id &&
+				c.redirect_uris.contains(&redirect_url));
+
+		if config_client.is_none() {
+			log::warn!("Invalid redirect_uri: {} for client_id: {}", redirect_url, self.client_id);
+			return None;
+		}
+
+		Some(format!("{}?code={}&state={}",
+			redirect_url,
+			code,
+			self.state.clone().unwrap_or_default()))
+	}
+
+	pub async fn generate_id_token(&self, user: &User, url: &str, keypair: &RS256KeyPair) -> Result<String, Error> {
+		let jwt_data = JWTData {
+			user: user.email.clone(),
+			client_id: self.client_id.clone(),
+			..JWTData::new(url)
+		};
+		println!("JWT Data: {:?}", jwt_data);
+
+		let claims = Claims::with_custom_claims(
+			jwt_data,
+			Duration::from_millis(
+				CONFIG.session_duration
+				.num_milliseconds()
+				.try_into()
+				.map_err(|_| AppErrorKind::InvalidDuration)?));
+		let id_token = keypair.sign(claims)?;
+
+		Ok(id_token)
+	}
+}
+
+impl TryFrom<String> for AuthorizeRequest {
+	type Error = serde_qs::Error;
+	fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
+		serde_qs::from_str(&value)
+	}
+}
+
+impl TryFrom<&AuthorizeRequest> for String {
+	type Error = serde_qs::Error;
+	fn try_from(value: &AuthorizeRequest) -> std::result::Result<Self, Self::Error> {
+		serde_qs::to_string(&value)
 	}
 }
 
@@ -59,10 +117,11 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 			.finish())
 	};
 
-	let oidc_session = auth_req.generate_session_code(&db, user.email.as_str()).await?;
+	let oidc_session = auth_req.generate_session_code(&db, &user).await?;
+	println!("OIDC Session: {:?}", oidc_session);
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = oidc_session.get_redirect_url().ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url = auth_req.get_redirect_url(&oidc_session.code).ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let authorize_page_str = get_partial("authorize");
 	let authorize_page = formatx!(
 		authorize_page_str,

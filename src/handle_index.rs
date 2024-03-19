@@ -78,7 +78,7 @@ use crate::{SESSION_COOKIE, handle_login_link};
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
-		let token = Token::generate(&db, TokenKind::MagicLink, &user, None).await.unwrap();
+		let token = Token::new(&db, TokenKind::MagicLink, &user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())
