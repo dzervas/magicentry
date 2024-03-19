@@ -10,8 +10,9 @@ use jwt_simple::prelude::*;
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
+use crate::model::TokenKind;
 use crate::oidc::handle_token::JWTData;
-use crate::user::{TokenKind, User};
+use crate::user::User;
 use crate::{AUTHORIZATION_COOKIE, CONFIG};
 use crate::utils::get_partial;
 
@@ -27,9 +28,9 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_session_code(&self, db: &SqlitePool, user: &User) -> std::result::Result<crate::user::Token, Error> {
+	pub async fn generate_session_code(&self, db: &SqlitePool, user: &User) -> std::result::Result<crate::model::Token, Error> {
 		let self_string = String::try_from(self)?;
-		crate::user::Token::new(db, TokenKind::OIDCCode, user, None, Some(self_string)).await
+		crate::model::Token::new(db, TokenKind::OIDCCode, user, None, Some(self_string)).await
 	}
 
 	pub fn get_redirect_url(&self, code: &str) -> Option<String> {

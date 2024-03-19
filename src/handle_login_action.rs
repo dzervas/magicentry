@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::user::{Token, TokenKind, User};
+use crate::model::{Token, TokenKind};
+use crate::user::User;
 use crate::{SmtpTransport, CONFIG};
 use crate::utils::get_partial;
 

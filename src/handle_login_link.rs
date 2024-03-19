@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::user::{Token, TokenKind};
+use crate::model::{Token, TokenKind};
 use crate::{AUTHORIZATION_COOKIE, SESSION_COOKIE};
 
 #[get("/login/{magic}")]

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::user::{Token, TokenKind};
+use crate::model::{Token, TokenKind};
 use crate::SESSION_COOKIE;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

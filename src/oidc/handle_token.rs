@@ -9,7 +9,8 @@ use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::user::{Token, TokenKind, User};
+use crate::model::{Token, TokenKind};
+use crate::user::User;
 use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

@@ -38,8 +38,8 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 mod tests {
 	use super::*;
 	use crate::tests::*;
-	use crate::user::{Token, TokenKind};
-use crate::{SESSION_COOKIE, handle_login_link};
+	use crate::model::{Token, TokenKind};
+	use crate::{SESSION_COOKIE, handle_login_link};
 
 	use std::collections::HashMap;
 

@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 
 use crate::CONFIG;
 use crate::error::Result;
-use crate::user::{Token, TokenKind};
+use crate::model::{Token, TokenKind};
 
 use super::handle_authorize::AuthorizeRequest;
 

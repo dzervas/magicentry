@@ -8,6 +8,7 @@ use lettre::transport::smtp;
 
 pub mod config;
 pub mod error;
+pub mod model;
 pub mod oidc;
 pub mod user;
 pub mod utils;
