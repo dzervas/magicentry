@@ -1,4 +1,4 @@
-use actix_web::http::header::ContentType;
+use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error};
 
@@ -6,7 +6,7 @@ pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
 pub type Response = std::result::Result<HttpResponse, Error>;
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[derive(Debug, Display, Error, Clone)]
+#[derive(Debug, Display, Error, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AppErrorKind {
 	TokenNotFound,
 	NoParentToken,
@@ -48,10 +48,11 @@ pub enum AppErrorKind {
 impl ResponseError for AppErrorKind {
 	fn status_code(&self) -> StatusCode {
 		match self {
-			AppErrorKind::NotLoggedIn => StatusCode::UNAUTHORIZED,
-			AppErrorKind::InvalidClientID => StatusCode::UNAUTHORIZED,
+			AppErrorKind::TokenNotFound => StatusCode::FOUND,
+			AppErrorKind::NotLoggedIn |
+			AppErrorKind::InvalidOIDCCode |
+			AppErrorKind::InvalidClientID |
 			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
-			AppErrorKind::InvalidOIDCCode => StatusCode::UNAUTHORIZED,
 
 			_ => StatusCode::BAD_REQUEST,
 		}
@@ -65,9 +66,16 @@ impl ResponseError for AppErrorKind {
 			log::error!("{}", self)
 		}
 
-		HttpResponse::build(status)
-			.content_type(ContentType::html())
-			.body(self.to_string())
+
+		if self == &AppErrorKind::TokenNotFound || self == &AppErrorKind::NotLoggedIn {
+			HttpResponse::build(status)
+				.append_header((header::LOCATION, "/login"))
+				.finish()
+		} else {
+			HttpResponse::build(status)
+				.content_type(ContentType::html())
+				.body(self.to_string())
+		}
 	}
 }
 

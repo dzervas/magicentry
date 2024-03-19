@@ -10,8 +10,7 @@ use crate::{AUTHORIZATION_COOKIE, SESSION_COOKIE};
 
 #[get("/login/{magic}")]
 async fn login_link(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> Response {
-	// TODO: Can crash
-	let user = if let Some(user) = Token::from_code(&db, &magic).await?.unwrap().get_user() {
+	let user = if let Some(user) = Token::from_code(&db, &magic, TokenKind::MagicLink).await?.get_user() {
 		user
 	} else {
 		return Ok(HttpResponse::Unauthorized().finish())
@@ -44,12 +43,11 @@ mod tests {
 
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};
-	use chrono::Utc;
-	use sqlx::query;
 
 	#[actix_web::test]
-	async fn test_login_magic_action() {
+	async fn test_login_link() {
 		let db = &db_connect().await;
+		let user = get_valid_user();
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
@@ -57,24 +55,16 @@ mod tests {
 		)
 		.await;
 
-		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
-		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(magic) DO UPDATE SET expires_at = ?",
-				"valid_magic_link",
-				"valid@example.com",
-				expiry,
-				expiry,
-			)
-			.execute(db)
-			.await
-			.unwrap();
+		let token = Token::generate(&db, TokenKind::MagicLink, &user, None).await.unwrap();
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()
-			.uri("/login/valid_magic_link")
+			.uri(format!("/login/{}", token.code).as_str())
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/");
 
 		// Assuming an invalid session
 		let req = actix_test::TestRequest::get()
@@ -82,6 +72,7 @@ mod tests {
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+		assert_eq!(resp.status(), StatusCode::FOUND);
+		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 	}
 }

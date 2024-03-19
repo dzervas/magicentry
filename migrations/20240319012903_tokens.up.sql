@@ -4,7 +4,7 @@ CREATE TABLE tokens (
 	user TEXT NOT NULL,
 	expires_at TIMESTAMP NOT NULL,
 	bound_to TEXT,
-	metadata TEXT NOT NULL,
+	metadata TEXT,
 
 	-- If a parent token that bound_to points to is deleted, delete this token as well
 	CONSTRAINT fk_bound_to

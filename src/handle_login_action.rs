@@ -25,7 +25,7 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 		return Ok(HttpResponse::Ok().finish())
 	};
 
-	let link = Token::generate(&db, TokenKind::Magic, &user, None).await?;
+	let link = Token::generate(&db, TokenKind::MagicLink, &user, None).await?;
 	let base_url = CONFIG.url_from_request(&req);
 	let magic_link = format!("{}/login/{}", base_url, link.code);
 	let name = &user.name.unwrap_or_default();

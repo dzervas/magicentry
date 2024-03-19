@@ -38,7 +38,8 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 mod tests {
 	use super::*;
 	use crate::tests::*;
-	use crate::{SESSION_COOKIE, handle_login_link};
+	use crate::user::{Token, TokenKind};
+use crate::{SESSION_COOKIE, handle_login_link};
 
 	use std::collections::HashMap;
 
@@ -47,14 +48,13 @@ mod tests {
 	use actix_web::cookie::{Cookie, Key, SameSite};
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};
-	use chrono::Utc;
-	use sqlx::query;
 
 	#[actix_web::test]
 	async fn test_index() {
 		let db = &db_connect().await;
 		let mut session_map = HashMap::new();
 		let secret = Key::from(&[0; 64]);
+		let user = get_valid_user();
 		session_map.insert(SESSION_COOKIE, "valid_session_id");
 
 		let mut app = actix_test::init_service(
@@ -78,18 +78,11 @@ mod tests {
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
-		let expiry = Utc::now().naive_utc() + chrono::Duration::try_days(1).unwrap();
-		query!("INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?) ON CONFLICT(magic) DO UPDATE SET expires_at = ?",
-				"valid_magic_link",
-				"valid@example.com",
-				expiry,
-				expiry,
-			)
-			.execute(db)
-			.await
-			.unwrap();
+		let token = Token::generate(&db, TokenKind::MagicLink, &user, None).await.unwrap();
 
-		let req = actix_test::TestRequest::get().uri("/login/valid_magic_link").to_request();
+		let req = actix_test::TestRequest::get()
+			.uri(format!("/login/{}", token.code).as_str())
+			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/");
