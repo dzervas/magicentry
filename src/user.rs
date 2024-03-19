@@ -1,11 +1,12 @@
+use std::result::Result as StdResult;
+
 use chrono::{NaiveDateTime, Utc};
-use serde::{Deserialize, Serialize};
-use rand::rngs::StdRng;
-use rand::{RngCore, SeedableRng};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sqlx::{query, query_as, SqlitePool};
 
-use crate::{CONFIG, RANDOM_STRING_LEN, SESSION_COOKIE};
-use crate::error::SqlResult;
+use crate::utils::random_string;
+use crate::{CONFIG, SESSION_COOKIE};
+use crate::error::{AppErrorKind, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
@@ -16,7 +17,7 @@ pub struct User {
 }
 
 impl User {
-	pub async fn from_session(db: &SqlitePool, session: actix_session::Session) -> SqlResult<Option<User>> {
+	pub async fn from_session(db: &SqlitePool, session: actix_session::Session) -> Result<Option<User>> {
 		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
 			User::from_session_id(db, session_id.as_str()).await
 		} else {
@@ -24,10 +25,10 @@ impl User {
 		}
 	}
 
-	pub async fn from_session_id(db: &SqlitePool, session_id: &str) -> SqlResult<Option<User>> {
-		let session = UserSession::from_id(db, session_id).await?;
-		if let Some(session) = session {
-			let user = User::from_config(&session.email);
+	pub async fn from_session_id(db: &SqlitePool, session_id: &str) -> Result<Option<User>> {
+		let session = Token::from_code(db, session_id).await;
+		if let Ok(Some(session)) = session {
+			let user = session.get_user();
 			if user.is_none() {
 				session.delete(&db).await?;
 			}
@@ -43,6 +44,20 @@ impl User {
 			.iter()
 			.find_map(|u| if u.email == email { Some(u.clone()) } else { None })
 	}
+
+	pub fn serialize<S: Serializer>(&self, ser: S) -> StdResult<S::Ok, S::Error> {
+		ser.serialize_str(&self.email)
+	}
+
+	pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> StdResult<Self, D::Error> {
+		use serde::de::Error;
+		let email = String::deserialize(de)?;
+		CONFIG
+			.users
+			.iter()
+			.find_map(|u| if u.email == email { Some(u.clone()) } else { None })
+			.ok_or(Error::custom("User not found"))
+	}
 }
 
 impl PartialEq<String> for User {
@@ -51,176 +66,167 @@ impl PartialEq<String> for User {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct UserSession {
-	pub session_id: String,
-	pub email: String,
-	pub expires_at: NaiveDateTime,
+#[derive(sqlx::Type, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[sqlx(rename_all = "lowercase")]
+pub enum TokenKind {
+	/// Magic link token sent to the user to log in (one-time use)
+	Magic,
+	/// Cookie session token
+	Session,
+	/// Cookie session token sent to the application proxy to authenticate the user (one-time use, it's exchanged for a `ScopedSession` by us)
+	AuthProxy,
+	/// Cookie session token that authenticates a user against a specific scope - it's bound to a `Session` and both are deleted on logout
+	ScopedSession,
+	/// OIDC code sent to the client during authorize using the redirect_uri (one-time use)
+	OIDCCode,
+	/// OIDC Bearer token sent to the client after the client has exchanged the OIDC code for a token
+	OIDCBearer,
 }
 
-impl UserSession {
-	pub async fn new(db: &SqlitePool, user: &User) -> SqlResult<UserSession> {
-		let expires_at = Utc::now()
+impl TokenKind {
+	pub fn get_expiry(&self) -> NaiveDateTime {
+		let duration = match self {
+			TokenKind::Magic => CONFIG.link_duration.to_owned(),
+			TokenKind::Session |
+			TokenKind::ScopedSession |
+			TokenKind::OIDCBearer => CONFIG.session_duration.to_owned(),
+			TokenKind::OIDCCode |
+			TokenKind::AuthProxy => CONFIG.oidc_code_duration.to_owned(),
+		};
+
+		Utc::now()
 			.naive_utc()
-			.checked_add_signed(CONFIG.session_duration.to_owned())
-			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
-
-		let record = UserSession {
-			session_id: random_string(),
-			email: user.email.clone(),
-			expires_at,
-		};
-
-		query!(
-				"INSERT INTO sessions (session_id, email, expires_at) VALUES (?, ?, ?)",
-				record.session_id,
-				record.email,
-				record.expires_at
-			)
-			.execute(db)
-			.await?;
-
-		Ok(record)
+			.checked_add_signed(duration)
+			.expect(format!("Couldn't generate expiry for {:?}", self).as_str())
 	}
+}
 
-	pub async fn from_id(db: &SqlitePool, id: &str) -> SqlResult<Option<UserSession>> {
-		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", id)
-			.fetch_optional(db)
-			.await?;
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Token {
+	/// The primary key and value of the token. A random string filled by `crate::utils::random_string()`.
+	pub code: String,
+	/// The type of token - used to determine how to handle the token (ephemeral, relation to parent token, etc.)
+	pub kind: TokenKind,
+	/// The user it authenticates
+	pub user: String,
+	/// The time the token expires
+	pub expires_at: NaiveDateTime,
+	/// The parent token it's bound to (if any) - e.g. a `ScopedSession` is bound to a `Session`.
+	/// It describes that the longevity of the child can never exceed the parent
+	/// while limiting the scope of the child to the parent.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub bound_to: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub metadata: Option<String>,
+}
 
-		let session = if let Some(session) = session_res {
-			session
-		} else {
-			return Ok(None)
-		};
+impl Token {
+	/// Describes if the token is ephemeral and should be deleted after the first use
+	pub fn is_ephemeral(&self) -> bool {
+		match self.kind {
+			TokenKind::Magic |
+			TokenKind::OIDCCode |
+			TokenKind::ScopedSession => true,
+			_ => false,
 
-		if !session.is_expired(db).await? {
-			Ok(Some(session))
-		} else {
-			Ok(None)
 		}
 	}
 
-	pub async fn is_valid(&self, db: &SqlitePool) -> SqlResult<bool> {
-		let session_res = query_as!(UserSession, "SELECT * FROM sessions WHERE session_id = ?", self.session_id)
-			.fetch_optional(db)
-			.await?;
-
-		let session = if let Some(session) = session_res {
-			session
-		} else {
-			return Ok(false)
-		};
-
-		Ok(!self.is_expired(db).await? && self == &session)
-	}
-
-	pub async fn is_expired(&self, db: &SqlitePool) -> SqlResult<bool> {
+	pub async fn is_valid(&self, db: &SqlitePool) -> Result<bool> {
 		if self.expires_at <= Utc::now().naive_utc() {
-			query!("DELETE FROM sessions WHERE session_id = ?", self.session_id)
-				.execute(db)
-				.await?;
+			self.delete(db).await?;
+			return Ok(false)
+		}
 
-			Ok(true)
+		let other = Self::from_code(db, &self.code).await?;
+
+		if let Some(record) = other {
+			Ok(self == &record)
 		} else {
 			Ok(false)
 		}
 	}
 
-	pub async fn delete_id(db: &SqlitePool, id: &str) -> SqlResult<()>{
-		query!("DELETE FROM sessions WHERE session_id = ?", id)
+	pub fn get_user(&self) -> Option<User> {
+		User::from_config(&self.user)
+	}
+
+	pub async fn get_parent(&self, db: &SqlitePool) -> Result<Option<Self>> {
+		let code = self.bound_to.as_ref().ok_or(AppErrorKind::NoParentToken)?;
+		Self::from_code(db, code).await
+	}
+
+	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Option<Self>> {
+		let token = query_as!(Token, r#"SELECT
+			code,
+			kind AS "kind: TokenKind",
+			user,
+			expires_at,
+			bound_to,
+			metadata
+			FROM tokens WHERE code = ?"#, code)
+			.fetch_optional(db)
+			.await?;
+
+		if let Some(record) = &token {
+			if record.is_ephemeral() {
+				record.delete(db).await?;
+			}
+		}
+
+		Ok(token)
+	}
+
+	pub async fn generate(db: &SqlitePool, kind: TokenKind, user: &User, bound_to: Option<&Self>) -> Result<Self> {
+		let expires_at = if let Some(bound_token) = bound_to {
+			bound_token.expires_at
+		} else {
+			kind.get_expiry()
+		};
+
+		let token = Token {
+			code: random_string(),
+			kind,
+			user: user.email.clone(),
+			expires_at,
+			bound_to: bound_to.map(|b| b.code.clone()),
+			metadata: None,
+		};
+
+		query!(
+				"INSERT INTO tokens (code, kind, user, expires_at, bound_to) VALUES (?, ?, ?, ?, ?)",
+				token.code,
+				token.kind,
+				token.user,
+				token.expires_at,
+				token.bound_to
+			)
+			.execute(db)
+			.await?;
+
+		Ok(token)
+	}
+
+	pub async fn delete(&self, db: &SqlitePool) -> Result<()> {
+		let now = Utc::now().naive_utc();
+		query!(
+				"DELETE FROM tokens WHERE code = ? OR bound_to = ? OR expires_at <= ?",
+				self.code,
+				self.code,
+				now
+			)
 			.execute(db)
 			.await?;
 
 		Ok(())
 	}
-
-	pub async fn delete(&self, db: &SqlitePool) -> SqlResult<()> {
-		UserSession::delete_id(db, &self.session_id).await
-	}
-}
-
-impl From<String> for UserSession {
-	fn from(email: String) -> Self {
-		let expires_at = Utc::now()
-			.naive_utc()
-			.checked_add_signed(CONFIG.session_duration.to_owned())
-			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
-		UserSession {
-			session_id: random_string(),
-			email,
-			expires_at,
-		}
-	}
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct UserLink {
-	pub magic: String,
-	pub email: String,
-	pub expires_at: NaiveDateTime,
-}
-
-impl UserLink {
-	pub async fn new(db: &SqlitePool, target: String) -> SqlResult<UserLink> {
-		let expires_at = Utc::now()
-			.naive_utc()
-			.checked_add_signed(CONFIG.session_duration.to_owned())
-			.expect("Couldn't add session_duration to Utc::now() - something is wrong with the config");
-
-		let record = UserLink {
-			magic: random_string(),
-			email: target.clone(),
-			expires_at,
-		};
-
-		query!(
-				"INSERT INTO links (magic, email, expires_at) VALUES (?, ?, ?)",
-				record.magic,
-				record.email,
-				record.expires_at
-			)
-			.execute(db)
-			.await?;
-
-		Ok(record)
-	}
-
-	pub async fn visit(db: &SqlitePool, target: String) -> SqlResult<Option<User>> {
-		let session = if let Some(link) = query_as!(UserLink, "SELECT * FROM links WHERE magic = ?", target)
-			.fetch_optional(db)
-			.await? {
-				link
-			} else {
-				return Ok(None)
-			};
-
-		query!("DELETE FROM links WHERE magic = ?", target)
-			.execute(db)
-			.await?;
-
-		if session.expires_at <= Utc::now().naive_utc() {
-			return Ok(None)
-		}
-
-		Ok(
-			CONFIG.users
-				.iter()
-				.find_map(|u| if u.email == session.email { Some(u.clone()) } else { None }))
-	}
-}
-
-pub fn random_string() -> String {
-	let mut rng = StdRng::from_entropy();
-	let mut buffer = [0u8; RANDOM_STRING_LEN];
-	rng.fill_bytes(&mut buffer);
-	hex::encode(buffer)
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::tests::*;
+	use crate::RANDOM_STRING_LEN;
 	use chrono::Utc;
 
 	#[actix_web::test]
@@ -314,14 +320,5 @@ mod tests {
 			.fetch_optional(db)
 			.await;
 		assert!(record.unwrap().is_none());
-	}
-
-	#[test]
-	fn test_random_string() {
-		let string1 = random_string();
-		let string2 = random_string();
-
-		assert_ne!(string1, string2);
-		assert_eq!(string1.len(), RANDOM_STRING_LEN * 2);
 	}
 }

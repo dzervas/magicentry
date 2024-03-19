@@ -4,9 +4,13 @@ use derive_more::{Display, Error};
 
 pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
 pub type Response = std::result::Result<HttpResponse, Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Display, Error, Clone)]
 pub enum AppErrorKind {
+	TokenNotFound,
+	NoParentToken,
+
 	#[display(fmt = "You are not logged in!")]
 	NotLoggedIn,
 	#[display(fmt = "Missing Authorization header")]

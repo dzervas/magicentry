@@ -1,5 +1,3 @@
-use std::fs;
-
 use config::ConfigFile;
 use sqlx::sqlite::SqlitePool;
 use lazy_static::lazy_static;
@@ -12,6 +10,7 @@ pub mod config;
 pub mod error;
 pub mod oidc;
 pub mod user;
+pub mod utils;
 pub mod handle_index;
 pub mod handle_login_page;
 pub mod handle_login_action;
@@ -44,24 +43,6 @@ lazy_static! {
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
-}
-
-pub fn get_partial(name: &str) -> String {
-	let path_prefix = if CONFIG.path_prefix.ends_with('/') {
-		&CONFIG.path_prefix[..CONFIG.path_prefix.len() - 1]
-	} else {
-		&CONFIG.path_prefix
-	};
-
-	let outer_content = fs::read_to_string("static/outer.html").expect("Unable to open static/outer.html");
-	let inner_content = fs::read_to_string(format!("static/{}.html", name)).expect(format!("Unable to open static/{}.html", name).as_str());
-
-	formatx::formatx!(
-		outer_content,
-		title = &CONFIG.title,
-		path_prefix = path_prefix,
-		content = inner_content
-	).expect(format!("Unable to format static/outer.html with title `{:?}` and path_prefix `{:?}`", &CONFIG.title, path_prefix).as_str())
 }
 
 // Do not compile in tests at all as the SmtpTransport is not available

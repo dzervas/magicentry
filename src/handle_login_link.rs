@@ -5,20 +5,21 @@ use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::user::{UserLink, UserSession};
+use crate::user::{Token, TokenKind};
 use crate::{AUTHORIZATION_COOKIE, SESSION_COOKIE};
 
 #[get("/login/{magic}")]
 async fn login_link(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> Response {
-	let user = if let Some(user) = UserLink::visit(&db, magic.clone()).await? {
+	// TODO: Can crash
+	let user = if let Some(user) = Token::from_code(&db, &magic).await?.unwrap().get_user() {
 		user
 	} else {
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
-	let user_session = UserSession::new(&db, &user).await?;
+	let user_session = Token::generate(&db, TokenKind::Session, &user, None).await?;
 	info!("User {} logged in", &user.email);
-	session.insert(SESSION_COOKIE, user_session.session_id)?;
+	session.insert(SESSION_COOKIE, user_session.code)?;
 
 	// This assumes that the cookies persist during the link-clicking dance, could embed the state in the link
 	if let Some(Ok(oidc_authorize)) = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE) {

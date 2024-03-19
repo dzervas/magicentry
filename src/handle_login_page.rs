@@ -6,7 +6,8 @@ use sqlx::SqlitePool;
 
 use crate::error::Response;
 use crate::user::User;
-use crate::{get_partial, CONFIG};
+use crate::CONFIG;
+use crate::utils::get_partial;
 
 #[get("/login")]
 async fn login_page(session: Session, db: web::Data<SqlitePool>) -> Response {

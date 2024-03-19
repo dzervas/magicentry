@@ -7,8 +7,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::user::{User, UserLink};
-use crate::{get_partial, SmtpTransport, CONFIG};
+use crate::user::{Token, TokenKind, User};
+use crate::{SmtpTransport, CONFIG};
+use crate::utils::get_partial;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 struct LoginInfo {
@@ -24,9 +25,9 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 		return Ok(HttpResponse::Ok().finish())
 	};
 
-	let link = UserLink::new(&db, user.email.clone()).await?;
+	let link = Token::generate(&db, TokenKind::Magic, &user, None).await?;
 	let base_url = CONFIG.url_from_request(&req);
-	let magic_link = format!("{}/login/{}", base_url, link.magic);
+	let magic_link = format!("{}/login/{}", base_url, link.code);
 	let name = &user.name.unwrap_or_default();
 	let username = &user.username.unwrap_or_default();
 
@@ -55,7 +56,7 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 			&CONFIG.request_url,
 			title = &CONFIG.title,
 			link = &magic_link,
-			email = &link.email,
+			email = &user.email,
 			name = name,
 			username = username
 		)?;
@@ -66,7 +67,7 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 				data.as_str(),
 				title = &CONFIG.title,
 				link = &magic_link,
-				email = &link.email,
+				email = &user.email,
 				name = name,
 				username = username
 			)?;

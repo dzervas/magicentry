@@ -11,7 +11,8 @@ use jwt_simple::prelude::*;
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
 use crate::user::User;
-use crate::{get_partial, AUTHORIZATION_COOKIE, CONFIG};
+use crate::{AUTHORIZATION_COOKIE, CONFIG};
+use crate::utils::get_partial;
 
 use super::model::OIDCSession;
 

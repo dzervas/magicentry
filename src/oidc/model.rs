@@ -9,7 +9,8 @@ use sqlx::{query, query_as, SqlitePool};
 use crate::error::{Error, AppErrorKind};
 use crate::oidc::handle_token::JWTData;
 use crate::CONFIG;
-use crate::user::{random_string, User};
+use crate::user::User;
+use crate::utils::random_string;
 use crate::error::SqlResult;
 
 use super::handle_authorize::AuthorizeRequest;
