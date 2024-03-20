@@ -11,7 +11,7 @@ use crate::utils::get_partial;
 
 #[get("/login")]
 async fn login_page(session: Session, db: web::Data<SqlitePool>) -> Response {
-	if User::from_session(&db, session).await?.is_some() {
+	if User::from_session(&db, &session).await?.is_some() {
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/"))
 			.finish())

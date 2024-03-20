@@ -15,7 +15,7 @@ pub enum TokenKind {
 	/// Cookie session token
 	Session,
 	/// Cookie session token sent to the application proxy to authenticate the user (one-time use, it's exchanged for a `ScopedSession` by us)
-	AuthProxy,
+	ProxyCookie,
 	/// Cookie session token that authenticates a user against a specific scope - it's bound to a `Session` and both are deleted on logout
 	ScopedSession,
 	/// OIDC code sent to the client during authorize using the redirect_uri (one-time use)
@@ -32,7 +32,7 @@ impl TokenKind {
 			TokenKind::ScopedSession |
 			TokenKind::OIDCBearer => CONFIG.session_duration.to_owned(),
 			TokenKind::OIDCCode |
-			TokenKind::AuthProxy => CONFIG.oidc_code_duration.to_owned(),
+			TokenKind::ProxyCookie => CONFIG.oidc_code_duration.to_owned(),
 		};
 
 		Utc::now()
@@ -92,7 +92,7 @@ impl Token {
 		let other = Self::from_code_unchecked(db, &self.code).await?;
 		// TODO: Check expiry and user against the parent
 
-		Ok(self == &other)
+		Ok(self == &other && self.get_user().is_some())
 	}
 
 	pub fn get_user(&self) -> Option<User> {
@@ -119,7 +119,7 @@ impl Token {
 
 		let is_expired = token.is_expired(db).await?;
 
-		if token.is_ephemeral() || !is_expired {
+		if token.is_ephemeral() || !is_expired || token.get_user().is_none() {
 			token.delete(db).await?;
 		}
 
@@ -138,8 +138,9 @@ impl Token {
 		Ok(token)
 	}
 
-	pub async fn new(db: &SqlitePool, kind: TokenKind, user: &User, bound_to: Option<&Self>, metadata: Option<String>) -> Result<Self> {
-		let expires_at = if let Some(bound_token) = bound_to {
+	pub async fn new(db: &SqlitePool, kind: TokenKind, user: &User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
+		let expires_at = if let Some(bound_code) = &bound_to {
+			let bound_token = Self::from_code_unchecked(db, &bound_code).await?;
 			bound_token.expires_at
 		} else {
 			kind.get_expiry()
@@ -150,7 +151,7 @@ impl Token {
 			kind,
 			user: user.email.clone(),
 			expires_at,
-			bound_to: bound_to.map(|b| b.code.clone()),
+			bound_to,
 			metadata: metadata,
 		};
 

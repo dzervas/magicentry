@@ -108,7 +108,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 
 	session.insert(AUTHORIZATION_COOKIE, auth_req.clone())?;
 
-	let user = if let Some(user) = User::from_session(&db, session).await? {
+	let user = if let Some(user) = User::from_session(&db, &session).await? {
 		user
 	} else {
 		let base_url = CONFIG.url_from_request(&req);

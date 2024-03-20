@@ -1,3 +1,4 @@
+use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
@@ -9,7 +10,7 @@ use sqlx::SqlitePool;
 use crate::error::Response;
 use crate::model::{Token, TokenKind};
 use crate::user::User;
-use crate::{SmtpTransport, CONFIG};
+use crate::{SmtpTransport, CONFIG, PROXIED_LOGIN_COOKIE};
 use crate::utils::get_partial;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -17,8 +18,13 @@ struct LoginInfo {
 	email: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+struct ProxiedLogin {
+	scope: String,
+}
+
 #[post("/login")]
-async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
+async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
 	let user = if let Some(user) = User::from_config(&form.email) {
 		user
 	} else {
@@ -29,8 +35,8 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 	let link = Token::new(&db, TokenKind::MagicLink, &user, None, None).await?;
 	let base_url = CONFIG.url_from_request(&req);
 	let magic_link = format!("{}/login/{}", base_url, link.code);
-	let name = &user.name.unwrap_or_default();
-	let username = &user.username.unwrap_or_default();
+	let name = &user.name.clone().unwrap_or_default();
+	let username = &user.username.clone().unwrap_or_default();
 
 	#[cfg(debug_assertions)]
 	println!("Link: {} {:?}", &magic_link, link);
@@ -77,6 +83,11 @@ async fn login_action(req: HttpRequest, form: web::Form<LoginInfo>, db: web::Dat
 
 		info!("Sending request for user {}", &user.email);
 		req.send().await?;
+	}
+
+	if let Ok(scoped) = serde_qs::from_str::<ProxiedLogin>(req.query_string()) {
+		let scope = urlencoding::decode(&scoped.scope).unwrap_or_default();
+		session.insert(PROXIED_LOGIN_COOKIE, scope)?;
 	}
 
 	let login_action_page = get_partial("login_action");

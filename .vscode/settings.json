@@ -12,6 +12,7 @@
 		"lettre",
 		"oidc",
 		"Passwordless",
+		"proxied",
 		"reqwest",
 		"rngs",
 		"Seedable",

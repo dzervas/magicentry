@@ -1,17 +1,18 @@
 use actix_session::Session;
-use actix_web::http::header::ContentType;
+use actix_web::http::header::{self, ContentType};
 use actix_web::{get, web, HttpResponse};
 use formatx::formatx;
 use sqlx::SqlitePool;
 
 use crate::error::Response;
+use crate::model::{Token, TokenKind};
 use crate::user::User;
-use crate::CONFIG;
+use crate::{CONFIG, PROXIED_LOGIN_COOKIE};
 use crate::utils::get_partial;
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
-	let user = if let Some(user) = User::from_session(&db, session).await? {
+	let user = if let Some(user) = User::from_session(&db, &session).await? {
 		user
 	} else {
 		return Ok(HttpResponse::Found()
@@ -24,14 +25,23 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 		email = &user.email
 	)?;
 
-	Ok(HttpResponse::Ok()
-		// TODO: Add realm
-		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
-		.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
-		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
-		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
-		.content_type(ContentType::html())
-		.body(index_page))
+
+	if let Some(Ok(scope)) = session.remove_as::<String>(PROXIED_LOGIN_COOKIE) {
+		// TODO: Bound this to the main session
+		let proxy_cookie = Token::new(&db, TokenKind::ProxyCookie, &user, None, Some(scope.clone())).await?;
+		Ok(HttpResponse::Found()
+			.append_header((header::LOCATION, format!("{}?code={}", scope, proxy_cookie.code)))
+			.finish())
+	} else {
+		Ok(HttpResponse::Ok()
+			// TODO: Add realm
+			.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
+			.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
+			.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
+			// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
+			.content_type(ContentType::html())
+			.body(index_page))
+	}
 }
 
 #[cfg(test)]

@@ -17,12 +17,15 @@ pub mod handle_login_page;
 pub mod handle_login_action;
 pub mod handle_login_link;
 pub mod handle_logout;
-pub mod handle_status;
+pub mod handle_proxied;
 pub mod handle_static;
 
 pub(crate) const RANDOM_STRING_LEN: usize = 32;
 pub(crate) const SESSION_COOKIE: &str = "session_id";
+pub(crate) const SCOPED_SESSION_COOKIE: &str = "scoped_session_id";
 pub(crate) const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
+pub(crate) const PROXIED_COOKIE: &str = "code";
+pub(crate) const PROXIED_LOGIN_COOKIE: &str = "proxied_code";
 
 #[cfg(not(test))]
 type SmtpTransport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
@@ -110,7 +113,7 @@ async fn main() -> std::io::Result<()> {
 			.service(handle_login_action::login_action)
 			.service(handle_login_link::login_link)
 			.service(handle_logout::logout)
-			.service(handle_status::status)
+			.service(handle_proxied::proxied)
 			.service(handle_static::static_files)
 			.service(handle_static::favicon)
 

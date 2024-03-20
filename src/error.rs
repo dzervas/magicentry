@@ -3,6 +3,7 @@ use std::string::FromUtf8Error;
 use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error};
+use reqwest::header::ToStrError;
 
 pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
 pub type Response = std::result::Result<HttpResponse, Error>;
@@ -15,6 +16,7 @@ pub enum AppErrorKind {
 	MissingMetadata,
 	IncorrectMetadata,
 	InvalidTargetUser,
+	MissingCookieHeader,
 
 	#[display(fmt = "You are not logged in!")]
 	NotLoggedIn,
@@ -128,6 +130,18 @@ impl From<AppErrorKind> for Error {
 			cause: String::default(),
 			app_error: Some(error),
 		}
+	}
+}
+
+impl From<ToStrError> for Error {
+	fn from(error: ToStrError) -> Self {
+		format!("ToStr error: {}", error).into()
+	}
+}
+
+impl From<actix_web::cookie::ParseError> for Error {
+	fn from(error: actix_web::cookie::ParseError) -> Self {
+		format!("Actix Cookie error: {}", error).into()
 	}
 }
 
