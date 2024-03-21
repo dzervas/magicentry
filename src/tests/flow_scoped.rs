@@ -38,7 +38,7 @@ async fn test_global_login() {
 	let scope = "http%3A%2F%2Flocalhost%3A8080";
 	let resp = call_service(&mut app,
 		TestRequest::post()
-			.uri(format!("/login?scope={}", scope).as_str())
+			.uri(format!("/login?rd={}", scope).as_str())
 			.set_form(&handle_login_action::LoginInfo {
 				email: "valid@example.com".to_string()
 			})

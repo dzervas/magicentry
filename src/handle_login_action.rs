@@ -21,6 +21,7 @@ pub struct LoginInfo {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ScopedLogin {
+	#[serde(rename = "rd")]
 	pub(crate) scope: String,
 }
 

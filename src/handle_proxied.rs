@@ -2,7 +2,7 @@ use actix_session::Session;
 use actix_web::cookie::Cookie;
 use actix_web::http::{header, Uri};
 use actix_web::{get, web, HttpRequest, HttpResponse};
-use log::warn;
+use log::{info, warn};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
@@ -25,7 +25,7 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 	let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
 
 	if req.connection_info().host() != scope_authority.as_str() {
-		warn!("Invalid scope for proxy cookie: {}", metadata);
+		warn!("Invalid scope for proxy cookie: {}", &metadata);
 		return Ok(None);
 	}
 
@@ -36,7 +36,7 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 		token.bound_to.clone(),
 		token.metadata.clone()
 	).await?;
-	println!("Scoped session: {:?}", scoped_session);
+	info!("New scoped session for: {}", &metadata);
 	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
 
 	Ok(Some(token))

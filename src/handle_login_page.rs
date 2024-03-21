@@ -1,17 +1,30 @@
 use actix_session::Session;
 use actix_web::http::header::ContentType;
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, web, HttpRequest, HttpResponse};
 use formatx::formatx;
+use log::info;
 use sqlx::SqlitePool;
 
-use crate::error::Response;
-use crate::user::User;
+use crate::error::{AppErrorKind, Response};
+use crate::handle_login_action::ScopedLogin;
+use crate::model::{Token, TokenKind};
 use crate::CONFIG;
 use crate::utils::get_partial;
 
 #[get("/login")]
-async fn login_page(session: Session, db: web::Data<SqlitePool>) -> Response {
-	if User::from_session(&db, &session).await?.is_some() {
+async fn login_page(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) -> Response {
+	if let Ok(user_session) = Token::from_session(&db, &session).await {
+		let user = user_session.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
+
+		if let Ok(scoped_login) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
+			let scoped_code = Token::new(&db, TokenKind::ProxyCookie, &user, Some(user_session.code), Some(scoped_login.clone().into())).await?.code;
+			let redirect_url = scoped_login.get_redirect_url(&scoped_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+			info!("Redirecting pre-authenticated user to scope {}", &scoped_login.scope);
+			return Ok(HttpResponse::Found()
+				.append_header(("Location", redirect_url.as_str()))
+				.finish())
+		}
+
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/"))
 			.finish())
