@@ -7,7 +7,7 @@ use sqlx::SqlitePool;
 use crate::error::Response;
 use crate::model::{Token, TokenKind};
 use crate::user::User;
-use crate::{CONFIG, PROXIED_LOGIN_COOKIE};
+use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
 
 #[get("/")]
@@ -26,7 +26,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 	)?;
 
 
-	if let Some(Ok(scope)) = session.remove_as::<String>(PROXIED_LOGIN_COOKIE) {
+	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {
 		// TODO: Bound this to the main session
 		let proxy_cookie = Token::new(&db, TokenKind::ProxyCookie, &user, None, Some(scope.clone())).await?;
 		Ok(HttpResponse::Found()
@@ -47,7 +47,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tests::*;
+	use crate::utils::tests::*;
 	use crate::model::{Token, TokenKind};
 	use crate::{SESSION_COOKIE, handle_login_link};
 

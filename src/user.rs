@@ -42,7 +42,7 @@ impl PartialEq<String> for User {
 mod tests {
 	#[allow(unused_imports)]
 	use super::*;
-	use crate::tests::*;
+	use crate::utils::tests::*;
 
 	#[actix_web::test]
 	async fn test_user() {

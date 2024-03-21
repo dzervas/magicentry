@@ -2,7 +2,8 @@ use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
-use lettre::AsyncTransport;
+use lettre::{AsyncTransport, Message};
+use lettre::message::header::ContentType as LettreContentType;
 use log::info;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -10,17 +11,50 @@ use sqlx::SqlitePool;
 use crate::error::Response;
 use crate::model::{Token, TokenKind};
 use crate::user::User;
-use crate::{SmtpTransport, CONFIG, PROXIED_LOGIN_COOKIE};
+use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-struct LoginInfo {
-	email: String,
+pub struct LoginInfo {
+	pub email: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-struct ProxiedLogin {
-	scope: String,
+pub struct ScopedLogin {
+	pub(crate) scope: String,
+}
+
+impl ScopedLogin {
+	pub fn get_redirect_url(&self, code: &str) -> Option<String> {
+		let redirect_url = urlencoding::decode(&self.scope).ok()?.to_string();
+		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
+
+		// TODO: Check against the config for the valid scopes
+		// let config_client = CONFIG.oidc_clients
+		// 	.iter()
+		// 	.find(|c|
+		// 		c.id == self.client_id &&
+		// 		c.redirect_uris.contains(&redirect_url));
+
+		// if config_scope.is_none() {
+		// 	log::warn!("Invalid redirect_uri: {} for client_id: {}", redirect_url, self.client_id);
+		// 	return None;
+		// }
+
+		Some(format!("{}/?code={}", redirect_url_clean, code))
+	}
+}
+
+impl From<String> for ScopedLogin {
+	fn from(scope: String) -> Self {
+		ScopedLogin { scope }
+	}
+}
+
+impl From<ScopedLogin> for String {
+	fn from(scoped: ScopedLogin) -> Self {
+		scoped.scope
+	}
 }
 
 #[post("/login")]
@@ -42,10 +76,11 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 	println!("Link: {} {:?}", &magic_link, link);
 
 	if let Some(mailer) = mailer.as_ref() {
-		let email = lettre::Message::builder()
+		let email = Message::builder()
 			.from(CONFIG.smtp_from.parse()?)
 			.to(user.email.parse()?)
 			.subject(formatx!(&CONFIG.smtp_subject, title = &CONFIG.title)?)
+			.header(LettreContentType::TEXT_HTML)
 			.body(formatx!(
 				&CONFIG.smtp_body,
 				link = &magic_link,
@@ -85,9 +120,8 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 		req.send().await?;
 	}
 
-	if let Ok(scoped) = serde_qs::from_str::<ProxiedLogin>(req.query_string()) {
-		let scope = urlencoding::decode(&scoped.scope).unwrap_or_default();
-		session.insert(PROXIED_LOGIN_COOKIE, scope)?;
+	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
+		session.insert(SCOPED_LOGIN, scoped)?;
 	}
 
 	let login_action_page = get_partial("login_action");
@@ -100,7 +134,7 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tests::*;
+	use crate::utils::tests::*;
 
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};

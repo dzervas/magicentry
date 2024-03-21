@@ -142,7 +142,7 @@ impl ConfigKV {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tests::*;
+	use crate::utils::tests::*;
 
 	// #[actix_web::test]
 	// async fn test_config_file() {

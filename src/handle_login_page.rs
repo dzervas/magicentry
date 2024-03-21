@@ -33,7 +33,7 @@ async fn login_page(session: Session, db: web::Data<SqlitePool>) -> Response {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tests::*;
+	use crate::utils::tests::*;
 
 	use actix_session::storage::CookieSessionStore;
 	use actix_session::SessionMiddleware;

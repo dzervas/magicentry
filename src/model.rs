@@ -1,10 +1,11 @@
+use actix_session::Session;
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, SqlitePool};
 
 use crate::user::User;
 use crate::utils::random_string;
-use crate::CONFIG;
+use crate::{CONFIG, SESSION_COOKIE};
 use crate::error::{AppErrorKind, Result};
 
 #[derive(sqlx::Type, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -183,12 +184,21 @@ impl Token {
 
 		Ok(())
 	}
+
+	pub async fn from_session(db: &SqlitePool, session: &Session) -> Result<Self> {
+		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
+			Self::from_code(db, session_id.as_str(), TokenKind::Session).await
+		} else {
+			session.remove(SESSION_COOKIE);
+			Err(AppErrorKind::NoSessionSet.into())
+		}
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::tests::*;
+	use crate::utils::tests::*;
 	use crate::RANDOM_STRING_LEN;
 	use chrono::Utc;
 

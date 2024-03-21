@@ -1,64 +1,16 @@
-use config::ConfigFile;
-use sqlx::sqlite::SqlitePool;
-use lazy_static::lazy_static;
+pub use just_passwordless::*;
 
-#[cfg(not(test))]
 use lettre::transport::smtp;
-
-
-pub mod config;
-pub mod error;
-pub mod model;
-pub mod oidc;
-pub mod user;
-pub mod utils;
-pub mod handle_index;
-pub mod handle_login_page;
-pub mod handle_login_action;
-pub mod handle_login_link;
-pub mod handle_logout;
-pub mod handle_proxied;
-pub mod handle_static;
-
-pub(crate) const RANDOM_STRING_LEN: usize = 32;
-pub(crate) const SESSION_COOKIE: &str = "session_id";
-pub(crate) const SCOPED_SESSION_COOKIE: &str = "scoped_session_id";
-pub(crate) const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
-pub(crate) const PROXIED_COOKIE: &str = "code";
-pub(crate) const PROXIED_LOGIN_COOKIE: &str = "proxied_code";
-
-#[cfg(not(test))]
-type SmtpTransport = smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
-#[cfg(not(test))]
-lazy_static! {
-	static ref CONFIG_FILE: String = std::env::var("CONFIG_FILE").unwrap_or("config.yaml".to_string());
-}
-
-#[cfg(test)]
-type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
-#[cfg(test)]
-lazy_static! {
-	static ref CONFIG_FILE: String = "config.sample.yaml".to_string();
-}
-
-lazy_static! {
-	static ref CONFIG: ConfigFile = serde_yaml::from_str::<ConfigFile>(
-		&std::fs::read_to_string(CONFIG_FILE.as_str())
-			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
-		)
-		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
-}
+use actix_session::storage::CookieSessionStore;
+use actix_session::SessionMiddleware;
+use actix_web::cookie::{Key, SameSite};
+use actix_web::{web, App, HttpServer};
+use actix_web::middleware::Logger;
+use sqlx::sqlite::SqlitePool;
 
 // Do not compile in tests at all as the SmtpTransport is not available
-#[cfg(not(test))]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	use actix_session::storage::CookieSessionStore;
-	use actix_session::SessionMiddleware;
-	use actix_web::cookie::{Key, SameSite};
-	use actix_web::{web, App, HttpServer};
-	use actix_web::middleware::Logger;
-
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
 	#[cfg(debug_assertions)]
@@ -155,30 +107,4 @@ async fn main() -> std::io::Result<()> {
 	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
 	.run()
 	.await
-}
-
-#[cfg(test)]
-mod tests {
-	use crate::user::User;
-
-	use super::*;
-
-	pub async fn db_connect() -> SqlitePool {
-		SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create pool.")
-	}
-
-	pub fn get_valid_user() -> User {
-		let user_email = "valid@example.com";
-		let user_realms = vec!["example".to_string()];
-		let user = CONFIG
-			.users
-			.iter()
-			.find_map(|u| if u.email == user_email { Some(u.clone()) } else { None })
-			.unwrap();
-
-		assert_eq!(user.email, user_email);
-		assert_eq!(user.realms, user_realms);
-
-		user
-	}
 }

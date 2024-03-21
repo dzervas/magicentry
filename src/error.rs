@@ -13,6 +13,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub enum AppErrorKind {
 	TokenNotFound,
 	NoParentToken,
+	NoSessionSet,
 	MissingMetadata,
 	IncorrectMetadata,
 	InvalidTargetUser,
