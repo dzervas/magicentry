@@ -5,7 +5,7 @@ use crate::utils::tests::db_connect;
 use crate::*;
 
 use actix_web::cookie::{Cookie, Key};
-use actix_web::http::StatusCode;
+use actix_web::http::{header, StatusCode};
 use actix_web::{test as actix_test, web, App};
 
 #[actix_web::test]
@@ -78,6 +78,7 @@ async fn test_global_login() {
 		TestRequest::get()
 			.uri("/proxied")
 			.cookie(Cookie::new(PROXIED_COOKIE, one_time_code))
+			.append_header((header::ORIGIN, "http://localhost:8080"))
 			.to_request()
 		).await;
 	assert_eq!(resp.status(), StatusCode::OK);
@@ -89,6 +90,7 @@ async fn test_global_login() {
 		TestRequest::get()
 			.uri("/proxied")
 			.cookie(parsed_cookie)
+			.append_header((header::ORIGIN, "http://localhost:8080"))
 			.to_request()
 		).await;
 	assert_eq!(resp.status(), StatusCode::OK);

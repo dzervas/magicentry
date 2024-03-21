@@ -22,9 +22,12 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 	let token = Token::from_code(db, code, TokenKind::ProxyCookie).await?;
 	let metadata = token.metadata.clone().unwrap_or_default();
 	let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+	let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
+	let origin = req.headers().get(header::ORIGIN).ok_or(AppErrorKind::MissingOriginHeader)?.to_str()?;
 
-	if req.connection_info().host() != scope_authority.as_str() {
+	if origin != scope_origin {
 		warn!("Invalid scope for proxy cookie: {}", &metadata);
 		return Ok(None);
 	}
@@ -43,31 +46,31 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 }
 
 async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest, session: &Session) -> Result<Option<Token>> {
-	let conn_info = req.connection_info();
-	let host = conn_info.host();
+	let origin = req.headers().get(header::ORIGIN).ok_or(AppErrorKind::MissingOriginHeader)?.to_str()?;
 
 	if let Some(session_id) = session.get::<String>(SCOPED_SESSION_COOKIE).unwrap_or(None) {
 		let token = Token::from_code(db, session_id.as_str(), TokenKind::ScopedSession).await?;
 		let metadata = token.metadata.clone().unwrap_or_default();
 		let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+		let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
 		let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+		let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
 
-		println!("{} != {}", host, scope_authority);
-		if host == scope_authority.as_str() {
+		if origin == scope_origin {
 			return Ok(Some(token));
 		}
 	}
 
-	warn!("Invalid scope for scoped session: {}", host);
+	warn!("Invalid scope for scoped session: {}", origin);
 	session.remove(SCOPED_SESSION_COOKIE);
 	Ok(None)
 }
 
 #[get("/proxied")]
 async fn proxied(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) -> Response {
-	let token = if let Ok(Some(token)) = from_proxy_cookie(&db, &req, &session).await {
+	let token = if let Ok(Some(token)) = from_scoped_session(&db, &req, &session).await {
 		token
-	} else if let Ok(Some(token)) = from_scoped_session(&db, &req, &session).await {
+	} else if let Ok(Some(token)) = from_proxy_cookie(&db, &req, &session).await {
 		token
 	} else {
 		return Ok(HttpResponse::Unauthorized().finish())

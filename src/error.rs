@@ -18,6 +18,7 @@ pub enum AppErrorKind {
 	IncorrectMetadata,
 	InvalidTargetUser,
 	MissingCookieHeader,
+	MissingOriginHeader,
 
 	#[display(fmt = "You are not logged in!")]
 	NotLoggedIn,
