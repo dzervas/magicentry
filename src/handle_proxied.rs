@@ -3,6 +3,7 @@ use actix_web::cookie::Cookie;
 use actix_web::http::{header, Uri};
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use log::{info, warn};
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
@@ -10,10 +11,29 @@ use crate::model::{Token, TokenKind};
 use crate::error::Result;
 use crate::{CONFIG, PROXIED_COOKIE, SCOPED_SESSION_COOKIE};
 
+fn get_request_origin(req: &HttpRequest) -> Result<String> {
+	let valid_headers = [
+		header::ORIGIN,
+		header::REFERER,
+		// TODO: Is this correct? oauth2 proxy handles: https://github.com/oauth2-proxy/oauth2-proxy/issues/1607#issuecomment-1086889273
+		header::X_FORWARDED_FOR,
+		header::HOST,
+	];
+
+	for header in valid_headers.iter() {
+		if let Some(origin) = req.headers().get(header) {
+			return Ok(origin.to_str()?.to_string());
+		}
+	}
+
+	Err(AppErrorKind::MissingOriginHeader.into())
+}
+
 async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session) -> Result<Option<Token>> {
 	let cookie_headers = req.headers().get(header::COOKIE).ok_or(AppErrorKind::MissingCookieHeader)?;
 	let cookie_headers_str = cookie_headers.to_str()?;
 	let parsed_cookies = Cookie::parse_encoded(cookie_headers_str)?;
+	println!("{:?}", parsed_cookies);
 
 	if parsed_cookies.name() != PROXIED_COOKIE {
 		return Ok(None);
@@ -25,7 +45,7 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 	let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
-	let origin = req.headers().get(header::ORIGIN).ok_or(AppErrorKind::MissingOriginHeader)?.to_str()?;
+	let origin = get_request_origin(req)?;
 
 	if origin != scope_origin {
 		warn!("Invalid scope for proxy cookie: {}", &metadata);
@@ -46,7 +66,7 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 }
 
 async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest, session: &Session) -> Result<Option<Token>> {
-	let origin = req.headers().get(header::ORIGIN).ok_or(AppErrorKind::MissingOriginHeader)?.to_str()?;
+	let origin = get_request_origin(req)?;
 
 	if let Some(session_id) = session.get::<String>(SCOPED_SESSION_COOKIE).unwrap_or(None) {
 		let token = Token::from_code(db, session_id.as_str(), TokenKind::ScopedSession).await?;
@@ -75,6 +95,43 @@ async fn proxied(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) 
 	} else {
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
+
+	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
+
+	Ok(HttpResponse::Ok()
+		// TODO: Add realm
+		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
+		.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
+		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
+		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
+		.finish())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ProxiedRewrite {
+	#[serde(rename = "__MAGICENTRY_CODE__")]
+	pub(crate) code: String,
+}
+
+#[get("/proxied/rewrite")]
+async fn proxied_rewrite(session: Session, db: web::Data<SqlitePool>, proxied_rewrite: web::Query<ProxiedRewrite>) -> Response {
+	let code = &proxied_rewrite.code;
+
+	let token = if let Ok(token) = Token::from_code(&db, code, TokenKind::ProxyCookie).await {
+		token
+	} else {
+		return Ok(HttpResponse::Unauthorized().finish())
+	};
+
+	let scoped_session = Token::new(
+		&db,
+		TokenKind::ScopedSession,
+		&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
+		token.bound_to.clone(),
+		token.metadata.clone()
+	).await?;
+	info!("New scoped session for: {:?}", &token.metadata);
+	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
 
 	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
 
