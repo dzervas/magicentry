@@ -77,7 +77,7 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 		TokenKind::ScopedSession,
 		&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
 		token.bound_to.clone(),
-		token.metadata.clone()
+		Some(scope_origin)
 	).await?;
 	info!("New scoped session for: {}", &metadata);
 	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
