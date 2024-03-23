@@ -30,7 +30,17 @@ fn get_request_origin(req: &HttpRequest) -> Result<String> {
 }
 
 async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session) -> Result<Option<Token>> {
-	let cookie_headers = req.headers().get(header::COOKIE).ok_or(AppErrorKind::MissingCookieHeader)?;
+	let cookie_headers = req.headers()
+		.get_all(header::COOKIE)
+		.into_iter()
+		.find(|h| {
+			if let Ok(header) = h.to_str() {
+				header.contains(PROXIED_COOKIE)
+			} else {
+				false
+			}
+		})
+		.ok_or(AppErrorKind::MissingCookieHeader)?;
 	let cookie_headers_str = cookie_headers.to_str()?;
 	let parsed_cookies = Cookie::parse_encoded(cookie_headers_str)?;
 	println!("{:?}", parsed_cookies);
@@ -79,9 +89,10 @@ async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest, session: &Sessi
 		if origin == scope_origin {
 			return Ok(Some(token));
 		}
+
+		warn!("Invalid scope for scoped session: {} vs {}", origin, scope_origin);
 	}
 
-	warn!("Invalid scope for scoped session: {}", origin);
 	session.remove(SCOPED_SESSION_COOKIE);
 	Ok(None)
 }
