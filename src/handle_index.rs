@@ -78,7 +78,7 @@ mod tests {
 						secret
 					)
 					.cookie_secure(false)
-					.cookie_same_site(SameSite::Strict)
+					.cookie_same_site(SameSite::Lax)
 					.build())
 		)
 		.await;

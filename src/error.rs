@@ -62,6 +62,7 @@ impl ResponseError for AppErrorKind {
 			AppErrorKind::InvalidOIDCCode |
 			AppErrorKind::InvalidClientID |
 			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
+			AppErrorKind::InvalidTargetUser => StatusCode::INTERNAL_SERVER_ERROR,
 
 			_ => StatusCode::BAD_REQUEST,
 		}
@@ -144,6 +145,12 @@ impl From<ToStrError> for Error {
 impl From<actix_web::cookie::ParseError> for Error {
 	fn from(error: actix_web::cookie::ParseError) -> Self {
 		format!("Actix Cookie error: {}", error).into()
+	}
+}
+
+impl From<actix_web::http::uri::InvalidUri> for Error {
+	fn from(error: actix_web::http::uri::InvalidUri) -> Self {
+		format!("Actix Invalid URI error: {}", error).into()
 	}
 }
 

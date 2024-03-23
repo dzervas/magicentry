@@ -13,16 +13,22 @@ use crate::{CONFIG, PROXIED_COOKIE, SCOPED_SESSION_COOKIE};
 
 fn get_request_origin(req: &HttpRequest) -> Result<String> {
 	let valid_headers = [
+		header::HeaderName::from_static("x-original-url"),
 		header::ORIGIN,
 		header::REFERER,
 		// TODO: Is this correct? oauth2 proxy handles: https://github.com/oauth2-proxy/oauth2-proxy/issues/1607#issuecomment-1086889273
-		header::X_FORWARDED_FOR,
 		header::HOST,
 	];
 
 	for header in valid_headers.iter() {
 		if let Some(origin) = req.headers().get(header) {
-			return Ok(origin.to_str()?.to_string());
+			log::debug!("Origin header: {:?}", origin);
+			let Ok(origin_str) = origin.to_str() else { continue; };
+			let Ok(origin_uri) = origin_str.parse::<Uri>() else { continue; };
+			let Some(origin_scheme) = origin_uri.scheme_str() else { continue; };
+			let Some(origin_authority) = origin_uri.authority() else { continue; };
+
+			return Ok(format!("{}://{}", origin_scheme, origin_authority));
 		}
 	}
 
@@ -41,7 +47,11 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 			}
 		})
 		.ok_or(AppErrorKind::MissingCookieHeader)?;
-	let cookie_headers_str = cookie_headers.to_str()?;
+	let cookie_headers_str = cookie_headers
+		.to_str()?
+		.split("; ")
+		.find(|c| c.starts_with(PROXIED_COOKIE))
+		.ok_or(AppErrorKind::MissingCookieHeader)?;
 	let parsed_cookies = Cookie::parse_encoded(cookie_headers_str)?;
 	println!("{:?}", parsed_cookies);
 
@@ -58,7 +68,7 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 	let origin = get_request_origin(req)?;
 
 	if origin != scope_origin {
-		warn!("Invalid scope for proxy cookie: {}", &metadata);
+		warn!("Invalid scope for proxy cookie: {} vs {}", &origin, &scope_origin);
 		return Ok(None);
 	}
 
@@ -104,6 +114,8 @@ async fn proxied(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) 
 	} else if let Ok(Some(token)) = from_proxy_cookie(&db, &req, &session).await {
 		token
 	} else {
+		#[cfg(debug_assertions)]
+		log::debug!("Neither proxy cookie nor scoped session found");
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 

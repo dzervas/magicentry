@@ -1,5 +1,6 @@
 use actix_session::Session;
 use actix_web::http::header::ContentType;
+use actix_web::http::Uri;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
 use lettre::{AsyncTransport, Message};
@@ -29,6 +30,7 @@ impl ScopedLogin {
 	pub fn get_redirect_url(&self, code: &str) -> Option<String> {
 		let redirect_url = urlencoding::decode(&self.scope).ok()?.to_string();
 		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
+		let redirect_uri = redirect_url_clean.parse::<Uri>().ok()?;
 
 		// TODO: Check against the config for the valid scopes
 		// let config_client = CONFIG.oidc_clients
@@ -42,7 +44,7 @@ impl ScopedLogin {
 		// 	return None;
 		// }
 
-		Some(format!("{}/?code={}", redirect_url_clean, code))
+		Some(format!("{}://{}/__magicentry_auth_code?code={}", redirect_uri.scheme()?, redirect_uri.authority()?, code))
 	}
 }
 
@@ -60,9 +62,7 @@ impl From<ScopedLogin> for String {
 
 #[post("/login")]
 async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
-	let user = if let Some(user) = User::from_config(&form.email) {
-		user
-	} else {
+	let Some(user) = User::from_config(&form.email) else {
 		// Return 200 to avoid leaking valid emails
 		return Ok(HttpResponse::Ok().finish())
 	};

@@ -189,6 +189,9 @@ impl Token {
 		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
 			Self::from_code(db, session_id.as_str(), TokenKind::Session).await
 		} else {
+			#[cfg(debug_assertions)]
+			log::debug!("No session found in the session cookie");
+			// TODO: This doesn't make sense
 			session.remove(SESSION_COOKIE);
 			Err(AppErrorKind::NoSessionSet.into())
 		}

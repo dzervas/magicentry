@@ -77,7 +77,7 @@ async fn main() -> std::io::Result<()> {
 					CookieSessionStore::default(),
 					secret.clone()
 				)
-				.cookie_same_site(SameSite::Strict)
+				.cookie_same_site(SameSite::Lax)
 				// .cookie_path(CONFIG.path_prefix.clone())
 				.session_lifecycle(
 					actix_session::config::PersistentSession::default()
