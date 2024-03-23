@@ -70,7 +70,7 @@ async fn test_global_login() {
 	assert_eq!(resp.status(), StatusCode::FOUND);
 	let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
 	println!("Location header: {}", &location_header);
-	assert!(location_header.starts_with("http://localhost:8080/?code="));
+	assert!(location_header.starts_with("http://localhost:8080/__magicentry_auth_code?code="));
 
 	let one_time_code = location_header.split("=").nth(1).unwrap();
 
