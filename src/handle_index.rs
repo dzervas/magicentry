@@ -4,21 +4,20 @@ use actix_web::{get, web, HttpResponse};
 use formatx::formatx;
 use sqlx::SqlitePool;
 
-use crate::error::Response;
-use crate::token::ProxyCookieToken;
-use crate::user::User;
+use crate::error::{AppErrorKind, Response};
+use crate::token::{ProxyCookieToken, SessionToken};
 use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
-	let user = if let Some(user) = User::from_session(&db, &session).await? {
-		user
-	} else {
+	let Ok(token) = SessionToken::from_session(&db, &session).await else {
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/login"))
 			.finish())
 	};
+
+	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
 
 	let index_page = formatx!(
 		get_partial("index"),
@@ -27,8 +26,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 
 
 	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {
-		// TODO: Bound this to the main session
-		let proxy_cookie = ProxyCookieToken::new(&db, &user, None, Some(scope.clone())).await?;
+		let proxy_cookie = ProxyCookieToken::new(&db, &user, Some(token.code.clone()), Some(scope.clone())).await?;
 		Ok(HttpResponse::Found()
 			.append_header((header::LOCATION, format!("{}?code={}", scope, proxy_cookie.code)))
 			.finish())
@@ -101,7 +99,6 @@ mod tests {
 		let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 		let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
 
-		// TODO: Use actix-session, not plain cookie
 		let req = actix_test::TestRequest::get()
 			.uri("/")
 			.cookie(parsed_cookie)

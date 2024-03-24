@@ -93,9 +93,9 @@ impl<K: TokenKindType> Token<K> {
 	pub async fn is_expired(&self, db: &SqlitePool) -> Result<bool> {
 		if self.expires_at <= Utc::now().naive_utc() {
 			self.delete(db).await?;
-			Ok(false)
-		} else {
 			Ok(true)
+		} else {
+			Ok(false)
 		}
 	}
 
@@ -108,8 +108,8 @@ impl<K: TokenKindType> Token<K> {
 		let result = self == &other && self.get_user().is_some();
 
 		if let Ok(parent) = self.get_parent(db).await {
-			// Can't call paren't is_valid as async recursion is not allowed
-			Ok(result && parent.is_expired(db).await?)
+			// Can't call parent's is_valid as async recursion is not allowed
+			Ok(result && !parent.is_expired(db).await?)
 		} else {
 			Ok(result)
 		}
@@ -132,14 +132,15 @@ impl<K: TokenKindType> Token<K> {
 			.await?
 			.ok_or(AppErrorKind::TokenNotFound)?;
 
+		// Can't call is_valid as async recursion is not allowed
 		let is_expired = token.is_expired(db).await?;
 
 		if K::EPHEMERAL || is_expired || token.get_user().is_none() {
 			token.delete(db).await?;
+		}
 
-			if !K::EPHEMERAL {
-				return Err(AppErrorKind::TokenNotFound.into());
-			}
+		if is_expired || token.get_user().is_none() {
+			return Err(AppErrorKind::TokenNotFound.into());
 		}
 
 		Ok(token)
@@ -196,12 +197,14 @@ impl<K: TokenKindType> Token<K> {
 impl SessionToken {
 	pub async fn from_session(db: &SqlitePool, session: &Session) -> Result<Self> {
 		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
-			Self::from_code(db, session_id.as_str()).await
+			let token = Self::from_code(db, session_id.as_str()).await;
+
+			if token.is_err() {
+				session.remove(SESSION_COOKIE);
+			}
+
+			token
 		} else {
-			#[cfg(debug_assertions)]
-			log::debug!("No session found in the session cookie");
-			// TODO: This doesn't make sense
-			session.remove(SESSION_COOKIE);
 			Err(AppErrorKind::NoSessionSet.into())
 		}
 	}
@@ -288,8 +291,8 @@ mod tests {
 		let expired_user_link = MagicLinkToken {
 			code: expired_target.to_string(),
 			_kind: PhantomData,
-			user: "expired@example.com".to_string(),
-			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(1).unwrap(),
+			user: "valid@example.com".to_string(),
+			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(2).unwrap(),
 			bound_to: None,
 			metadata: None,
 		};

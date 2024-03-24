@@ -120,7 +120,6 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 
 	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
 
-	// XXX: Fix the bound-to
 	let oidc_session = auth_req.generate_session_code(&db, &user, token.code).await?;
 	println!("OIDC Session: {:?}", oidc_session);
 
