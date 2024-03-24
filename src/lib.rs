@@ -1,6 +1,7 @@
 use config::ConfigFile;
 use lazy_static::lazy_static;
 
+pub mod auth_url;
 pub mod config;
 pub mod error;
 pub mod token;
@@ -12,7 +13,6 @@ pub mod handle_login_page;
 pub mod handle_login_action;
 pub mod handle_login_link;
 pub mod handle_logout;
-pub mod handle_proxied;
 pub mod handle_static;
 
 #[cfg(test)]

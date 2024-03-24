@@ -1,15 +1,18 @@
 use std::marker::PhantomData;
 
 use actix_session::Session;
+use actix_web::http::Uri;
+use actix_web::HttpRequest;
 use chrono::{NaiveDateTime, Utc};
+use log::{info, warn};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
 use sqlx::{query, SqlitePool};
 
 use crate::user::User;
-use crate::utils::random_string;
-use crate::SESSION_COOKIE;
+use crate::utils::{get_request_origin, random_string };
+use crate::{PROXIED_COOKIE, SCOPED_SESSION_COOKIE, SESSION_COOKIE};
 use crate::error::{AppErrorKind, Result};
 
 pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd + Ord + Serialize + DeserializeOwned + Send + Sync + Unpin {
@@ -205,6 +208,59 @@ impl SessionToken {
 			session.remove(SESSION_COOKIE);
 			Err(AppErrorKind::NoSessionSet.into())
 		}
+	}
+}
+
+impl ScopedSessionToken {
+	pub async fn from_session(db: &SqlitePool, req: &HttpRequest) -> Result<Option<Self>> {
+		let origin = get_request_origin(req)?;
+
+		if let Some(session_id) = req.cookie(SCOPED_SESSION_COOKIE) {
+			let token = ScopedSessionToken::from_code(db, session_id.value()).await?;
+			let metadata = token.metadata.clone().unwrap_or_default();
+			let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+			let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
+			let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+			let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
+
+			if origin == scope_origin {
+				return Ok(Some(token));
+			}
+
+			warn!("Invalid scope for scoped session: {} vs {}", origin, scope_origin);
+		}
+
+		Ok(None)
+	}
+}
+
+impl ScopedSessionToken {
+	pub async fn from_proxy_cookie(db: &SqlitePool, req: &actix_web::HttpRequest) -> Result<Option<Self>> {
+		let cookie = req.cookie(PROXIED_COOKIE).ok_or(AppErrorKind::MissingCookieHeader)?;
+
+		let code = cookie.value();
+		let token = ProxyCookieToken::from_code(db, code).await?;
+		let metadata = token.metadata.clone().unwrap_or_default();
+		let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+		let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
+		let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+		let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
+		let origin = get_request_origin(req)?;
+
+		if origin != scope_origin {
+			warn!("Invalid scope for proxy cookie: {} vs {}", &origin, &scope_origin);
+			return Ok(None);
+		}
+
+		let scoped_session = ScopedSessionToken::new(
+			db,
+			&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
+			token.bound_to.clone(),
+			Some(scope_origin)
+		).await?;
+		info!("New scoped session for: {}", &origin);
+
+		Ok(Some(scoped_session))
 	}
 }
 

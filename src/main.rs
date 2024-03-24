@@ -65,10 +65,11 @@ async fn main() -> std::io::Result<()> {
 			.service(handle_login_action::login_action)
 			.service(handle_login_link::login_link)
 			.service(handle_logout::logout)
-			.service(handle_proxied::proxied)
-			.service(handle_proxied::proxied_rewrite)
 			.service(handle_static::static_files)
 			.service(handle_static::favicon)
+
+			.service(auth_url::handle_status::status)
+			.service(auth_url::handle_response::response)
 
 			// Middleware
 			.wrap(Logger::default())

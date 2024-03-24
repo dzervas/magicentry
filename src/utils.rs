@@ -1,9 +1,12 @@
 use std::fs;
 
+use actix_web::http::{header, Uri};
+use actix_web::HttpRequest;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 
 use crate::{CONFIG, RANDOM_STRING_LEN};
+use crate::error::{AppErrorKind, Result};
 
 pub fn get_partial(name: &str) -> String {
 	let path_prefix = if CONFIG.path_prefix.ends_with('/') {
@@ -21,6 +24,30 @@ pub fn get_partial(name: &str) -> String {
 		path_prefix = path_prefix,
 		content = inner_content
 	).expect(format!("Unable to format static/outer.html with title `{:?}` and path_prefix `{:?}`", &CONFIG.title, path_prefix).as_str())
+}
+
+pub fn get_request_origin(req: &HttpRequest) -> Result<String> {
+	let valid_headers = [
+		header::HeaderName::from_static("x-original-url"),
+		header::ORIGIN,
+		header::REFERER,
+		// TODO: Is this correct? oauth2 proxy handles: https://github.com/oauth2-proxy/oauth2-proxy/issues/1607#issuecomment-1086889273
+		header::HOST,
+	];
+
+	for header in valid_headers.iter() {
+		if let Some(origin) = req.headers().get(header) {
+			log::debug!("Origin header: {:?}", origin);
+			let Ok(origin_str) = origin.to_str() else { continue; };
+			let Ok(origin_uri) = origin_str.parse::<Uri>() else { continue; };
+			let Some(origin_scheme) = origin_uri.scheme_str() else { continue; };
+			let Some(origin_authority) = origin_uri.authority() else { continue; };
+
+			return Ok(format!("{}://{}", origin_scheme, origin_authority));
+		}
+	}
+
+	Err(AppErrorKind::MissingOriginHeader.into())
 }
 
 pub fn random_string() -> String {

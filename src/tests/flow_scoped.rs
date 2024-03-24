@@ -23,7 +23,7 @@ async fn test_global_login() {
 			.service(handle_login_action::login_action)
 			.service(handle_login_link::login_link)
 			.service(handle_logout::logout)
-			.service(handle_proxied::proxied)
+			.service(auth_url::handle_status::status)
 			.wrap(
 				SessionMiddleware::builder(
 					CookieSessionStore::default(),
@@ -77,7 +77,7 @@ async fn test_global_login() {
 
 	let resp = call_service(&mut app,
 		TestRequest::get()
-			.uri("/proxied")
+			.uri("/auth_url/status")
 			.cookie(Cookie::new(PROXIED_COOKIE, one_time_code))
 			.append_header(("x-original-url", "http://localhost:8080"))
 			.to_request()
@@ -89,7 +89,7 @@ async fn test_global_login() {
 
 	let resp = call_service(&mut app,
 		TestRequest::get()
-			.uri("/proxied")
+			.uri("/auth_url/status")
 			.cookie(parsed_cookie)
 			.append_header(("x-original-url", "http://localhost:8080"))
 			.to_request()
