@@ -8,7 +8,7 @@ use log::{info, warn};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sqlx::prelude::FromRow;
-use sqlx::{query, SqlitePool};
+use sqlx::SqlitePool;
 
 use crate::user::User;
 use crate::utils::{get_request_origin, random_string };
@@ -125,13 +125,7 @@ impl<K: TokenKindType> Token<K> {
 	}
 
 	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Self> {
-		let token: Self = sqlx::query_as(r#"SELECT
-			code,
-			user,
-			expires_at,
-			bound_to,
-			metadata
-			FROM tokens WHERE code = ? AND kind = ?"#)
+		let token: Self = sqlx::query_as("SELECT code, user, expires_at, bound_to, metadata FROM tokens WHERE code = ? AND kind = ?")
 			.bind(code)
 			.bind(K::NAME)
 			.fetch_optional(db)
@@ -140,12 +134,12 @@ impl<K: TokenKindType> Token<K> {
 
 		let is_expired = token.is_expired(db).await?;
 
-		if K::EPHEMERAL || !is_expired || token.get_user().is_none() {
+		if K::EPHEMERAL || is_expired || token.get_user().is_none() {
 			token.delete(db).await?;
-		}
 
-		if !is_expired {
-			return Err(AppErrorKind::TokenNotFound.into());
+			if !K::EPHEMERAL {
+				return Err(AppErrorKind::TokenNotFound.into());
+			}
 		}
 
 		Ok(token)
@@ -153,8 +147,12 @@ impl<K: TokenKindType> Token<K> {
 
 	pub async fn new(db: &SqlitePool, user: &User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
 		let expires_at = if let Some(bound_code) = &bound_to {
-			// TODO: Force check the bound if it's valid
 			let bound_token: Token<K::BoundType> = Token::from_code(db, &bound_code).await?;
+
+			if !bound_token.is_valid(db).await? {
+				return Err(AppErrorKind::InvalidParentToken.into());
+			}
+
 			bound_token.expires_at
 		} else {
 			K::get_expiry()
@@ -184,12 +182,10 @@ impl<K: TokenKindType> Token<K> {
 
 	pub async fn delete(&self, db: &SqlitePool) -> Result<()> {
 		let now = Utc::now().naive_utc();
-		query!(
-				"DELETE FROM tokens WHERE code = ? OR bound_to = ? OR expires_at <= ?",
-				self.code,
-				self.code,
-				now
-			)
+		sqlx::query("DELETE FROM tokens WHERE code = ? OR bound_to = ? OR expires_at <= ?")
+			.bind(&self.code)
+			.bind(&self.code)
+			.bind(now)
 			.execute(db)
 			.await?;
 

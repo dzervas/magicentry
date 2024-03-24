@@ -19,6 +19,7 @@ pub enum AppErrorKind {
 	InvalidTargetUser,
 	MissingCookieHeader,
 	MissingOriginHeader,
+	InvalidParentToken,
 
 	#[display(fmt = "You are not logged in!")]
 	NotLoggedIn,
@@ -62,7 +63,8 @@ impl ResponseError for AppErrorKind {
 			AppErrorKind::InvalidOIDCCode |
 			AppErrorKind::InvalidClientID |
 			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
-			AppErrorKind::InvalidTargetUser => StatusCode::INTERNAL_SERVER_ERROR,
+			AppErrorKind::InvalidTargetUser |
+			AppErrorKind::InvalidParentToken => StatusCode::INTERNAL_SERVER_ERROR,
 
 			_ => StatusCode::BAD_REQUEST,
 		}
