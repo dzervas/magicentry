@@ -35,30 +35,10 @@ fn get_request_origin(req: &HttpRequest) -> Result<String> {
 	Err(AppErrorKind::MissingOriginHeader.into())
 }
 
-async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session) -> Result<Option<Token>> {
-	let cookie_headers = req.headers()
-		.get_all(header::COOKIE)
-		.into_iter()
-		.find(|h| {
-			if let Ok(header) = h.to_str() {
-				header.contains(PROXIED_COOKIE)
-			} else {
-				false
-			}
-		})
-		.ok_or(AppErrorKind::MissingCookieHeader)?;
-	let cookie_headers_str = cookie_headers
-		.to_str()?
-		.split("; ")
-		.find(|c| c.starts_with(PROXIED_COOKIE))
-		.ok_or(AppErrorKind::MissingCookieHeader)?;
-	let parsed_cookies = Cookie::parse_encoded(cookie_headers_str)?;
-	println!("{:?}", parsed_cookies);
+async fn new_from_proxy_cookie(db: &SqlitePool, req: &HttpRequest) -> Result<Option<Token>> {
+	let cookie = req.cookie(PROXIED_COOKIE).ok_or(AppErrorKind::MissingCookieHeader)?;
 
-	if parsed_cookies.name() != PROXIED_COOKIE {
-		return Ok(None);
-	}
-	let code = parsed_cookies.value();
+	let code = cookie.value();
 	let token = Token::from_code(db, code, TokenKind::ProxyCookie).await?;
 	let metadata = token.metadata.clone().unwrap_or_default();
 	let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
@@ -79,17 +59,16 @@ async fn from_proxy_cookie(db: &SqlitePool, req: &HttpRequest, session: &Session
 		token.bound_to.clone(),
 		Some(scope_origin)
 	).await?;
-	info!("New scoped session for: {}", &metadata);
-	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
+	info!("New scoped session for: {}", &origin);
 
-	Ok(Some(token))
+	Ok(Some(scoped_session))
 }
 
-async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest, session: &Session) -> Result<Option<Token>> {
+async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest) -> Result<Option<Token>> {
 	let origin = get_request_origin(req)?;
 
-	if let Some(session_id) = session.get::<String>(SCOPED_SESSION_COOKIE).unwrap_or(None) {
-		let token = Token::from_code(db, session_id.as_str(), TokenKind::ScopedSession).await?;
+	if let Some(session_id) = req.cookie(SCOPED_SESSION_COOKIE) {
+		let token = Token::from_code(db, session_id.value(), TokenKind::ScopedSession).await?;
 		let metadata = token.metadata.clone().unwrap_or_default();
 		let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
 		let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
@@ -103,31 +82,44 @@ async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest, session: &Sessi
 		warn!("Invalid scope for scoped session: {} vs {}", origin, scope_origin);
 	}
 
-	session.remove(SCOPED_SESSION_COOKIE);
 	Ok(None)
 }
 
 #[get("/proxied")]
-async fn proxied(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) -> Response {
-	let token = if let Ok(Some(token)) = from_scoped_session(&db, &req, &session).await {
-		token
-	} else if let Ok(Some(token)) = from_proxy_cookie(&db, &req, &session).await {
-		token
-	} else {
+async fn proxied(req: HttpRequest, db: web::Data<SqlitePool>) -> Response {
+	let (token, cookie): (Token, Option<Cookie>)  = if let Ok(Some(token)) = from_scoped_session(&db, &req).await {
 		#[cfg(debug_assertions)]
-		log::debug!("Neither proxy cookie nor scoped session found");
+		println!("Found scoped session from proxy cookie: {:?}", &token.code);
+		(token, None)
+	} else if let Ok(Some(token)) = new_from_proxy_cookie(&db, &req).await {
+		let code = token.code.clone();
+		#[cfg(debug_assertions)]
+		println!("Setting proxied cookie: {:?}", &code);
+		(token, Some(Cookie::build(SCOPED_SESSION_COOKIE, code)
+			.path("/")
+			.http_only(true)
+			.secure(true)
+			// .expires(expiry)
+			.finish()))
+	} else {
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
 	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
 
-	Ok(HttpResponse::Ok()
+	let mut response_builder = HttpResponse::Ok();
+	let response = response_builder
+		.insert_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
+		.insert_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
+		.insert_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()));
 		// TODO: Add realm
-		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
-		.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
-		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
-		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
-		.finish())
+		// .insert_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")));
+
+	if let Some(cookie) = cookie {
+		Ok(response.cookie(cookie).finish())
+	} else {
+		Ok(response.finish())
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

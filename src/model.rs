@@ -69,8 +69,7 @@ impl Token {
 	pub fn is_ephemeral(&self) -> bool {
 		match self.kind {
 			TokenKind::MagicLink |
-			TokenKind::OIDCCode |
-			TokenKind::ScopedSession => true,
+			TokenKind::OIDCCode => true,
 			_ => false,
 
 		}
