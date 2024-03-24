@@ -10,7 +10,7 @@ use jwt_simple::prelude::*;
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
-use crate::model::{OIDCCodeToken, SessionToken};
+use crate::token::{OIDCCodeToken, SessionToken};
 use crate::oidc::handle_token::JWTData;
 use crate::user::User;
 use crate::{AUTHORIZATION_COOKIE, CONFIG};

@@ -5,7 +5,7 @@ use formatx::formatx;
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::model::ProxyCookieToken;
+use crate::token::ProxyCookieToken;
 use crate::user::User;
 use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
@@ -47,7 +47,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::model::MagicLinkToken;
+	use crate::token::MagicLinkToken;
 	use crate::utils::tests::*;
 	use crate::{SESSION_COOKIE, handle_login_link};
 

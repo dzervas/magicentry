@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::model::MagicLinkToken;
+use crate::token::MagicLinkToken;
 use crate::user::User;
 use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;

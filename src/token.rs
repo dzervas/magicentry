@@ -102,9 +102,14 @@ impl<K: TokenKindType> Token<K> {
 		}
 
 		let other = Self::from_code(db, &self.code).await?;
-		// TODO: Check expiry and user against the parent
+		let result = self == &other && self.get_user().is_some();
 
-		Ok(self == &other && self.get_user().is_some())
+		if let Ok(parent) = self.get_parent(db).await {
+			// Can't call paren't is_valid as async recursion is not allowed
+			Ok(result && parent.is_expired(db).await?)
+		} else {
+			Ok(result)
+		}
 	}
 
 	pub fn get_user(&self) -> Option<User> {

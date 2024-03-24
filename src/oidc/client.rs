@@ -2,7 +2,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::model::OIDCCodeToken;
+use crate::token::OIDCCodeToken;
 use crate::CONFIG;
 use crate::error::Result;
 

@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 
 pub mod config;
 pub mod error;
-pub mod model;
+pub mod token;
 pub mod oidc;
 pub mod user;
 pub mod utils;

@@ -5,7 +5,7 @@ use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_action::ScopedLogin;
-use crate::model::{MagicLinkToken, ProxyCookieToken, SessionToken};
+use crate::token::{MagicLinkToken, ProxyCookieToken, SessionToken};
 use crate::oidc::handle_authorize::AuthorizeRequest;
 use crate::{AUTHORIZATION_COOKIE, SCOPED_LOGIN, SESSION_COOKIE};
 

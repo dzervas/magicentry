@@ -2,30 +2,31 @@
 name = "magicentry"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.77"
 
 [dependencies]
 actix-web = "4.5"
 actix-session = { version = "0.9", features = ["cookie-session"] }
 chrono = { version = "0.4", features = ["serde"] }
+derive_more = "0.99.17"
 duration-str = "0.7"
 env_logger = "0.11"
 formatx = "0.2"
+hex = "0.4.3"
 jwt-simple = { version = "0.12", default-features = false, features = ["pure-rust"] }
-lazy_static = "1.4.0"
+lazy_static = "1.4"
 lettre = { version = "0.11", features = ["rustls-tls", "tokio1-rustls-tls", "builder", "pool", "smtp-transport"], default-features = false }
 log = "0.4"
 rand = "0.8"
-reqwest = { version = "0.11", default-features = false, features = ["tokio-rustls", "rustls-tls-webpki-roots"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_qs = { version = "0.12", features = ["actix-web4"] }
 serde_yaml = "0.9"
+sha2 = "0.10.8"
 sqlx = { version = "0.7", features = ["sqlx-sqlite", "uuid", "tls-rustls", "chrono", "sqlite", "runtime-tokio"] }
 urlencoding = "2.1.3"
 uuid = { version = "1.7", features = ["serde", "v4"] }
-derive_more = "0.99.17"
-sha2 = "0.10.8"
-hex = "0.4.3"
 
 [dev-dependencies]
 scraper = "0.19.0"

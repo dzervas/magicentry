@@ -7,7 +7,7 @@ use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_action::ScopedLogin;
-use crate::model::{ProxyCookieToken, SessionToken};
+use crate::token::{ProxyCookieToken, SessionToken};
 use crate::CONFIG;
 use crate::utils::get_partial;
 

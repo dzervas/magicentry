@@ -26,7 +26,7 @@ pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::model::MagicLinkToken;
+	use crate::token::MagicLinkToken;
 	use crate::utils::tests::*;
 
 	use actix_session::storage::CookieSessionStore;

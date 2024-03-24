@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
-use crate::model::{OIDCBearerToken, OIDCCodeToken};
+use crate::token::{OIDCBearerToken, OIDCCodeToken};
 use crate::oidc::handle_authorize::AuthorizeRequest;
 use crate::user::User;
 use crate::CONFIG;

@@ -2,7 +2,7 @@ use actix_session::Session;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::model::SessionToken;
+use crate::token::SessionToken;
 use crate::{CONFIG, SESSION_COOKIE};
 use crate::error::Result;
 

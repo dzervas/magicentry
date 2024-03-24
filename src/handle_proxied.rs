@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
-use crate::model::{ProxyCookieToken, ScopedSessionToken};
+use crate::token::{ProxyCookieToken, ScopedSessionToken};
 use crate::error::Result;
 use crate::{CONFIG, PROXIED_COOKIE, SCOPED_SESSION_COOKIE};
 
