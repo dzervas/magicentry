@@ -73,7 +73,7 @@ jobs:
 
       # - uses: Swatinem/rust-cache@v2
       #   with:
-      #     prefix-key: just-passwordless
+      #     prefix-key: magicentry
 
       # - name: Build
       #   run: cargo build --release
@@ -83,12 +83,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: Just Passwordless v${{ needs.bump.outputs.app }}
+          name: MagicEntry v${{ needs.bump.outputs.app }}
           tag_name: v${{ needs.bump.outputs.app }}
           target_commitish: ${{ needs.bump.outputs.new_ref }}
           generate_release_notes: true
           make_latest: true
-          # files: target/release/just-passwordless
+          # files: target/release/magicentry
 
   docker:
     runs-on: ubuntu-latest
@@ -122,7 +122,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.actor }}/just-passwordless
+          images: ghcr.io/${{ github.actor }}/magicentry
           tags: |
             # On a pull request, tag the image with the PR ID e.g. pr-123
             type=ref,event=pr
@@ -161,7 +161,7 @@ jobs:
         uses: bsord/helm-push@v4
         with:
           useOCIRegistry: true
-          registry-url: oci://ghcr.io/${{ github.actor }}
+          registry-url: oci://ghcr.io/${{ github.actor }}/charts
           username: ${{ github.actor }}
           access-token: ${{ secrets.GITHUB_TOKEN }}
           force: true

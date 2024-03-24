@@ -1,4 +1,4 @@
-pub use just_passwordless::*;
+pub use magicentry::*;
 
 use lettre::transport::smtp;
 use actix_session::storage::CookieSessionStore;

@@ -1,4 +1,4 @@
-# Just Passwordless
+# MagicEntry
 
 A simple authentication proxy which focuses on passwordless authentication.
 

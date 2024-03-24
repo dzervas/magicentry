@@ -58,7 +58,7 @@ impl Default for ConfigFile {
 			link_duration   : Duration::try_hours(12).unwrap(),
 			session_duration: Duration::try_days(30).unwrap(),
 
-			title: "Just Passwordless".to_string(),
+			title: "MagicEntry".to_string(),
 			static_path: "static".to_string(),
 
 			auth_url_enable      : true,
@@ -73,14 +73,14 @@ impl Default for ConfigFile {
 
 			smtp_enable : false,
 			smtp_url    : "smtp://localhost:25".to_string(),
-			smtp_from   : "Just Passwordless <just-passwordless@example.com>".to_string(),
-			smtp_subject: "Just Passwordless Login".to_string(),
+			smtp_from   : "MagicEntry <magicentry@example.com>".to_string(),
+			smtp_subject: "MagicEntry Login".to_string(),
 			smtp_body   : "Click the link to login: {link}".to_string(),
 
 			request_enable: false,
 			request_url   : "https://www.cinotify.cc/api/notify".to_string(),
 			request_method: "POST".to_string(),
-			request_data  : Some("to={email}&subject=Just Passwordless Login&body=http://localhost:8080/login/{magic}".to_string()),
+			request_data  : Some("to={email}&subject=MagicEntry Login&body=http://localhost:8080/login/{magic}".to_string()),
 
 			users: vec![],
 		}

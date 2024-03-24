@@ -16,21 +16,21 @@ WORKDIR /usr/src/app
 RUN cargo init --vcs none --bin
 COPY Cargo.toml Cargo.lock ./
 # Enable mount-type caching and dependency caching to be compatible with github actions
-RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
-	--mount=type=cache,target=/usr/local/cargo/registry,id=just-passwordless-cargo-registry-cache \
-	--mount=type=cache,target=/usr/src/app/target,id=just-passwordless-cargo-target-cache \
+RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
+	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
+	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \
 	cargo build && \
-	rm target/debug/deps/just_passwordless*
+	rm target/debug/deps/magicentry*
 
 COPY . .
-RUN --mount=type=cache,target=/usr/local/cargo/git,id=just-passwordless-cargo-git-cache \
-	--mount=type=cache,target=/usr/local/cargo/registry,id=just-passwordless-cargo-registry-cache \
-	--mount=type=cache,target=/usr/src/app/target,id=just-passwordless-cargo-target-cache \
+RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
+	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
+	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \
 	cargo build && \
-	cp target/debug/just-passwordless /usr/local/bin/
+	cp target/debug/magicentry /usr/local/bin/
 
 ENV CONFIG_FILE=/config.yaml
 ENV RUST_LOG=info
 
 EXPOSE 8080/tcp
-CMD ["/usr/local/bin/just-passwordless"]
+CMD ["/usr/local/bin/magicentry"]

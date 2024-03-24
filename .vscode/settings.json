@@ -10,6 +10,7 @@
 		"jwks",
 		"keypair",
 		"lettre",
+		"magicentry",
 		"oidc",
 		"Passwordless",
 		"proxied",

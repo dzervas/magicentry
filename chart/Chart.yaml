@@ -1,6 +1,6 @@
 apiVersion: v2
-name: just-passwordless-chart
-description: Authentication proxy for self hosted services
+name: magicentry
+description: Authentication service for self hosted services
 
 type: application
 version: 0.1.15

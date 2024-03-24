@@ -1,5 +1,5 @@
 [package]
-name = "just-passwordless"
+name = "magicentry"
 version = "0.1.15"
 edition = "2021"
 

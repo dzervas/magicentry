@@ -9,7 +9,7 @@ path_prefix: /
 link_duration: 1h
 session_duration: 1mon
 
-title: Just Passwordless
+title: MagicEntry
 
 auth_url_enable: true
 auth_url_user_header: Remote-User
@@ -32,13 +32,13 @@ oidc_clients:
 smtp_enable: false
 # For the URL scheme options see https://docs.rs/lettre/latest/lettre/transport/smtp/struct.AsyncSmtpTransport.html#method.from_url
 smtp_url: smtp://user@pass:localhost:25/?tls=required
-smtp_from: Just Passwordless <just-passwordless@example.com>
-smtp_subject: Just Passwordless Login
+smtp_from: MagicEntry <magicentry@example.com>
+smtp_subject: MagicEntry Login
 smtp_body: "Click the link to login: {link}"
 
 request_enable: false
 request_url: https://www.cinotify.cc/api/notify
-request_data: to={email}&subject=Just Passwordless Login&body={link}
+request_data: to={email}&subject=MagicEntry Login&body={link}
 request_method: POST
 
 users:
