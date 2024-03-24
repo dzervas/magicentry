@@ -1,55 +1,73 @@
+use std::marker::PhantomData;
+
 use actix_session::Session;
 use chrono::{NaiveDateTime, Utc};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sqlx::{query, query_as, SqlitePool};
+use sqlx::prelude::FromRow;
+use sqlx::{query, SqlitePool};
 
 use crate::user::User;
 use crate::utils::random_string;
-use crate::{CONFIG, SESSION_COOKIE};
+use crate::SESSION_COOKIE;
 use crate::error::{AppErrorKind, Result};
 
-#[derive(sqlx::Type, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[sqlx(rename_all = "lowercase")]
-pub enum TokenKind {
-	/// Magic link token sent to the user to log in (one-time use)
-	MagicLink,
-	/// Cookie session token
-	Session,
-	/// Cookie session token sent to the application proxy to authenticate the user (one-time use, it's exchanged for a `ScopedSession` by us)
-	ProxyCookie,
-	/// Cookie session token that authenticates a user against a specific scope - it's bound to a `Session` and both are deleted on logout
-	ScopedSession,
-	/// OIDC code sent to the client during authorize using the redirect_uri (one-time use)
-	OIDCCode,
-	/// OIDC Bearer token sent to the client after the client has exchanged the OIDC code for a token
-	OIDCBearer,
-}
+pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd + Ord + Serialize + DeserializeOwned + Send + Sync + Unpin {
+	const NAME: &'static str;
+	const EPHEMERAL: bool;
 
-impl TokenKind {
-	pub fn get_expiry(&self) -> NaiveDateTime {
-		let duration = match self {
-			TokenKind::MagicLink => CONFIG.link_duration.to_owned(),
-			TokenKind::Session |
-			TokenKind::ScopedSession |
-			TokenKind::OIDCBearer => CONFIG.session_duration.to_owned(),
-			TokenKind::OIDCCode |
-			TokenKind::ProxyCookie => CONFIG.oidc_code_duration.to_owned(),
-		};
+	fn get_duration() -> chrono::Duration;
 
-		Utc::now()
+	fn get_expiry() -> NaiveDateTime {
+		chrono::Utc::now()
 			.naive_utc()
-			.checked_add_signed(duration)
-			.expect(format!("Couldn't generate expiry for {:?}", self).as_str())
+			.checked_add_signed(Self::get_duration())
+			.expect(format!("Couldn't generate expiry for {:?}", Self::NAME).as_str())
+
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-// NOTE: Would be nice to have generics over the TokenKind
-pub struct Token {
+macro_rules! token_kind {
+	{$($name:ident(duration = $duration:expr, ephemeral = $ephemeral:expr),)*} => {
+		$(
+			pub type $name = Token<token_kind::$name>;
+		)*
+
+		mod token_kind {
+			use super::*;
+
+			$(
+				#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+				pub struct $name;
+
+				impl TokenKindType for $name {
+					const NAME: &'static str = stringify!($name);
+					const EPHEMERAL: bool = $ephemeral;
+
+					fn get_duration() -> chrono::Duration { $duration }
+				}
+			)*
+		}
+	};
+}
+
+token_kind! {
+	MagicLinkToken(duration = crate::CONFIG.link_duration, ephemeral = true),
+	SessionToken(duration = crate::CONFIG.session_duration, ephemeral = false),
+	ProxyCookieToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true),
+	ScopedSessionToken(duration = crate::CONFIG.session_duration, ephemeral = false),
+	OIDCCodeToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true),
+	OIDCBearerToken(duration = crate::CONFIG.session_duration, ephemeral = false),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
+#[non_exhaustive]
+pub struct Token<K: TokenKindType> {
 	/// The primary key and value of the token. A random string filled by `crate::utils::random_string()`.
 	pub code: String,
 	/// The type of token - used to determine how to handle the token (ephemeral, relation to parent token, etc.)
-	pub kind: TokenKind,
+	#[sqlx(skip)]
+	_kind: PhantomData<K>,
 	/// The user it authenticates
 	// NOTE: This would be nice to be a concrete User
 	pub user: String,
@@ -61,20 +79,11 @@ pub struct Token {
 	// NOTE: This would be nice to be a concrete Token
 	pub bound_to: Option<String>,
 	// NOTE: This would be nice to be a generic
+	// TODO: make the metadata a non-exhaustive struct
 	pub metadata: Option<String>,
 }
 
-impl Token {
-	/// Describes if the token is ephemeral and should be deleted after the first use
-	pub fn is_ephemeral(&self) -> bool {
-		match self.kind {
-			TokenKind::MagicLink |
-			TokenKind::OIDCCode => true,
-			_ => false,
-
-		}
-	}
-
+impl<K: TokenKindType> Token<K> {
 	pub async fn is_expired(&self, db: &SqlitePool) -> Result<bool> {
 		if self.expires_at <= Utc::now().naive_utc() {
 			self.delete(db).await?;
@@ -89,7 +98,7 @@ impl Token {
 			return Ok(false)
 		}
 
-		let other = Self::from_code_unchecked(db, &self.code).await?;
+		let other = Self::from_code(db, &self.code).await?;
 		// TODO: Check expiry and user against the parent
 
 		Ok(self == &other && self.get_user().is_some())
@@ -101,25 +110,26 @@ impl Token {
 
 	pub async fn get_parent(&self, db: &SqlitePool) -> Result<Self> {
 		let code = self.bound_to.as_ref().ok_or(AppErrorKind::NoParentToken)?;
-		Self::from_code_unchecked(db, code).await
+		Self::from_code(db, code).await
 	}
 
-	async fn from_code_unchecked(db: &SqlitePool, code: &str) -> Result<Self> {
-		let token = query_as!(Token, r#"SELECT
+	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Self> {
+		let token: Self = sqlx::query_as(r#"SELECT
 			code,
-			kind AS "kind: TokenKind",
 			user,
 			expires_at,
 			bound_to,
 			metadata
-			FROM tokens WHERE code = ?"#, code)
+			FROM tokens WHERE code = ? AND kind = ?"#)
+			.bind(code)
+			.bind(K::NAME)
 			.fetch_optional(db)
 			.await?
 			.ok_or(AppErrorKind::TokenNotFound)?;
 
 		let is_expired = token.is_expired(db).await?;
 
-		if token.is_ephemeral() || !is_expired || token.get_user().is_none() {
+		if K::EPHEMERAL || !is_expired || token.get_user().is_none() {
 			token.delete(db).await?;
 		}
 
@@ -130,40 +140,31 @@ impl Token {
 		Ok(token)
 	}
 
-	pub async fn from_code(db: &SqlitePool, code: &str, kind: TokenKind) -> Result<Self> {
-		let token = Self::from_code_unchecked(db, code).await?;
-		if token.kind != kind {
-			return Err(AppErrorKind::TokenNotFound.into());
-		}
-		Ok(token)
-	}
-
-	pub async fn new(db: &SqlitePool, kind: TokenKind, user: &User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
+	pub async fn new(db: &SqlitePool, user: &User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
 		let expires_at = if let Some(bound_code) = &bound_to {
-			let bound_token = Self::from_code_unchecked(db, &bound_code).await?;
+			// TODO: The bound has to be of the same kind
+			let bound_token = Self::from_code(db, &bound_code).await?;
 			bound_token.expires_at
 		} else {
-			kind.get_expiry()
+			K::get_expiry()
 		};
 
-		let token = Token {
+		let token = Self {
 			code: random_string(),
-			kind,
+			_kind: PhantomData,
 			user: user.email.clone(),
 			expires_at,
 			bound_to,
 			metadata: metadata,
 		};
 
-		query!(
-				"INSERT INTO tokens (code, kind, user, expires_at, bound_to, metadata) VALUES (?, ?, ?, ?, ?, ?)",
-				token.code,
-				token.kind,
-				token.user,
-				token.expires_at,
-				token.bound_to,
-				token.metadata
-			)
+		sqlx::query("INSERT INTO tokens (code, kind, user, expires_at, bound_to, metadata) VALUES (?, ?, ?, ?, ?, ?)")
+			.bind(&token.code)
+			.bind(K::NAME)
+			.bind(&token.user)
+			.bind(&token.expires_at)
+			.bind(&token.bound_to)
+			.bind(&token.metadata)
 			.execute(db)
 			.await?;
 
@@ -183,10 +184,12 @@ impl Token {
 
 		Ok(())
 	}
+}
 
+impl SessionToken {
 	pub async fn from_session(db: &SqlitePool, session: &Session) -> Result<Self> {
 		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
-			Self::from_code(db, session_id.as_str(), TokenKind::Session).await
+			Self::from_code(db, session_id.as_str()).await
 		} else {
 			#[cfg(debug_assertions)]
 			log::debug!("No session found in the session cookie");
@@ -203,60 +206,60 @@ mod tests {
 	use crate::utils::tests::*;
 	use crate::RANDOM_STRING_LEN;
 	use chrono::Utc;
+	use tests::MagicLinkToken;
 
 	#[actix_web::test]
 	async fn test_token() {
 		let db = &db_connect().await;
 		let user = get_valid_user();
 
-		let link = Token::new(db, TokenKind::MagicLink, &user, None, None).await.unwrap();
+		let link = MagicLinkToken::new(db, &user, None, None).await.unwrap();
 
 		assert_eq!(link.user, user.email);
 		assert_eq!(link.code.len(), RANDOM_STRING_LEN * 2);
 		assert!(link.expires_at > Utc::now().naive_utc());
 
 		// Test visit function
-		let user_from_link = Token::from_code(db, &link.code, TokenKind::MagicLink).await.unwrap().get_user().unwrap();
+		let user_from_link = MagicLinkToken::from_code(db, &link.code).await.unwrap().get_user().unwrap();
 		assert_eq!(user, user_from_link);
 
 		// Test expired UserLink
 		let expired_target = "expired_magic";
-		let expired_user_link = Token {
+		let expired_user_link = MagicLinkToken {
 			code: expired_target.to_string(),
-			kind: TokenKind::MagicLink,
+			_kind: PhantomData,
 			user: "expired@example.com".to_string(),
 			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(1).unwrap(),
 			bound_to: None,
 			metadata: None,
 		};
 
-		query!("INSERT INTO tokens (code, kind, user, expires_at) VALUES (?, ?, ?, ?)",
-				expired_user_link.code,
-				TokenKind::MagicLink,
-				expired_user_link.user,
-				expired_user_link.expires_at
-			)
+		sqlx::query("INSERT INTO tokens (code, kind, user, expires_at) VALUES (?, ?, ?, ?)")
+			.bind(expired_user_link.code)
+			.bind(token_kind::MagicLinkToken::NAME)
+			.bind(expired_user_link.user)
+			.bind(expired_user_link.expires_at)
 			.execute(db)
 			.await
 			.unwrap();
 
-		let expired_user = Token::from_code(db, expired_target, TokenKind::MagicLink).await;
+		let expired_user = MagicLinkToken::from_code(db, expired_target).await;
 		assert!(expired_user.is_err());
 
 		// Make sure that the expired record is removed
-		let record = query_as!(Token, r#"SELECT
+		let record = sqlx::query_as::<_, MagicLinkToken>(r#"SELECT
 			code,
-			kind AS "kind: TokenKind",
 			user,
 			expires_at,
 			bound_to,
 			metadata
-			FROM tokens WHERE code = ?"#, expired_target)
+			FROM tokens WHERE code = ?"#)
+			.bind(expired_target)
 			.fetch_optional(db)
 			.await;
 		assert!(record.unwrap().is_none());
 
-		let expired_user = Token::from_code(db, "nonexistent_magic", TokenKind::MagicLink).await;
+		let expired_user = MagicLinkToken::from_code(db, "nonexistent_magic").await;
 		assert!(expired_user.is_err());
 	}
 }

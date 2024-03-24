@@ -7,17 +7,17 @@ use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_action::ScopedLogin;
-use crate::model::{Token, TokenKind};
+use crate::model::{ProxyCookieToken, SessionToken};
 use crate::CONFIG;
 use crate::utils::get_partial;
 
 #[get("/login")]
 async fn login_page(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) -> Response {
-	if let Ok(user_session) = Token::from_session(&db, &session).await {
+	if let Ok(user_session) = SessionToken::from_session(&db, &session).await {
 		let user = user_session.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
 
 		if let Ok(scoped_login) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-			let scoped_code = Token::new(&db, TokenKind::ProxyCookie, &user, Some(user_session.code), Some(scoped_login.clone().into())).await?.code;
+			let scoped_code = ProxyCookieToken::new(&db, &user, Some(user_session.code), Some(scoped_login.clone().into())).await?.code;
 			let redirect_url = scoped_login.get_redirect_url(&scoped_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
 			info!("Redirecting pre-authenticated user to scope {}", &scoped_login.scope);
 			return Ok(HttpResponse::Found()

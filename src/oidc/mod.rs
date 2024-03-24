@@ -1,7 +1,7 @@
 use jwt_simple::algorithms::RS256KeyPair;
 use sqlx::SqlitePool;
 
-pub mod model;
+pub mod client;
 pub mod handle_discover;
 pub mod handle_authorize;
 pub mod handle_token;
@@ -26,8 +26,8 @@ pub async fn init(db: &SqlitePool) -> RS256KeyPair {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::model::MagicLinkToken;
 	use crate::utils::tests::*;
-	use crate::model::{Token, TokenKind};
 
 	use actix_session::storage::CookieSessionStore;
 	use actix_session::SessionMiddleware;
@@ -95,7 +95,7 @@ mod tests {
 		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
 		assert!(target.starts_with("http://localhost:8080/login"));
 
-		let token = Token::new(&db, TokenKind::MagicLink, &user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(&db, &user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())

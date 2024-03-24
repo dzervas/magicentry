@@ -8,8 +8,8 @@ use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
+use crate::model::{OIDCBearerToken, OIDCCodeToken};
 use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::model::{Token, TokenKind};
 use crate::user::User;
 use crate::CONFIG;
 
@@ -63,7 +63,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, token_req: web::
 	#[cfg(debug_assertions)]
 	log::info!("Token request: {:?}", token_req);
 
-	let session = Token::from_code(&db, &token_req.code, TokenKind::OIDCCode).await?;
+	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
 	println!("Session: {:?}", session);
 	let auth_req = AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
 
@@ -99,7 +99,7 @@ pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, token_req: web::
 	let base_url = CONFIG.url_from_request(&req);
 	let user = User::from_config(&session.user).ok_or(AppErrorKind::InvalidTargetUser)?;
 	let id_token = auth_req.generate_id_token(&user, &base_url, jwt_keypair.as_ref()).await?;
-	let access_token = Token::new(&db, TokenKind::OIDCBearer, &user, None, None).await?.code;
+	let access_token = OIDCBearerToken::new(&db, &user, None, None).await?.code;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,

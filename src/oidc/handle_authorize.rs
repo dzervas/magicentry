@@ -10,7 +10,7 @@ use jwt_simple::prelude::*;
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
-use crate::model::{Token, TokenKind};
+use crate::model::{OIDCCodeToken, SessionToken};
 use crate::oidc::handle_token::JWTData;
 use crate::user::User;
 use crate::{AUTHORIZATION_COOKIE, CONFIG};
@@ -28,9 +28,9 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_session_code(&self, db: &SqlitePool, user: &User, bound_to: String) -> std::result::Result<crate::model::Token, Error> {
+	pub async fn generate_session_code(&self, db: &SqlitePool, user: &User, bound_to: String) -> std::result::Result<OIDCCodeToken, Error> {
 		let self_string = String::try_from(self)?;
-		crate::model::Token::new(db, TokenKind::OIDCCode, user, Some(bound_to), Some(self_string)).await
+		OIDCCodeToken::new(db, user, Some(bound_to), Some(self_string)).await
 	}
 
 	pub fn get_redirect_url(&self, code: &str) -> Option<String> {
@@ -108,7 +108,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 
 	session.insert(AUTHORIZATION_COOKIE, auth_req.clone())?;
 
-	let token = if let Ok(token) = Token::from_session(&db, &session).await {
+	let token = if let Ok(token) = SessionToken::from_session(&db, &session).await {
 		token
 	} else {
 		let base_url = CONFIG.url_from_request(&req);

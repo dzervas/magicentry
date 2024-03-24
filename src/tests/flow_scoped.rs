@@ -5,7 +5,7 @@ use crate::utils::tests::db_connect;
 use crate::*;
 
 use actix_web::cookie::{Cookie, Key};
-use actix_web::http::{header, StatusCode};
+use actix_web::http::StatusCode;
 use actix_web::{test as actix_test, web, App};
 
 #[actix_web::test]
@@ -48,6 +48,7 @@ async fn test_global_login() {
 	let headers = resp.headers().clone();
 	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
+	println!("CookieHeader: {:?}", &cookie_header);
 	println!("Cookie: {:?}", &parsed_cookie);
 
 	let messages = email_stub.messages().await;
@@ -78,7 +79,7 @@ async fn test_global_login() {
 		TestRequest::get()
 			.uri("/proxied")
 			.cookie(Cookie::new(PROXIED_COOKIE, one_time_code))
-			.append_header((header::ORIGIN, "http://localhost:8080"))
+			.append_header(("x-original-url", "http://localhost:8080"))
 			.to_request()
 		).await;
 	assert_eq!(resp.status(), StatusCode::OK);
@@ -90,7 +91,7 @@ async fn test_global_login() {
 		TestRequest::get()
 			.uri("/proxied")
 			.cookie(parsed_cookie)
-			.append_header((header::ORIGIN, "http://localhost:8080"))
+			.append_header(("x-original-url", "http://localhost:8080"))
 			.to_request()
 		).await;
 	assert_eq!(resp.status(), StatusCode::OK);

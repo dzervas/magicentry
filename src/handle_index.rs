@@ -5,7 +5,7 @@ use formatx::formatx;
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::model::{Token, TokenKind};
+use crate::model::ProxyCookieToken;
 use crate::user::User;
 use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
@@ -28,7 +28,7 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 
 	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {
 		// TODO: Bound this to the main session
-		let proxy_cookie = Token::new(&db, TokenKind::ProxyCookie, &user, None, Some(scope.clone())).await?;
+		let proxy_cookie = ProxyCookieToken::new(&db, &user, None, Some(scope.clone())).await?;
 		Ok(HttpResponse::Found()
 			.append_header((header::LOCATION, format!("{}?code={}", scope, proxy_cookie.code)))
 			.finish())
@@ -47,8 +47,8 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::model::MagicLinkToken;
 	use crate::utils::tests::*;
-	use crate::model::{Token, TokenKind};
 	use crate::{SESSION_COOKIE, handle_login_link};
 
 	use std::collections::HashMap;
@@ -88,7 +88,7 @@ mod tests {
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
-		let token = Token::new(&db, TokenKind::MagicLink, &user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(&db, &user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())

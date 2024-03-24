@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::model::{Token, TokenKind};
+use crate::model::MagicLinkToken;
 use crate::user::User;
 use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
@@ -62,12 +62,16 @@ impl From<ScopedLogin> for String {
 
 #[post("/login")]
 async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
+	let login_action_page = get_partial("login_action");
+	let result = Ok(HttpResponse::Ok()
+		.content_type(ContentType::html())
+		.body(login_action_page));
 	let Some(user) = User::from_config(&form.email) else {
 		// Return 200 to avoid leaking valid emails
-		return Ok(HttpResponse::Ok().finish())
+		return result;
 	};
 
-	let link = Token::new(&db, TokenKind::MagicLink, &user, None, None).await?;
+	let link = MagicLinkToken::new(&db, &user, None, None).await?;
 	let base_url = CONFIG.url_from_request(&req);
 	let magic_link = format!("{}/login/{}", base_url, link.code);
 	let name = &user.name.clone().unwrap_or_default();
@@ -122,14 +126,11 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 	}
 
 	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
+		println!("Setting scoped login for link: {:?}", &scoped);
 		session.insert(SCOPED_LOGIN, scoped)?;
 	}
 
-	let login_action_page = get_partial("login_action");
-
-	Ok(HttpResponse::Ok()
-		.content_type(ContentType::html())
-		.body(login_action_page))
+	result
 }
 
 #[cfg(test)]

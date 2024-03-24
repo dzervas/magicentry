@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::{Response, Result};
-use crate::model::{Token, TokenKind};
+use crate::model::OIDCBearerToken;
 use crate::user::User;
 
 pub async fn token_from_request(db: &SqlitePool, req: HttpRequest) -> Result<Option<User>> {
@@ -31,7 +31,7 @@ pub async fn token_from_request(db: &SqlitePool, req: HttpRequest) -> Result<Opt
 		return Ok(None)
 	};
 
-	Ok(Token::from_code(db, auth, TokenKind::OIDCBearer).await?.get_user())
+	Ok(OIDCBearerToken::from_code(db, auth).await?.get_user())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

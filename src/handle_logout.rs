@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::Response;
-use crate::model::{Token, TokenKind};
+use crate::model::SessionToken;
 use crate::SESSION_COOKIE;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -18,7 +18,7 @@ pub struct LogoutRequest {
 #[get("/logout")]
 async fn logout(req: web::Query<LogoutRequest>, session: Session, db: web::Data<SqlitePool>) -> Response {
 	if let Some(Ok(user_session_id)) = session.remove_as::<String>(SESSION_COOKIE) {
-		let token = Token::from_code(&db, &user_session_id, TokenKind::Session).await?;
+		let token = SessionToken::from_code(&db, &user_session_id).await?;
 		token.delete(&db).await?;
 	}
 

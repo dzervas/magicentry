@@ -2,7 +2,7 @@ use actix_session::Session;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-use crate::model::{Token, TokenKind};
+use crate::model::SessionToken;
 use crate::{CONFIG, SESSION_COOKIE};
 use crate::error::Result;
 
@@ -17,7 +17,7 @@ pub struct User {
 impl User {
 	pub async fn from_session(db: &SqlitePool, session: &Session) -> Result<Option<User>> {
 		if let Some(session_id) = session.get::<String>(SESSION_COOKIE).unwrap_or(None) {
-			Ok(Token::from_code(db, session_id.as_str(), TokenKind::Session).await?.get_user())
+			Ok(SessionToken::from_code(db, session_id.as_str()).await?.get_user())
 		} else {
 			session.remove(SESSION_COOKIE);
 			Ok(None)

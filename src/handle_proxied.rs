@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
-use crate::model::{Token, TokenKind};
+use crate::model::{ProxyCookieToken, ScopedSessionToken};
 use crate::error::Result;
 use crate::{CONFIG, PROXIED_COOKIE, SCOPED_SESSION_COOKIE};
 
@@ -35,11 +35,11 @@ fn get_request_origin(req: &HttpRequest) -> Result<String> {
 	Err(AppErrorKind::MissingOriginHeader.into())
 }
 
-async fn new_from_proxy_cookie(db: &SqlitePool, req: &HttpRequest) -> Result<Option<Token>> {
+async fn new_from_proxy_cookie(db: &SqlitePool, req: &HttpRequest) -> Result<Option<ScopedSessionToken>> {
 	let cookie = req.cookie(PROXIED_COOKIE).ok_or(AppErrorKind::MissingCookieHeader)?;
 
 	let code = cookie.value();
-	let token = Token::from_code(db, code, TokenKind::ProxyCookie).await?;
+	let token = ProxyCookieToken::from_code(db, code).await?;
 	let metadata = token.metadata.clone().unwrap_or_default();
 	let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
 	let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
@@ -52,9 +52,8 @@ async fn new_from_proxy_cookie(db: &SqlitePool, req: &HttpRequest) -> Result<Opt
 		return Ok(None);
 	}
 
-	let scoped_session = Token::new(
+	let scoped_session = ScopedSessionToken::new(
 		db,
-		TokenKind::ScopedSession,
 		&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
 		token.bound_to.clone(),
 		Some(scope_origin)
@@ -64,11 +63,11 @@ async fn new_from_proxy_cookie(db: &SqlitePool, req: &HttpRequest) -> Result<Opt
 	Ok(Some(scoped_session))
 }
 
-async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest) -> Result<Option<Token>> {
+async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest) -> Result<Option<ScopedSessionToken>> {
 	let origin = get_request_origin(req)?;
 
 	if let Some(session_id) = req.cookie(SCOPED_SESSION_COOKIE) {
-		let token = Token::from_code(db, session_id.value(), TokenKind::ScopedSession).await?;
+		let token = ScopedSessionToken::from_code(db, session_id.value()).await?;
 		let metadata = token.metadata.clone().unwrap_or_default();
 		let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
 		let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
@@ -87,7 +86,7 @@ async fn from_scoped_session(db: &SqlitePool, req: &HttpRequest) -> Result<Optio
 
 #[get("/proxied")]
 async fn proxied(req: HttpRequest, db: web::Data<SqlitePool>) -> Response {
-	let (token, cookie): (Token, Option<Cookie>)  = if let Ok(Some(token)) = from_scoped_session(&db, &req).await {
+	let (token, cookie): (ScopedSessionToken, Option<Cookie>)  = if let Ok(Some(token)) = from_scoped_session(&db, &req).await {
 		#[cfg(debug_assertions)]
 		println!("Found scoped session from proxy cookie: {:?}", &token.code);
 		(token, None)
@@ -132,15 +131,14 @@ pub struct ProxiedRewrite {
 async fn proxied_rewrite(session: Session, db: web::Data<SqlitePool>, proxied_rewrite: web::Query<ProxiedRewrite>) -> Response {
 	let code = &proxied_rewrite.code;
 
-	let token = if let Ok(token) = Token::from_code(&db, code, TokenKind::ProxyCookie).await {
+	let token = if let Ok(token) = ProxyCookieToken::from_code(&db, code).await {
 		token
 	} else {
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
-	let scoped_session = Token::new(
+	let scoped_session = ScopedSessionToken::new(
 		&db,
-		TokenKind::ScopedSession,
 		&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
 		token.bound_to.clone(),
 		token.metadata.clone()

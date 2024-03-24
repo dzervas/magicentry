@@ -2,9 +2,9 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
+use crate::model::OIDCCodeToken;
 use crate::CONFIG;
 use crate::error::Result;
-use crate::model::{Token, TokenKind};
 
 use super::handle_authorize::AuthorizeRequest;
 
@@ -18,7 +18,7 @@ pub struct OIDCClient {
 
 impl OIDCClient {
 	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Option<OIDCClient>> {
-		let token = Token::from_code(db, code, TokenKind::OIDCCode).await?;
+		let token = OIDCCodeToken::from_code(db, code).await?;
 		let auth_req = if let Some(metadata) = token.metadata {
 			serde_qs::from_str::<AuthorizeRequest>(&metadata)?
 		} else {

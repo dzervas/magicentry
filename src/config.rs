@@ -30,7 +30,7 @@ pub struct ConfigFile {
 	pub oidc_enable: bool,
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub oidc_code_duration: Duration,
-	pub oidc_clients: Vec<crate::oidc::model::OIDCClient>,
+	pub oidc_clients: Vec<crate::oidc::client::OIDCClient>,
 
 	pub smtp_enable: bool,
 	pub smtp_url: String,
