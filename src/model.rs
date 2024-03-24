@@ -15,6 +15,7 @@ use crate::error::{AppErrorKind, Result};
 pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd + Ord + Serialize + DeserializeOwned + Send + Sync + Unpin {
 	const NAME: &'static str;
 	const EPHEMERAL: bool;
+	type BoundType: TokenKindType;
 
 	fn get_duration() -> chrono::Duration;
 
@@ -28,7 +29,7 @@ pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd +
 }
 
 macro_rules! token_kind {
-	{$($name:ident(duration = $duration:expr, ephemeral = $ephemeral:expr),)*} => {
+	{$($name:ident(duration = $duration:expr, ephemeral = $ephemeral:expr, bound_type = $bound_type:tt),)*} => {
 		$(
 			pub type $name = Token<token_kind::$name>;
 		)*
@@ -43,6 +44,7 @@ macro_rules! token_kind {
 				impl TokenKindType for $name {
 					const NAME: &'static str = stringify!($name);
 					const EPHEMERAL: bool = $ephemeral;
+					type BoundType = $bound_type;
 
 					fn get_duration() -> chrono::Duration { $duration }
 				}
@@ -51,13 +53,14 @@ macro_rules! token_kind {
 	};
 }
 
+// TODO: The bound type should be absent instead of Self
 token_kind! {
-	MagicLinkToken(duration = crate::CONFIG.link_duration, ephemeral = true),
-	SessionToken(duration = crate::CONFIG.session_duration, ephemeral = false),
-	ProxyCookieToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true),
-	ScopedSessionToken(duration = crate::CONFIG.session_duration, ephemeral = false),
-	OIDCCodeToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true),
-	OIDCBearerToken(duration = crate::CONFIG.session_duration, ephemeral = false),
+	MagicLinkToken(duration = crate::CONFIG.link_duration, ephemeral = true, bound_type = Self),
+	SessionToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = Self),
+	ProxyCookieToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
+	ScopedSessionToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = SessionToken),
+	OIDCCodeToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
+	OIDCBearerToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = Self),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
@@ -142,8 +145,8 @@ impl<K: TokenKindType> Token<K> {
 
 	pub async fn new(db: &SqlitePool, user: &User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
 		let expires_at = if let Some(bound_code) = &bound_to {
-			// TODO: The bound has to be of the same kind
-			let bound_token = Self::from_code(db, &bound_code).await?;
+			// TODO: Force check the bound if it's valid
+			let bound_token: Token<K::BoundType> = Token::from_code(db, &bound_code).await?;
 			bound_token.expires_at
 		} else {
 			K::get_expiry()
