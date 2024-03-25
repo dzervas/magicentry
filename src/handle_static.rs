@@ -7,6 +7,7 @@ async fn static_files(filename: web::Path<String>) -> HttpResponse {
 	let (file, content_type) = match filename.as_str() {
 		"main.css" => ("main.build.css", "text/css"),
 		"logo.svg" => ("logo.svg", "image/svg+xml"),
+		"webauthn-json.js" => ("webauthn-json.js", "text/javascript"),
 		_ => return HttpResponse::NotFound().finish()
 	};
 

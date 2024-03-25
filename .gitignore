@@ -26,3 +26,4 @@ target/
 /test
 node_modules
 /static/main.build.css
+/static/webauthn-json.js

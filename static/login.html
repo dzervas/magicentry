@@ -23,10 +23,19 @@
 						</div>
 					</div>
 					<div class="mx-auto max-w-screen-sm text-sm text-left text-gray-500 newsletter-form-footer dark:text-gray-300">
-						Powered by <a href="https://github.com/dzervas/just-passwordless" class="font-medium text-primary-600 dark:text-primary-500 hover:underline">Just Passwordless</a>.
+						Powered by <a href="https://github.com/dzervas/magicentry" class="font-medium text-primary-600 dark:text-primary-500 hover:underline">MagicEntry</a>.
 					</div>
 				</form>
 			</div>
 		</div>
 	</div>
 </section>
+
+<script src="{path_prefix}/static/webauthn-json.js" async type="text/javascript"></script>
+<script type="text/javascript">
+	// Due to the curly-brace placeholders, they need to be escaped with double curly-braces
+	document.addEventListener('DOMContentLoaded', function() {{
+		const webauthn = new WebAuthnJSON();
+		webauthn.init();
+	}});
+</script>

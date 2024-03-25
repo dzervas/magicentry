@@ -2,7 +2,7 @@ use std::string::FromUtf8Error;
 
 use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
-use derive_more::{Display, Error};
+use derive_more::{Display, Error as DeriveError};
 use formatx::formatx;
 use reqwest::header::ToStrError;
 
@@ -17,7 +17,7 @@ pub async fn not_found() -> Response {
 	Err(AppErrorKind::NotFound.into())
 }
 
-#[derive(Debug, Display, Error, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Display, DeriveError, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AppErrorKind {
 	TokenNotFound,
 	NoParentToken,
@@ -65,62 +65,7 @@ pub enum AppErrorKind {
 	NoClientCredentialsProvided,
 }
 
-impl ResponseError for AppErrorKind {
-	fn status_code(&self) -> StatusCode {
-		match self {
-			AppErrorKind::TokenNotFound => StatusCode::FOUND,
-			AppErrorKind::NotLoggedIn |
-			AppErrorKind::InvalidOIDCCode |
-			AppErrorKind::InvalidClientID |
-			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
-			AppErrorKind::NotFound => StatusCode::NOT_FOUND,
-			AppErrorKind::InvalidTargetUser |
-			AppErrorKind::InvalidParentToken => StatusCode::INTERNAL_SERVER_ERROR,
-
-			_ => StatusCode::BAD_REQUEST,
-		}
-	}
-
-	fn error_response(&self) -> HttpResponse {
-		let status = self.status_code();
-		#[allow(unused_mut)] // Since it's used during release builds
-		let mut description = format!("{}", self);
-
-		if status.is_server_error() {
-			log::error!("{}", self);
-
-			#[cfg(not(debug_assertions))]
-			{
-				description.clear();
-				description = "Internal server error".to_string();
-			}
-		} else if self != &AppErrorKind::NotFound {
-			log::warn!("{}", self);
-		}
-
-
-		if self == &AppErrorKind::TokenNotFound || self == &AppErrorKind::NotLoggedIn {
-			HttpResponse::build(status)
-				.append_header((header::LOCATION, "/login"))
-				.finish()
-		} else {
-			let partial = get_partial("error");
-			let page = formatx!(
-				partial,
-				home = CONFIG.path_prefix.clone(),
-				code = self.status_code().as_u16(),
-				error = self.status_code().canonical_reason().unwrap_or_default(),
-				description = description
-			).unwrap();
-
-			HttpResponse::build(status)
-				.content_type(ContentType::html())
-				.body(page)
-		}
-	}
-}
-
-#[derive(Debug, Display, Error, Clone)]
+#[derive(Debug, Display, DeriveError, Clone)]
 #[cfg_attr(debug_assertions, display(fmt = "Internal Server Error: {}", cause))]
 #[cfg_attr(not(debug_assertions), display(fmt = "Internal Server Error"))]
 pub struct Error {
@@ -131,20 +76,60 @@ pub struct Error {
 impl ResponseError for Error {
 	fn status_code(&self) -> StatusCode {
 		if let Some(app_error) = &self.app_error {
-			app_error.status_code()
+			match app_error {
+				AppErrorKind::TokenNotFound => StatusCode::FOUND,
+				AppErrorKind::NotLoggedIn |
+				AppErrorKind::InvalidOIDCCode |
+				AppErrorKind::InvalidClientID |
+				AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
+				AppErrorKind::NotFound => StatusCode::NOT_FOUND,
+				AppErrorKind::InvalidTargetUser |
+				AppErrorKind::InvalidParentToken => StatusCode::INTERNAL_SERVER_ERROR,
+
+				_ => StatusCode::BAD_REQUEST,
+			}
 		} else {
 			StatusCode::INTERNAL_SERVER_ERROR
 		}
 	}
 
 	fn error_response(&self) -> HttpResponse {
-		if let Some(app_error) = &self.app_error {
-			app_error.error_response()
+		let status = self.status_code();
+		#[allow(unused_mut)] // Since it's used during release builds
+		let mut description = self.cause.clone();
+
+		if status.is_server_error() {
+			log::error!("{}", self);
+
+			#[cfg(not(debug_assertions))]
+			{
+				description.clear();
+				description = "Something went very wrong from our end".to_string();
+			}
+		} else if status != StatusCode::NOT_FOUND {
+			log::warn!("{}", self);
+		}
+
+		if self.app_error == Some(AppErrorKind::TokenNotFound) || self.app_error == Some(AppErrorKind::NotLoggedIn) {
+			HttpResponse::build(status)
+				.append_header((header::LOCATION, "/login"))
+				.finish()
 		} else {
-			log::error!("{}", self.cause);
-			HttpResponse::InternalServerError()
+			let partial = get_partial("error");
+			let page = formatx!(
+				partial,
+				path_prefix = &CONFIG.path_prefix,
+				code = self.status_code().as_u16(),
+				error = self.status_code().canonical_reason().unwrap_or_default(),
+				description = description
+			).unwrap_or_else(|_| {
+				log::error!("Could not format error page");
+				"Internal server error".to_string()
+			});
+
+			HttpResponse::build(status)
 				.content_type(ContentType::html())
-				.body(self.to_string())
+				.body(page)
 		}
 	}
 }
@@ -161,7 +146,7 @@ impl From<String> for Error {
 impl From<AppErrorKind> for Error {
 	fn from(error: AppErrorKind) -> Self {
 		Self {
-			cause: String::default(),
+			cause: format!("{}", error),
 			app_error: Some(error),
 		}
 	}

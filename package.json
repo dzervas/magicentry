@@ -3,10 +3,13 @@
   "source": "src/main.css",
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
-    "start": "tailwindcss -i static/main.css -o static/main.build.css --watch",
-    "build": "tailwindcss -i static/main.css -o static/main.build.css --minify"
+    "start": "tailwindcss -i static/main.css -o static/main.build.css --watch && cp node_modules/@github/webauthn-json/dist/browser-global/webauthn-json.browser-global.min.js static/webauthn-json.js",
+    "build": "tailwindcss -i static/main.css -o static/main.build.css --minify && cp node_modules/@github/webauthn-json/dist/browser-global/webauthn-json.browser-global.min.js static/webauthn-json.js"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.1"
+  },
+  "dependencies": {
+    "@github/webauthn-json": "^2.1.1"
   }
 }
