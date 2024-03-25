@@ -58,6 +58,7 @@ async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
 
+			.default_service(web::route().to(error::not_found))
 
 			// Auth routes
 			.service(handle_index::index)

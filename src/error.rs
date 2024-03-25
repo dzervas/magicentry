@@ -3,11 +3,19 @@ use std::string::FromUtf8Error;
 use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error};
+use formatx::formatx;
 use reqwest::header::ToStrError;
+
+use crate::utils::get_partial;
+use crate::CONFIG;
 
 pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
 pub type Response = std::result::Result<HttpResponse, Error>;
 pub type Result<T> = std::result::Result<T, Error>;
+
+pub async fn not_found() -> Response {
+	Err(AppErrorKind::NotFound.into())
+}
 
 #[derive(Debug, Display, Error, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AppErrorKind {
@@ -21,6 +29,8 @@ pub enum AppErrorKind {
 	MissingOriginHeader,
 	InvalidParentToken,
 
+	#[display(fmt = "What you're looking for ain't here")]
+	NotFound,
 	#[display(fmt = "You are not logged in!")]
 	NotLoggedIn,
 	#[display(fmt = "Missing Authorization header")]
@@ -63,6 +73,7 @@ impl ResponseError for AppErrorKind {
 			AppErrorKind::InvalidOIDCCode |
 			AppErrorKind::InvalidClientID |
 			AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
+			AppErrorKind::NotFound => StatusCode::NOT_FOUND,
 			AppErrorKind::InvalidTargetUser |
 			AppErrorKind::InvalidParentToken => StatusCode::INTERNAL_SERVER_ERROR,
 
@@ -72,10 +83,19 @@ impl ResponseError for AppErrorKind {
 
 	fn error_response(&self) -> HttpResponse {
 		let status = self.status_code();
-		if status.as_u16() < 500 {
-			log::warn!("{}", self)
-		} else {
-			log::error!("{}", self)
+		#[allow(unused_mut)] // Since it's used during release builds
+		let mut description = format!("{}", self);
+
+		if status.is_server_error() {
+			log::error!("{}", self);
+
+			#[cfg(not(debug_assertions))]
+			{
+				description.clear();
+				description = "Internal server error".to_string();
+			}
+		} else if self != &AppErrorKind::NotFound {
+			log::warn!("{}", self);
 		}
 
 
@@ -84,9 +104,18 @@ impl ResponseError for AppErrorKind {
 				.append_header((header::LOCATION, "/login"))
 				.finish()
 		} else {
+			let partial = get_partial("error");
+			let page = formatx!(
+				partial,
+				home = CONFIG.path_prefix.clone(),
+				code = self.status_code().as_u16(),
+				error = self.status_code().canonical_reason().unwrap_or_default(),
+				description = description
+			).unwrap();
+
 			HttpResponse::build(status)
 				.content_type(ContentType::html())
-				.body(self.to_string())
+				.body(page)
 		}
 	}
 }
