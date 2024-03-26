@@ -66,8 +66,7 @@ pub enum AppErrorKind {
 }
 
 #[derive(Debug, Display, DeriveError, Clone)]
-#[cfg_attr(debug_assertions, display(fmt = "Internal Server Error: {}", cause))]
-#[cfg_attr(not(debug_assertions), display(fmt = "Internal Server Error"))]
+#[display(fmt = "Internal Server Error: {}", cause)]
 pub struct Error {
 	cause: String,
 	app_error: Option<AppErrorKind>,
