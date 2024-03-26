@@ -16,7 +16,6 @@ WORKDIR /usr/src/app
 
 RUN cargo init --vcs none --bin
 COPY Cargo.toml Cargo.lock ./
-# Enable mount-type caching and dependency caching to be compatible with github actions
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
 	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
 	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \

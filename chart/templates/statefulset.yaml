@@ -45,7 +45,7 @@ spec:
           - name: CONFIG_FILE
             value: /config/config.yaml
           - name: DATABASE_URL
-            value: sqlite:///db/database.sqlite3?mode=rwc
+            value: /db/database.db
           - name: LISTEN_HOST
             value: 0.0.0.0
         ports:
