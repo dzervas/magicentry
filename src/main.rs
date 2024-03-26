@@ -57,7 +57,7 @@ async fn main() -> std::io::Result<()> {
 	// Webauthn setup
 
 	HttpServer::new(move || {
-		// let webauthn = webauthn::init().expect("Failed to create webauthn object");
+		let webauthn = webauthn::init().expect("Failed to create webauthn object");
 		let mut app = App::new()
 			// Data
 			.app_data(web::Data::new(db.clone()))
@@ -114,9 +114,9 @@ async fn main() -> std::io::Result<()> {
 		// TODO: Make webauthn optional
 
 		app
-			// .app_data(web::Data::new(webauthn))
-			// .service(webauthn::handle_reg_start::reg_start)
-			// .service(webauthn::handle_reg_finish::reg_finish)
+			.app_data(web::Data::new(webauthn))
+			.service(webauthn::handle_reg_start::reg_start)
+			.service(webauthn::handle_reg_finish::reg_finish)
 	})
 	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
 	.run()

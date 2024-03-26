@@ -8,7 +8,7 @@ pub mod token;
 pub mod oidc;
 pub mod user;
 pub mod utils;
-// pub mod webauthn;
+pub mod webauthn;
 
 pub mod handle_index;
 pub mod handle_login_page;

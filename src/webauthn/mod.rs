@@ -2,6 +2,8 @@ use webauthn_rs::prelude::*;
 
 use crate::CONFIG;
 
+pub mod store;
+
 pub mod handle_reg_start;
 pub mod handle_reg_finish;
 
