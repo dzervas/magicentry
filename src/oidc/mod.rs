@@ -1,5 +1,7 @@
 use jwt_simple::algorithms::RS256KeyPair;
-use sqlx::SqlitePool;
+use reindeer::{Db, Entity};
+
+use crate::config::{ConfigKV, ConfigKeys};
 
 pub mod client;
 pub mod handle_discover;
@@ -8,15 +10,16 @@ pub mod handle_token;
 pub mod handle_jwks;
 pub mod handle_userinfo;
 
-pub async fn init(db: &SqlitePool) -> RS256KeyPair {
-	if let Some(keypair) = crate::config::ConfigKV::get(&db, "jwt_keypair").await {
-		RS256KeyPair::from_pem(&keypair).expect("Failed to load JWT keypair from database")
+pub async fn init(db: &Db) -> RS256KeyPair {
+	if let Ok(Some(keypair)) = ConfigKV::get(&ConfigKeys::JWTKeyPair, db) {
+		let pem = keypair.value.expect("Failed to load JWT keypair from database");
+		RS256KeyPair::from_pem(&pem).expect("Failed to load JWT keypair from database")
 	} else {
 		log::warn!("Generating JWT keypair for RSA 4096. This is going to take some time...");
 		let keypair = RS256KeyPair::generate(4096).expect("Failed to generate RSA 4096 keypair");
 		let keypair_pem = keypair.to_pem().expect("Failed to convert keypair to PEM - that's super weird");
 
-		crate::config::ConfigKV::set(&db, "jwt_keypair", &keypair_pem).await.expect("Unable to set secret in the database");
+		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), &db).expect("Unable to save secret in the database");
 
 		keypair
 	}

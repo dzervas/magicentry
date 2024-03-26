@@ -3,7 +3,6 @@ use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use formatx::formatx;
 use log::info;
-use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_action::ScopedLogin;
@@ -12,7 +11,7 @@ use crate::CONFIG;
 use crate::utils::get_partial;
 
 #[get("/login")]
-async fn login_page(req: HttpRequest, session: Session, db: web::Data<SqlitePool>) -> Response {
+async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	if let Ok(user_session) = SessionToken::from_session(&db, &session).await {
 		let user = user_session.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
 

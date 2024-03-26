@@ -59,14 +59,19 @@ pub fn random_string() -> String {
 
 #[cfg(test)]
 pub mod tests {
-	use sqlx::SqlitePool;
+	use reindeer::Db;
+	use reindeer::Entity;
 
 	use crate::user::User;
 
 	use super::*;
 
-	pub async fn db_connect() -> SqlitePool {
-		SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create pool.")
+	pub async fn db_connect() -> Db {
+		let db = reindeer::open(&CONFIG.database_url).expect("Failed to open reindeer database.");
+		crate::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
+		crate::token::register_token_kind(&db).expect("Failed to register token kinds");
+
+		db
 	}
 
 	pub fn get_valid_user() -> User {

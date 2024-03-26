@@ -2,7 +2,6 @@ use actix_session::Session;
 use actix_web::{get, web, HttpResponse};
 use log::info;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::token::{ProxyCookieToken, ScopedSessionToken};
@@ -15,7 +14,7 @@ pub struct ProxiedRewrite {
 }
 
 #[get("/auth-url/response")]
-async fn response(session: Session, db: web::Data<SqlitePool>, proxied_rewrite: web::Query<ProxiedRewrite>) -> Response {
+async fn response(session: Session, db: web::Data<reindeer::Db>, proxied_rewrite: web::Query<ProxiedRewrite>) -> Response {
 	let code = &proxied_rewrite.code;
 
 	let token = if let Ok(token) = ProxyCookieToken::from_code(&db, code).await {

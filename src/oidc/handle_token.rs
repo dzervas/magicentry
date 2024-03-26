@@ -5,7 +5,6 @@ use jwt_simple::algorithms::RS256KeyPair;
 use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::token::{OIDCBearerToken, OIDCCodeToken};
@@ -59,7 +58,7 @@ impl JWTData {
 }
 
 #[post("/oidc/token")]
-pub async fn token(req: HttpRequest, db: web::Data<SqlitePool>, token_req: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
+pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
 	#[cfg(debug_assertions)]
 	log::info!("Token request: {:?}", token_req);
 

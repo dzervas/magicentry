@@ -8,7 +8,6 @@ use lettre::message::header::ContentType as LettreContentType;
 use log::info;
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 
 use crate::error::Response;
 use crate::token::MagicLinkToken;
@@ -62,7 +61,7 @@ impl From<ScopedLogin> for String {
 }
 
 #[post("/login")]
-async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<SqlitePool>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
+async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<reindeer::Db>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
 	let login_action_page = get_partial("login_action");
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
@@ -148,7 +147,7 @@ mod tests {
 
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};
-	use sqlx::query;
+	use reindeer::Entity;
 
 	#[actix_web::test]
 	async fn test_login_action() {
@@ -180,10 +179,9 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
-		let links = query!("SELECT * FROM links WHERE email = 'invalid@example.com'")
-			.fetch_optional(db)
-			.await
-			.unwrap();
-		assert!(links.is_none());
+		let links = MagicLinkToken::get_with_filter(|t| {
+			t.user == "invalid@example.com"
+		}, db).unwrap();
+		assert!(links.is_empty());
 	}
 }

@@ -9,7 +9,6 @@ use reqwest::header::ToStrError;
 use crate::utils::get_partial;
 use crate::CONFIG;
 
-pub type SqlResult<T> = std::result::Result<T, sqlx::Error>;
 pub type Response = std::result::Result<HttpResponse, Error>;
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -181,8 +180,8 @@ impl From<actix_session::SessionInsertError> for Error {
 	}
 }
 
-impl From<sqlx::Error> for Error {
-	fn from(error: sqlx::Error) -> Self {
+impl From<reindeer::Error> for Error {
+	fn from(error: reindeer::Error) -> Self {
 		format!("Database error: {}", error).into()
 	}
 }

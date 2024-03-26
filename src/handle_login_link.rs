@@ -1,7 +1,6 @@
 use actix_session::Session;
 use actix_web::{get, web, HttpResponse};
 use log::info;
-use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_action::ScopedLogin;
@@ -10,7 +9,7 @@ use crate::oidc::handle_authorize::AuthorizeRequest;
 use crate::{AUTHORIZATION_COOKIE, SCOPED_LOGIN, SESSION_COOKIE};
 
 #[get("/login/{magic}")]
-async fn login_link(magic: web::Path<String>, session: Session, db: web::Data<SqlitePool>) -> Response {
+async fn login_link(magic: web::Path<String>, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let Some(user) = MagicLinkToken::from_code(&db, &magic).await?.get_user() else {
 		return Ok(HttpResponse::Unauthorized().finish())
 	};

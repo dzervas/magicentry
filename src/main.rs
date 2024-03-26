@@ -1,3 +1,4 @@
+use magicentry::config::{ConfigKV, ConfigKeys};
 pub use magicentry::*;
 
 use lettre::transport::smtp;
@@ -6,7 +7,7 @@ use actix_session::SessionMiddleware;
 use actix_web::cookie::{Key, SameSite};
 use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
-use sqlx::sqlite::SqlitePool;
+use reindeer::Entity;
 
 // Do not compile in tests at all as the SmtpTransport is not available
 #[actix_web::main]
@@ -16,17 +17,19 @@ async fn main() -> std::io::Result<()> {
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
-	// Database setup
-	let db = SqlitePool::connect(&CONFIG.database_url).await.expect("Failed to create sqlite pool.");
-	sqlx::migrate!().run(&db).await.expect("Failed to run database migrations.");
-	let secret = if let Some(secret) = config::ConfigKV::get(&db, "secret").await {
+	let db = reindeer::open(&CONFIG.database_url).expect("Failed to open reindeer database.");
+	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
+	token::register_token_kind(&db).expect("Failed to register token kinds");
+
+	let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
+		let secret = secret_kv.value.expect("Failed to load secret from database");
 		let master = hex::decode(secret).expect("Failed to decode secret - is something wrong with the database?");
 		Key::from(&master)
 	} else {
 		let key = Key::generate();
 		let master = hex::encode(key.master());
 
-		config::ConfigKV::set(&db, "secret", &master).await.unwrap_or_else(|_| panic!("Unable to set secret in the database"));
+		ConfigKV::set(ConfigKeys::Secret, Some(master), &db).expect("Unable to set secret in the database");
 
 		key
 	};

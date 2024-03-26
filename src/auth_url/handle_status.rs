@@ -1,13 +1,12 @@
 use actix_web::cookie::Cookie;
 use actix_web::{get, web, HttpRequest, HttpResponse};
-use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::token::ScopedSessionToken;
 use crate::{CONFIG, SCOPED_SESSION_COOKIE};
 
 #[get("/auth-url/status")]
-async fn status(req: HttpRequest, db: web::Data<SqlitePool>) -> Response {
+async fn status(req: HttpRequest, db: web::Data<reindeer::Db>) -> Response {
 	let (token, cookie): (ScopedSessionToken, Option<Cookie>) = if let Ok(Some(token)) = ScopedSessionToken::from_session(&db, &req).await {
 		#[cfg(debug_assertions)]
 		println!("Found scoped session from proxy cookie: {:?}", &token.code);

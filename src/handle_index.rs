@@ -2,7 +2,6 @@ use actix_session::Session;
 use actix_web::http::header::{self, ContentType};
 use actix_web::{get, web, HttpResponse};
 use formatx::formatx;
-use sqlx::SqlitePool;
 
 use crate::error::{AppErrorKind, Response};
 use crate::token::{ProxyCookieToken, SessionToken};
@@ -10,7 +9,7 @@ use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
 
 #[get("/")]
-async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
+async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let Ok(token) = SessionToken::from_session(&db, &session).await else {
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/login"))

@@ -1,12 +1,11 @@
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 
 use crate::error::{Response, Result};
 use crate::token::OIDCBearerToken;
 use crate::user::User;
 
-pub async fn token_from_request(db: &SqlitePool, req: HttpRequest) -> Result<Option<User>> {
+pub async fn token_from_request(db: &reindeer::Db, req: HttpRequest) -> Result<Option<User>> {
 	let auth_header = if let Some(header) = req.headers().get("Authorization") {
 		header
 	} else {
@@ -31,7 +30,7 @@ pub async fn token_from_request(db: &SqlitePool, req: HttpRequest) -> Result<Opt
 		return Ok(None)
 	};
 
-	Ok(OIDCBearerToken::from_code(db, auth).await?.get_user())
+	Ok(OIDCBearerToken::from_code(db, &auth.to_string()).await?.get_user())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -43,7 +42,7 @@ pub struct UserInfoResponse {
 }
 
 #[get("/oidc/userinfo")]
-pub async fn userinfo(db: web::Data<SqlitePool>, req: HttpRequest) -> Response {
+pub async fn userinfo(db: web::Data<reindeer::Db>, req: HttpRequest) -> Response {
 	if let Ok(Some(user)) = token_from_request(&db, req).await {
 		let username = user.username.unwrap_or(user.email.clone());
 

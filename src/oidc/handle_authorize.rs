@@ -4,8 +4,6 @@ use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use formatx::formatx;
 use log::info;
-use sqlx::FromRow;
-use sqlx::SqlitePool;
 use jwt_simple::prelude::*;
 
 use crate::error::Error;
@@ -16,7 +14,7 @@ use crate::user::User;
 use crate::{AUTHORIZATION_COOKIE, CONFIG};
 use crate::utils::get_partial;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthorizeRequest {
 	pub scope: String,
 	pub response_type: String,
@@ -28,7 +26,7 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_session_code(&self, db: &SqlitePool, user: &User, bound_to: String) -> std::result::Result<OIDCCodeToken, Error> {
+	pub async fn generate_session_code(&self, db: &reindeer::Db, user: &User, bound_to: String) -> std::result::Result<OIDCCodeToken, Error> {
 		let self_string = String::try_from(self)?;
 		OIDCCodeToken::new(db, user, Some(bound_to), Some(self_string)).await
 	}
@@ -92,7 +90,7 @@ impl TryFrom<&AuthorizeRequest> for String {
 	}
 }
 
-async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>, auth_req: AuthorizeRequest) -> Response {
+async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>, auth_req: AuthorizeRequest) -> Response {
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 
 	if let Some(code_challenge_method) = auth_req.code_challenge_method.as_ref() {
@@ -141,11 +139,11 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<SqlitePool>
 }
 
 #[get("/oidc/authorize")]
-pub async fn authorize_get(req: HttpRequest, session: Session, db: web::Data<SqlitePool>, data: web::Query<AuthorizeRequest>) -> impl Responder {
+pub async fn authorize_get(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>, data: web::Query<AuthorizeRequest>) -> impl Responder {
 	authorize(req, session, db, data.into_inner()).await
 }
 
 #[post("/oidc/authorize")]
-pub async fn authorize_post(req: HttpRequest, session: Session, db: web::Data<SqlitePool>, data: web::Form<AuthorizeRequest>) -> impl Responder {
+pub async fn authorize_post(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>, data: web::Form<AuthorizeRequest>) -> impl Responder {
 	authorize(req, session, db, data.into_inner()).await
 }

@@ -4,7 +4,6 @@ use actix_session::Session;
 use actix_web::{get, web, HttpResponse};
 use log::warn;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 
 use crate::error::Response;
 use crate::token::SessionToken;
@@ -16,7 +15,7 @@ pub struct LogoutRequest {
 }
 
 #[get("/logout")]
-async fn logout(req: web::Query<LogoutRequest>, session: Session, db: web::Data<SqlitePool>) -> Response {
+async fn logout(req: web::Query<LogoutRequest>, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	if let Some(Ok(user_session_id)) = session.remove_as::<String>(SESSION_COOKIE) {
 		let token = SessionToken::from_code(&db, &user_session_id).await?;
 		token.delete(&db).await?;

@@ -1,14 +1,13 @@
 use actix_session::Session;
 use actix_web::web::Json;
 use actix_web::{post, web};
-use sqlx::SqlitePool;
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Result};
 use crate::token::SessionToken;
 
 #[post("/webauthn/register/start")]
-pub async fn reg_start(session: Session, db: web::Data<SqlitePool>, webauthn: web::Data<Webauthn>) -> Result<Json<CreationChallengeResponse>> {
+pub async fn reg_start(session: Session, db: web::Data<reindeer::Db>, webauthn: web::Data<Webauthn>) -> Result<Json<CreationChallengeResponse>> {
 	let Ok(token) = SessionToken::from_session(&db, &session).await else {
 		return Err(AppErrorKind::NotLoggedIn.into());
 	};

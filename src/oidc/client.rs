@@ -1,6 +1,5 @@
 use log::warn;
 use serde::{Deserialize, Serialize};
-use sqlx::SqlitePool;
 
 use crate::token::OIDCCodeToken;
 use crate::CONFIG;
@@ -17,7 +16,7 @@ pub struct OIDCClient {
 }
 
 impl OIDCClient {
-	pub async fn from_code(db: &SqlitePool, code: &str) -> Result<Option<OIDCClient>> {
+	pub async fn from_code(db: &reindeer::Db, code: &String) -> Result<Option<OIDCClient>> {
 		let token = OIDCCodeToken::from_code(db, code).await?;
 		let auth_req = if let Some(metadata) = token.metadata {
 			serde_qs::from_str::<AuthorizeRequest>(&metadata)?
