@@ -73,14 +73,15 @@ impl Default for ConfigFile {
 
 			smtp_enable : false,
 			smtp_url    : "smtp://localhost:25".to_string(),
-			smtp_from   : "MagicEntry <magicentry@example.com>".to_string(),
-			smtp_subject: "MagicEntry Login".to_string(),
-			smtp_body   : "Click the link to login: {link}".to_string(),
+			smtp_from   : "{title} <magicentry@example.com>".to_string(),
+			smtp_subject: "{title} Login".to_string(),
+			smtp_body   : "Click the link to login: {magic_link}".to_string(),
 
 			request_enable: false,
 			request_url   : "https://www.cinotify.cc/api/notify".to_string(),
 			request_method: "POST".to_string(),
-			request_data  : Some("to={email}&subject=MagicEntry Login&body=http://localhost:8080/login/{magic}".to_string()),
+			request_data  : Some("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string()),
+			// request_data  : Some(r#"{{ "to": "{email}", "subject": "{title} Login", "body": "Click the link to login: <a href=\"{magic_link}\">Login</a>", "type": "text/html" }}"#.to_string()),
 
 			users: vec![],
 		}

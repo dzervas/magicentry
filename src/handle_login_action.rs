@@ -6,6 +6,7 @@ use formatx::formatx;
 use lettre::{AsyncTransport, Message};
 use lettre::message::header::ContentType as LettreContentType;
 use log::info;
+use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
@@ -88,7 +89,8 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 			.header(LettreContentType::TEXT_HTML)
 			.body(formatx!(
 				&CONFIG.smtp_body,
-				link = &magic_link,
+				title = &CONFIG.title,
+				magic_link = &magic_link,
 				name = name,
 				username = username
 			)?)?;
@@ -102,7 +104,7 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 		let url = formatx!(
 			&CONFIG.request_url,
 			title = &CONFIG.title,
-			link = &magic_link,
+			magic_link = &magic_link,
 			email = &user.email,
 			name = name,
 			username = username
@@ -113,16 +115,22 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 			let body = formatx!(
 				data.as_str(),
 				title = &CONFIG.title,
-				link = &magic_link,
+				magic_link = &magic_link,
 				email = &user.email,
 				name = name,
 				username = username
 			)?;
-			req = req.body(body);
+			req = req
+				// TODO: Make this configurable
+				.header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+				.body(body);
 		}
 
 		info!("Sending request for user {}", &user.email);
-		req.send().await?;
+		let resp = req.send().await?;
+		if !resp.status().is_success() {
+			log::warn!("Request for user {} failed: {} {}", &user.email, resp.status(), resp.text().await.unwrap_or_default());
+		}
 	}
 
 	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {

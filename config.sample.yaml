@@ -32,13 +32,13 @@ oidc_clients:
 smtp_enable: false
 # For the URL scheme options see https://docs.rs/lettre/latest/lettre/transport/smtp/struct.AsyncSmtpTransport.html#method.from_url
 smtp_url: smtp://user@pass:localhost:25/?tls=required
-smtp_from: MagicEntry <magicentry@example.com>
-smtp_subject: MagicEntry Login
+smtp_from: "{title} <magicentry@example.com>"
+smtp_subject: "{title} Login"
 smtp_body: "Click the link to login: {link}"
 
 request_enable: false
 request_url: https://www.cinotify.cc/api/notify
-request_data: to={email}&subject=MagicEntry Login&body={link}
+request_data: to={email}&subject={title} Login&body={magic_link}
 request_method: POST
 
 users:
