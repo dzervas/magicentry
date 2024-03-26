@@ -34,11 +34,11 @@ smtp_enable: false
 smtp_url: smtp://user@pass:localhost:25/?tls=required
 smtp_from: "{title} <magicentry@example.com>"
 smtp_subject: "{title} Login"
-smtp_body: "Click the link to login: {link}"
+smtp_body: "Click the link to login: {magic_link}"
 
 request_enable: false
 request_url: https://www.cinotify.cc/api/notify
-request_data: to={email}&subject={title} Login&body={magic_link}
+request_data: "to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html"
 request_method: POST
 
 users:
