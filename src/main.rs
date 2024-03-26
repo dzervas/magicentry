@@ -51,8 +51,11 @@ async fn main() -> std::io::Result<()> {
 	// OIDC setup
 	let oidc_key = oidc::init(&db).await;
 
+	// Webauthn setup
+
 	HttpServer::new(move || {
-		let app = App::new()
+		// let webauthn = webauthn::init().expect("Failed to create webauthn object");
+		let mut app = App::new()
 			// Data
 			.app_data(web::Data::new(db.clone()))
 			.app_data(web::Data::new(mailer.clone()))
@@ -96,16 +99,21 @@ async fn main() -> std::io::Result<()> {
 
 		// OIDC routes
 		if CONFIG.oidc_enable {
-			app.app_data(web::Data::new(oidc_key.clone()))
+			app = app.app_data(web::Data::new(oidc_key.clone()))
 				.service(oidc::handle_discover::discover)
 				.service(oidc::handle_authorize::authorize_get)
 				.service(oidc::handle_authorize::authorize_post)
 				.service(oidc::handle_token::token)
 				.service(oidc::handle_jwks::jwks)
-				.service(oidc::handle_userinfo::userinfo)
-		} else {
-			app
+				.service(oidc::handle_userinfo::userinfo);
 		}
+
+		// TODO: Make webauthn optional
+
+		app
+			// .app_data(web::Data::new(webauthn))
+			// .service(webauthn::handle_reg_start::reg_start)
+			// .service(webauthn::handle_reg_finish::reg_finish)
 	})
 	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
 	.run()

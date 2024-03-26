@@ -4,7 +4,8 @@ WORKDIR /usr/src/app
 
 COPY static static
 COPY *.js *.json ./
-RUN npm install --dev
+RUN --mount=type=cache,target=node_modules,id=magicentry-node-modules \
+	npm install --include=dev
 RUN npm run build
 
 FROM rust:alpine as builder

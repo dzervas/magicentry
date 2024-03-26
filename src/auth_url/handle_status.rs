@@ -6,7 +6,7 @@ use crate::error::{AppErrorKind, Response};
 use crate::token::ScopedSessionToken;
 use crate::{CONFIG, SCOPED_SESSION_COOKIE};
 
-#[get("/auth_url/status")]
+#[get("/auth-url/status")]
 async fn status(req: HttpRequest, db: web::Data<SqlitePool>) -> Response {
 	let (token, cookie): (ScopedSessionToken, Option<Cookie>) = if let Ok(Some(token)) = ScopedSessionToken::from_session(&db, &req).await {
 		#[cfg(debug_assertions)]

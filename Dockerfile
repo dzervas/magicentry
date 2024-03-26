@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 
 COPY static static
 COPY *.js *.json ./
-RUN npm install --dev
+RUN npm install --include=dev
 RUN npm run build
 
 FROM rust:alpine as builder

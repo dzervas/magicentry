@@ -247,3 +247,9 @@ impl From<jwt_simple::reexports::ct_codecs::Error> for Error {
 		format!("CT Codecs error: {}", error).into()
 	}
 }
+
+// impl From<webauthn_rs::prelude::WebauthnError> for Error {
+// 	fn from(error: webauthn_rs::prelude::WebauthnError) -> Self {
+// 		format!("WebAuthn error: {}", error).into()
+// 	}
+// }

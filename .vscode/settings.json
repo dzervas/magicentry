@@ -19,7 +19,8 @@
 		"Seedable",
 		"sqlx",
 		"urlencoding",
-		"userinfo"
+		"userinfo",
+		"webauthn"
 	],
 	"yaml.schemas": {
 		"https://json.schemastore.org/helmfile.json": "file:///home/dzervas/Lab/just-passwordless/chart/just-passwordless/templates/ingress.yaml"

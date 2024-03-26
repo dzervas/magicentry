@@ -21,7 +21,8 @@ async fn index(session: Session, db: web::Data<SqlitePool>) -> Response {
 
 	let index_page = formatx!(
 		get_partial("index"),
-		email = &user.email
+		email = &user.email,
+		path_prefix = &CONFIG.path_prefix
 	)?;
 
 

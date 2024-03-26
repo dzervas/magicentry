@@ -14,7 +14,7 @@ pub struct ProxiedRewrite {
 	pub(crate) code: String,
 }
 
-#[get("/auth_url/response")]
+#[get("/auth-url/response")]
 async fn response(session: Session, db: web::Data<SqlitePool>, proxied_rewrite: web::Query<ProxiedRewrite>) -> Response {
 	let code = &proxied_rewrite.code;
 

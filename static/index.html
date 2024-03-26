@@ -8,10 +8,15 @@
 				</div>
 				<p class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Welcome back {email}</p>
 				<p class="mb-4 text-md text-gray-900 dark:text-white">You're all set!</p>
-				<a type="button" href="/logout" class="py-2 px-3 text-sm font-medium text-center text-white rounded-lg bg-red-600 hover:bg-red-700 focus:ring-4 focus:outline-none focus:ring-red-300 dark:focus:ring-red-900">
+				<a type="button" href="/logout" class="py-2 px-3 m-2 text-sm font-medium text-center text-white rounded-lg bg-rose-700 hover:bg-rose-800 focus:ring-4 focus:outline-none focus:ring-rose-300 dark:focus:ring-rose-900">
 					Logout
 				</a>
+				<button id="webauthn-register" type="button" class="hidden py-2 px-3 m-2 text-sm font-medium text-center text-white rounded-lg bg-primary-700 hover:bg-primary-800 focus:ring-4 focus:outline-none focus:ring-primary-300 dark:focus:ring-primary-900">
+					Register PassKey
+				</button>
 			</div>
 		</div>
 	</div>
 </section>
+
+<script src="{path_prefix}static/webauthn.js" type="module"></script>
