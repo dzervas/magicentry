@@ -20,6 +20,7 @@ async fn main() -> std::io::Result<()> {
 	let db = reindeer::open(&CONFIG.database_url).expect("Failed to open reindeer database.");
 	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 	token::register_token_kind(&db).expect("Failed to register token kinds");
+	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
 
 	let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
 		let secret = secret_kv.value.expect("Failed to load secret from database");
@@ -116,6 +117,8 @@ async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(webauthn))
 			.service(webauthn::handle_reg_start::reg_start)
 			.service(webauthn::handle_reg_finish::reg_finish)
+			.service(webauthn::handle_auth_start::auth_start)
+			.service(webauthn::handle_auth_finish::auth_finish)
 	})
 	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
 	.run()

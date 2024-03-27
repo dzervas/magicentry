@@ -20,12 +20,12 @@ pub mod handle_static;
 #[cfg(test)]
 pub mod tests;
 
-pub const RANDOM_STRING_LEN: usize = 32;
-pub const SESSION_COOKIE: &str = "session_id";
-pub const SCOPED_SESSION_COOKIE: &str = "scoped_session_id";
 pub const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
 pub const PROXIED_COOKIE: &str = "code";
+pub const RANDOM_STRING_LEN: usize = 32;
 pub const SCOPED_LOGIN: &str = "scope";
+pub const SCOPED_SESSION_COOKIE: &str = "scoped_session_id";
+pub const SESSION_COOKIE: &str = "session_id";
 
 #[cfg(not(test))]
 pub type SmtpTransport = lettre::transport::smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;

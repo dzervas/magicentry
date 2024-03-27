@@ -236,6 +236,12 @@ impl From<serde_qs::Error> for Error {
 	}
 }
 
+impl From<serde_json::Error> for Error {
+	fn from(error: serde_json::Error) -> Self {
+		format!("Serde-JSON error: {}", error).into()
+	}
+}
+
 impl From<jwt_simple::Error> for Error {
 	fn from(error: jwt_simple::Error) -> Self {
 		format!("JWT Simple error: {}", error).into()

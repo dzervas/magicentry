@@ -4,8 +4,12 @@ use crate::CONFIG;
 
 pub mod store;
 
+pub mod handle_auth_start;
+pub mod handle_auth_finish;
 pub mod handle_reg_start;
 pub mod handle_reg_finish;
+
+pub const WEBAUTHN_COOKIE: &str = "webauthn_registration";
 
 pub fn init() -> WebauthnResult<Webauthn> {
 	// TODO: Set the origin from the config

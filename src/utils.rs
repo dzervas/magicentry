@@ -1,11 +1,16 @@
 use std::fs;
 
+use actix_session::Session;
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
+use reindeer::Db;
 
-use crate::{CONFIG, RANDOM_STRING_LEN};
+use crate::handle_login_action::ScopedLogin;
+use crate::oidc::handle_authorize::AuthorizeRequest;
+use crate::token::{ProxyCookieToken, SessionToken};
+use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN};
 use crate::error::{AppErrorKind, Result};
 
 pub fn get_partial(name: &str) -> String {
@@ -55,6 +60,26 @@ pub fn random_string() -> String {
 	let mut buffer = [0u8; RANDOM_STRING_LEN];
 	rng.fill_bytes(&mut buffer);
 	hex::encode(buffer)
+}
+
+pub async fn get_post_login_location(db: &Db, session: &Session, user_session: &SessionToken) -> Result<String> {
+	let oidc_authorize_req_opt = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE);
+	let scoped_login_opt = session.remove_as::<ScopedLogin>(SCOPED_LOGIN);
+
+	if let Some(Ok(oidc_auth_req)) = oidc_authorize_req_opt {
+		// let oidc_code = Token::new(&db, TokenKind::OIDCCode, &user, Some(user_session.code), Some(String::try_from(oidc_auth_req)?)).await?.code;
+		let oidc_code = oidc_auth_req.generate_session_code(&db, user_session.user.clone(), user_session.code.clone()).await?.code;
+		let redirect_url = oidc_auth_req.get_redirect_url(&oidc_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+		log::info!("Redirecting to client {}", &oidc_auth_req.client_id);
+		Ok(redirect_url)
+	} else if let Some(Ok(scoped_login)) = scoped_login_opt {
+		let scoped_code = ProxyCookieToken::new(&db, user_session.user.clone(), Some(user_session.code.clone()), Some(scoped_login.clone().into())).await?.code;
+		let redirect_url = scoped_login.get_redirect_url(&scoped_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+		log::info!("Redirecting to scope {}", &scoped_login.scope);
+		Ok(redirect_url)
+	} else {
+		Ok("/".to_string())
+	}
 }
 
 #[cfg(test)]

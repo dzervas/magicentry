@@ -186,6 +186,7 @@ token_kind! {
 	ScopedSessionToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = SessionToken),
 	OIDCCodeToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
 	OIDCBearerToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = Self),
+	WebauthnToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
 }
 
 impl SessionToken {
