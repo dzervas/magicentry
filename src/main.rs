@@ -54,9 +54,8 @@ async fn main() -> std::io::Result<()> {
 	// OIDC setup
 	let oidc_key = oidc::init(&db).await;
 
-	// Webauthn setup
-
 	HttpServer::new(move || {
+		// Webauthn setup
 		let webauthn = webauthn::init().expect("Failed to create webauthn object");
 		let mut app = App::new()
 			// Data

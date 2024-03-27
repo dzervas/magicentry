@@ -3,15 +3,12 @@ use actix_web::web::Json;
 use actix_web::{post, web, HttpResponse};
 use webauthn_rs::prelude::*;
 
-use crate::error::{AppErrorKind, Response};
+use crate::error::Response;
 use crate::token::SessionToken;
 
 #[post("/webauthn/register/finish")]
 pub async fn reg_finish(session: Session, db: web::Data<reindeer::Db>, webauthn: web::Data<Webauthn>, req: Json<RegisterPublicKeyCredential>) -> Response {
-	let Ok(token) = SessionToken::from_session(&db, &session).await else {
-		return Err(AppErrorKind::NotLoggedIn.into());
-	};
-	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
+	let token = SessionToken::from_session(&db, &session).await?;
 
 	// let sk = webauthn.finish_passkey_registration(&req, &reg_state)?;
 

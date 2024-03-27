@@ -3,39 +3,33 @@ use actix_web::http::header::{self, ContentType};
 use actix_web::{get, web, HttpResponse};
 use formatx::formatx;
 
-use crate::error::{AppErrorKind, Response};
+use crate::error::Response;
 use crate::token::{ProxyCookieToken, SessionToken};
 use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
-	let Ok(token) = SessionToken::from_session(&db, &session).await else {
-		return Ok(HttpResponse::Found()
-			.append_header(("Location", "/login"))
-			.finish())
-	};
-
-	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
+	let token = SessionToken::from_session(&db, &session).await?;
 
 	let index_page = formatx!(
 		get_partial("index"),
-		email = &user.email,
+		email = &token.user.email,
 		path_prefix = &CONFIG.path_prefix
 	)?;
 
 
 	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {
-		let proxy_cookie = ProxyCookieToken::new(&db, &user, Some(token.code.clone()), Some(scope.clone())).await?;
+		let proxy_cookie = ProxyCookieToken::new(&db, token.user, Some(token.code.clone()), Some(scope.clone())).await?;
 		Ok(HttpResponse::Found()
 			.append_header((header::LOCATION, format!("{}?code={}", scope, proxy_cookie.code)))
 			.finish())
 	} else {
 		Ok(HttpResponse::Ok()
 			// TODO: Add realm
-			.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
-			.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
-			.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
+			.append_header((CONFIG.auth_url_email_header.as_str(), token.user.email.clone()))
+			.append_header((CONFIG.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
+			.append_header((CONFIG.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()))
 			// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
 			.content_type(ContentType::html())
 			.body(index_page))
@@ -86,7 +80,7 @@ mod tests {
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
-		let token = MagicLinkToken::new(&db, &user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(&db, user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())

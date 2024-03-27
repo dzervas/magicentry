@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::CONFIG;
 
@@ -22,6 +23,35 @@ impl User {
 impl PartialEq<String> for User {
 	fn eq(&self, other: &String) -> bool {
 		self.email == *other
+	}
+}
+
+impl PartialEq<&str> for User {
+	fn eq(&self, other: &&str) -> bool {
+		self.email == *other
+	}
+}
+
+/// MD5 is only used to generate a UUID for this user, which is not a secret,
+/// not used for authentication and not a user-provided value.
+/// webauthn-rs expects a UUIDv4 and the only hash function producing 16 bytes is MD5.
+impl Into<Uuid> for &User {
+	fn into(self) -> Uuid {
+		let hash = md5::compute(self.email.as_bytes());
+		Uuid::from_bytes(hash.0)
+	}
+}
+
+pub mod as_string {
+	use super::*;
+
+	pub fn serialize<S: serde::Serializer>(user: &User, serializer: S) -> Result<S::Ok, S::Error> {
+		serializer.serialize_str(&user.email)
+	}
+
+	pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<User, D::Error> {
+		let email = String::deserialize(deserializer)?;
+		User::from_config(&email).ok_or(serde::de::Error::custom("User not found"))
 	}
 }
 

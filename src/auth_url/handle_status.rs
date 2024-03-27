@@ -1,7 +1,7 @@
 use actix_web::cookie::Cookie;
 use actix_web::{get, web, HttpRequest, HttpResponse};
 
-use crate::error::{AppErrorKind, Response};
+use crate::error::Response;
 use crate::token::ScopedSessionToken;
 use crate::{CONFIG, SCOPED_SESSION_COOKIE};
 
@@ -25,13 +25,11 @@ async fn status(req: HttpRequest, db: web::Data<reindeer::Db>) -> Response {
 		return Ok(HttpResponse::Unauthorized().finish())
 	};
 
-	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
-
 	let mut response_builder = HttpResponse::Ok();
 	let response = response_builder
-		.insert_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
-		.insert_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
-		.insert_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()));
+		.insert_header((CONFIG.auth_url_email_header.as_str(), token.user.email.clone()))
+		.insert_header((CONFIG.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
+		.insert_header((CONFIG.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()));
 		// TODO: Add realm
 		// .insert_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")));
 

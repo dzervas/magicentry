@@ -34,6 +34,8 @@ pub enum AppErrorKind {
 	NotLoggedIn,
 	#[display(fmt = "Missing Authorization header")]
 	MissingAuthorizationHeader,
+	#[display(fmt = "The provided Authorization header is invalid")]
+	InvalidAuthorizationHeader,
 	#[display(fmt = "Could not parse Authorization header")]
 	CouldNotParseAuthorizationHeader,
 	#[display(fmt = "The Duration provided is incorrect or too big (max i64)")]
@@ -243,5 +245,11 @@ impl From<jwt_simple::Error> for Error {
 impl From<jwt_simple::reexports::ct_codecs::Error> for Error {
 	fn from(error: jwt_simple::reexports::ct_codecs::Error) -> Self {
 		format!("CT Codecs error: {}", error).into()
+	}
+}
+
+impl From<webauthn_rs::prelude::WebauthnError> for Error {
+	fn from(error: webauthn_rs::prelude::WebauthnError) -> Self {
+		format!("WebAuthN error: {}", error).into()
 	}
 }

@@ -9,7 +9,6 @@ use sha2::{Digest, Sha256};
 use crate::error::{AppErrorKind, Response};
 use crate::token::{OIDCBearerToken, OIDCCodeToken};
 use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::user::User;
 use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -96,9 +95,8 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 	}
 
 	let base_url = CONFIG.url_from_request(&req);
-	let user = User::from_config(&session.user).ok_or(AppErrorKind::InvalidTargetUser)?;
-	let id_token = auth_req.generate_id_token(&user, &base_url, jwt_keypair.as_ref()).await?;
-	let access_token = OIDCBearerToken::new(&db, &user, None, None).await?.code;
+	let id_token = auth_req.generate_id_token(&session.user, &base_url, jwt_keypair.as_ref()).await?;
+	let access_token = OIDCBearerToken::new(&db, session.user, None, None).await?.code;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,

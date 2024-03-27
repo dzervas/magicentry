@@ -3,7 +3,7 @@ use actix_web::{get, web, HttpResponse};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Response};
+use crate::error::Response;
 use crate::token::{ProxyCookieToken, ScopedSessionToken};
 use crate::{CONFIG, SCOPED_SESSION_COOKIE};
 
@@ -25,20 +25,18 @@ async fn response(session: Session, db: web::Data<reindeer::Db>, proxied_rewrite
 
 	let scoped_session = ScopedSessionToken::new(
 		&db,
-		&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
+		token.user,
 		token.bound_to.clone(),
 		token.metadata.clone()
 	).await?;
 	info!("New scoped session for: {:?}", &token.metadata);
 	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
 
-	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
-
 	Ok(HttpResponse::Ok()
 		// TODO: Add realm
-		.append_header((CONFIG.auth_url_email_header.as_str(), user.email.clone()))
-		.append_header((CONFIG.auth_url_user_header.as_str(), user.username.unwrap_or_default()))
-		.append_header((CONFIG.auth_url_name_header.as_str(), user.name.unwrap_or_default()))
+		.append_header((CONFIG.auth_url_email_header.as_str(), scoped_session.user.email.clone()))
+		.append_header((CONFIG.auth_url_user_header.as_str(), scoped_session.user.username.unwrap_or_default()))
+		.append_header((CONFIG.auth_url_name_header.as_str(), scoped_session.user.name.unwrap_or_default()))
 		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
 		.finish())
 }

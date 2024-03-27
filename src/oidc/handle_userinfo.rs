@@ -1,36 +1,30 @@
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Response, Result};
+use crate::error::{AppErrorKind, Response, Result};
 use crate::token::OIDCBearerToken;
 use crate::user::User;
 
-pub async fn token_from_request(db: &reindeer::Db, req: HttpRequest) -> Result<Option<User>> {
-	let auth_header = if let Some(header) = req.headers().get("Authorization") {
-		header
-	} else {
-		return Ok(None)
+pub async fn token_from_request(db: &reindeer::Db, req: HttpRequest) -> Result<User> {
+	let Some(auth_header) = req.headers().get("Authorization") else {
+		return Err(AppErrorKind::MissingAuthorizationHeader.into())
 	};
 
-	let auth_header_str = if let Ok(header_str) = auth_header.to_str() {
-		header_str
-	} else {
-		return Ok(None)
+	let Ok(auth_header_str) = auth_header.to_str() else {
+		return Err(AppErrorKind::InvalidAuthorizationHeader.into())
 	};
 
 	let auth_header_parts = auth_header_str.split_whitespace().collect::<Vec<&str>>();
 
 	if auth_header_parts.len() != 2 || auth_header_parts[0] != "Bearer" {
-		return Ok(None)
+		return Err(AppErrorKind::InvalidAuthorizationHeader.into())
 	}
 
-	let auth = if let Some(auth) = auth_header_parts.get(1) {
-		auth
-	} else {
-		return Ok(None)
+	let Some(auth) = auth_header_parts.get(1) else {
+		return Err(AppErrorKind::InvalidAuthorizationHeader.into())
 	};
 
-	Ok(OIDCBearerToken::from_code(db, &auth.to_string()).await?.get_user())
+	Ok(OIDCBearerToken::from_code(db, &auth.to_string()).await?.user)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -43,17 +37,15 @@ pub struct UserInfoResponse {
 
 #[get("/oidc/userinfo")]
 pub async fn userinfo(db: web::Data<reindeer::Db>, req: HttpRequest) -> Response {
-	if let Ok(Some(user)) = token_from_request(&db, req).await {
-		let username = user.username.unwrap_or(user.email.clone());
+	let user = token_from_request(&db, req).await?;
 
-		let resp = UserInfoResponse {
-			user: user.email.clone(),
-			email: user.email.clone(),
-			preferred_username: username,
-		};
+	let username = user.username.unwrap_or(user.email.clone());
 
-		Ok(HttpResponse::Ok().json(resp))
-	} else {
-		Ok(HttpResponse::Unauthorized().finish())
-	}
+	let resp = UserInfoResponse {
+		user: user.email.clone(),
+		email: user.email.clone(),
+		preferred_username: username,
+	};
+
+	Ok(HttpResponse::Ok().json(resp))
 }

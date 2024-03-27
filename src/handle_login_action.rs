@@ -71,7 +71,7 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 		return result;
 	};
 
-	let link = MagicLinkToken::new(&db, &user, None, None).await?;
+	let link = MagicLinkToken::new(&db, user.clone(), None, None).await?;
 	let base_url = CONFIG.url_from_request(&req);
 	let magic_link = format!("{}/login/{}", base_url, link.code);
 	let name = &user.name.clone().unwrap_or_default();

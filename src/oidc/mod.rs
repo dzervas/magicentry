@@ -98,7 +98,7 @@ mod tests {
 		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
 		assert!(target.starts_with("http://localhost:8080/login"));
 
-		let token = MagicLinkToken::new(&db, &user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(&db, user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())

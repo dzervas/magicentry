@@ -13,10 +13,8 @@ use crate::utils::get_partial;
 #[get("/login")]
 async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	if let Ok(user_session) = SessionToken::from_session(&db, &session).await {
-		let user = user_session.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
-
 		if let Ok(scoped_login) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-			let scoped_code = ProxyCookieToken::new(&db, &user, Some(user_session.code), Some(scoped_login.clone().into())).await?.code;
+			let scoped_code = ProxyCookieToken::new(&db, user_session.user, Some(user_session.code), Some(scoped_login.clone().into())).await?.code;
 			let redirect_url = scoped_login.get_redirect_url(&scoped_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
 			info!("Redirecting pre-authenticated user to scope {}", &scoped_login.scope);
 			return Ok(HttpResponse::Found()

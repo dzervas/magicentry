@@ -27,8 +27,8 @@ serde_yaml = "0.9"
 sha2 = "0.10"
 urlencoding = "2.1"
 uuid = { version = "1.7", features = ["serde", "v4"] }
-coset = { version = "0.3.6", features = ["std"] }
 webauthn-rs = "0.4.8"
+md5 = "0.7.0"
 
 [dev-dependencies]
 scraper = "0.19.0"

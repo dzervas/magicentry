@@ -73,8 +73,8 @@ pub struct Token<K: TokenKindType> {
 	/// The type of token - used to determine how to handle the token (ephemeral, relation to parent token, etc.)
 	_kind: PhantomData<K>,
 	/// The user it authenticates
-	// NOTE: This would be nice to be a concrete User
-	pub user: String,
+	#[serde(with = "crate::user::as_string")]
+	pub user: User,
 	/// The time the token expires
 	pub expires_at: NaiveDateTime,
 	/// The parent token it's bound to (if any) - e.g. a `ScopedSession` is bound to a `Session`.
@@ -103,7 +103,7 @@ impl<K: TokenKindType> Token<K> {
 		}
 
 		let other = Self::from_code(db, &self.code).await?;
-		let result = self == &other && self.get_user().is_some();
+		let result = self == &other;
 
 		if let Ok(parent) = self.get_parent(db).await {
 			// Can't call parent's is_valid as async recursion is not allowed
@@ -111,10 +111,6 @@ impl<K: TokenKindType> Token<K> {
 		} else {
 			Ok(result)
 		}
-	}
-
-	pub fn get_user(&self) -> Option<User> {
-		User::from_config(&self.user)
 	}
 
 	pub async fn get_parent(&self, db: &Db) -> Result<Self> {
@@ -128,18 +124,18 @@ impl<K: TokenKindType> Token<K> {
 		// Can't call is_valid as async recursion is not allowed
 		let is_expired = token.is_expired(db).await?;
 
-		if K::EPHEMERAL || is_expired || token.get_user().is_none() {
+		if K::EPHEMERAL || is_expired {
 			token.delete(db).await?;
 		}
 
-		if is_expired || token.get_user().is_none() {
+		if is_expired {
 			return Err(AppErrorKind::TokenNotFound.into());
 		}
 
 		Ok(token)
 	}
 
-	pub async fn new(db: &Db, user: &User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
+	pub async fn new(db: &Db, user: User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
 		let expires_at = if let Some(bound_code) = &bound_to {
 			let bound_token: Token<K::BoundType> = Token::from_code(db, &bound_code).await?;
 
@@ -155,7 +151,7 @@ impl<K: TokenKindType> Token<K> {
 		let token = Self {
 			code: random_string(),
 			_kind: PhantomData,
-			user: user.email.clone(),
+			user: user,
 			expires_at,
 			bound_to,
 			metadata: metadata,
@@ -203,7 +199,7 @@ impl SessionToken {
 
 			token
 		} else {
-			Err(AppErrorKind::NoSessionSet.into())
+			Err(AppErrorKind::TokenNotFound.into())
 		}
 	}
 }
@@ -251,7 +247,7 @@ impl ScopedSessionToken {
 
 		let scoped_session = ScopedSessionToken::new(
 			db,
-			&token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?,
+			token.user,
 			token.bound_to.clone(),
 			Some(scope_origin)
 		).await?;
@@ -274,14 +270,14 @@ mod tests {
 		let db = &db_connect().await;
 		let user = get_valid_user();
 
-		let link = MagicLinkToken::new(db, &user, None, None).await.unwrap();
+		let link = MagicLinkToken::new(db, user.clone(), None, None).await.unwrap();
 
 		assert_eq!(link.user, user.email);
 		assert_eq!(link.code.len(), RANDOM_STRING_LEN * 2);
 		assert!(link.expires_at > Utc::now().naive_utc());
 
 		// Test visit function
-		let user_from_link = MagicLinkToken::from_code(db, &link.code).await.unwrap().get_user().unwrap();
+		let user_from_link = MagicLinkToken::from_code(db, &link.code).await.unwrap().user;
 		assert_eq!(user, user_from_link);
 
 		// Test expired UserLink
@@ -289,7 +285,7 @@ mod tests {
 		let expired_user_link = MagicLinkToken {
 			code: expired_target.clone(),
 			_kind: PhantomData,
-			user: "valid@example.com".to_string(),
+			user: user,
 			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(2).unwrap(),
 			bound_to: None,
 			metadata: None,

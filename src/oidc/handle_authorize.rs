@@ -26,7 +26,7 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_session_code(&self, db: &reindeer::Db, user: &User, bound_to: String) -> std::result::Result<OIDCCodeToken, Error> {
+	pub async fn generate_session_code(&self, db: &reindeer::Db, user: User, bound_to: String) -> std::result::Result<OIDCCodeToken, Error> {
 		let self_string = String::try_from(self)?;
 		OIDCCodeToken::new(db, user, Some(bound_to), Some(self_string)).await
 	}
@@ -106,9 +106,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 
 	session.insert(AUTHORIZATION_COOKIE, auth_req.clone())?;
 
-	let token = if let Ok(token) = SessionToken::from_session(&db, &session).await {
-		token
-	} else {
+	let Ok(token) = SessionToken::from_session(&db, &session).await else {
 		let base_url = CONFIG.url_from_request(&req);
 		let target_url = format!("{}/login?{}", base_url, serde_qs::to_string(&auth_req)?);
 		return Ok(HttpResponse::Found()
@@ -116,9 +114,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 			.finish())
 	};
 
-	let user = token.get_user().ok_or(AppErrorKind::InvalidTargetUser)?;
-
-	let oidc_session = auth_req.generate_session_code(&db, &user, token.code).await?;
+	let oidc_session = auth_req.generate_session_code(&db, token.user.clone(), token.code).await?;
 	println!("OIDC Session: {:?}", oidc_session);
 
 	// TODO: Check the state with the cookie for CSRF
@@ -126,7 +122,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 	let authorize_page_str = get_partial("authorize");
 	let authorize_page = formatx!(
 		authorize_page_str,
-		email = &user.email,
+		email = &token.user.email,
 		client = "TODO",
 		link = redirect_url
 	)?;
