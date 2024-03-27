@@ -7,9 +7,7 @@ COPY *.js *.json ./
 RUN npm install --include=dev
 RUN npm run build
 
-FROM rust:alpine as builder
-
-RUN apk add --no-cache musl-dev
+FROM rust as builder
 
 WORKDIR /usr/src/app
 
@@ -21,8 +19,7 @@ RUN cargo build --release && rm target/release/deps/magicentry*
 COPY . .
 RUN cargo build --release && cp target/release/magicentry .
 
-# FROM gcr.io/distroless/cc-debian12
-FROM alpine
+FROM gcr.io/distroless/cc-debian12
 
 COPY --from=builder /usr/src/app/magicentry /usr/local/bin/
 COPY --from=frontend /usr/src/app/static /static
