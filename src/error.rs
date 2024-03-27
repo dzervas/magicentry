@@ -64,6 +64,7 @@ pub enum AppErrorKind {
 	InvalidCodeVerifier,
 	#[display(fmt = "The client tried to create a token without providing any credentials (client_verifier or client_secret)")]
 	NoClientCredentialsProvided,
+PasskeyAlreadyRegistered,
 }
 
 #[derive(Debug, Display, DeriveError, Clone)]

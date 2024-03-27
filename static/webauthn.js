@@ -50,5 +50,11 @@ async function authenticate() {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(finish_data)
 	});
-	console.log(finish_resp);
+	const finish_json = await finish_resp.json();
+	console.log(finish_json);
+
+	if (finish_resp.ok) {
+		window.location.href = finish_json.redirect_to;
+	}
+	// TODO: Handle error
 }

@@ -15,16 +15,14 @@ use super::WEBAUTHN_COOKIE;
 #[post("/webauthn/auth/start")]
 pub async fn auth_start(session: Session, db: web::Data<reindeer::Db>, webauthn: web::Data<Webauthn>, form: web::Json<LoginInfo>) -> Result<Json<RequestChallengeResponse>> {
 	// TODO: Handle the errors to avoid leaking (in)valid emails
-	let user = User::from_config(&form.email).ok_or(AppErrorKind::InvalidTargetUser)?;
-
-	let passkeys = PasskeyStore::get_with_filter(|p| p.user == user, &db)?
+	let passkeys = PasskeyStore::get_with_filter(|p| p.user.email == form.email, &db)?
 		.iter()
 		.map(|p| p.passkey.clone())
 		.collect::<Vec<_>>();
-	println!("{:?}", passkeys);
 	let (resp, auth) = webauthn.start_passkey_authentication(passkeys.as_slice())?;
 
 	let auth_str = serde_json::to_string(&auth)?;
+	let user = User::from_config(&form.email).ok_or(AppErrorKind::InvalidTargetUser)?;
 	let auth_token = WebauthnToken::new(&db, user, None, Some(auth_str)).await?;
 	session.insert(WEBAUTHN_COOKIE, auth_token.code)?;
 

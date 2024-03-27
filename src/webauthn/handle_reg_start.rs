@@ -16,7 +16,7 @@ pub async fn reg_start(session: Session, db: web::Data<reindeer::Db>, webauthn: 
 	let (ccr, reg_state) = webauthn
 		.start_passkey_registration(
 			(&token.user).into(),
-			&token.user.username.unwrap_or(token.user.email.clone()),
+			&token.user.email.clone(),
 			&token.user.name.unwrap_or(token.user.email),
 			None
 		)?;

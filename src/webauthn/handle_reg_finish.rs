@@ -1,7 +1,7 @@
 use actix_session::Session;
 use actix_web::web::Json;
 use actix_web::{post, web, HttpResponse};
-use reindeer::AutoIncrementEntity;
+use reindeer::{AutoIncrementEntity, Entity};
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
@@ -19,13 +19,16 @@ pub async fn reg_finish(session: Session, db: web::Data<reindeer::Db>, webauthn:
 
 	let sk = webauthn.finish_passkey_registration(&req, &reg_state)?;
 
-	let mut passkey = PasskeyStore {
-		id: 0,
+	if PasskeyStore::get_with_filter(|p| p.passkey.cred_id() == sk.cred_id(), &db)?.len() > 0 {
+		return Err(AppErrorKind::PasskeyAlreadyRegistered.into());
+	}
+
+	let passkey = PasskeyStore {
+		id: PasskeyStore::get_next_key(&db)?,
 		user: reg_state_token.user,
 		passkey: sk,
-		counter: 0,
 	};
-	passkey.save_next(&db)?;
+	passkey.save(&db)?;
 
 	Ok(HttpResponse::Ok().finish())
 }
