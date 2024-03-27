@@ -35,6 +35,18 @@ async function register() {
 
 async function authenticate() {
 	const email = document.getElementById('email').value;
+
+	if (!email) {
+		document.getElementById('email-container').animate([
+			{ transform: "translateX(4px)" },
+			{ transform: "translateX(-4px)" },
+		], {
+			duration: 100,
+			iterations: 4,
+		});
+		return;
+	}
+
 	const start_resp = await fetch('/webauthn/auth/start', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
