@@ -116,12 +116,12 @@ impl ResponseError for Error {
 				.finish()
 		} else {
 			let status_code = self.status_code().as_u16().to_string();
-			let error_name = self.status_code().canonical_reason().unwrap_or_default().to_string();
+			let error_name = self.status_code().canonical_reason().unwrap_or_default();
 
 			let mut page_data = BTreeMap::new();
-			page_data.insert("code", status_code.into());
-			page_data.insert("error", error_name.into());
-			page_data.insert("description", description.into());
+			page_data.insert("code", status_code.as_str());
+			page_data.insert("error", error_name);
+			page_data.insert("description", description.as_str());
 
 			let page = get_partial("error", page_data).unwrap_or_else(|_| {
 				log::error!("Could not format error page");

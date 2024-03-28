@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use actix_session::Session;
@@ -15,7 +14,7 @@ use crate::token::{ProxyCookieToken, SessionToken};
 use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN, TEMPLATES};
 use crate::error::{AppErrorKind, Result};
 
-pub fn get_partial(name: &str, mut data: BTreeMap<&'static str, Cow<str>>) -> std::result::Result<String, RenderError> {
+pub fn get_partial(name: &str, mut data: BTreeMap<&str, &str>) -> std::result::Result<String, RenderError> {
 	let path_prefix = if CONFIG.path_prefix.ends_with('/') {
 		&CONFIG.path_prefix[..CONFIG.path_prefix.len() - 1]
 	} else {
@@ -23,8 +22,8 @@ pub fn get_partial(name: &str, mut data: BTreeMap<&'static str, Cow<str>>) -> st
 	};
 
 	// TODO: Serialize the whole CONFIG
-	data.insert("title", CONFIG.title.clone().into());
-	data.insert("path_prefix", path_prefix.into());
+	data.insert("title", &CONFIG.title);
+	data.insert("path_prefix", path_prefix);
 
 	TEMPLATES.render(name, &data)
 }

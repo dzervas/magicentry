@@ -14,7 +14,7 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let token = SessionToken::from_session(&db, &session).await?;
 
 	let mut index_data = BTreeMap::new();
-	index_data.insert("email", token.user.email.clone().into());
+	index_data.insert("email", token.user.email.as_str());
 	let index_page = get_partial("index", index_data)?;
 
 
