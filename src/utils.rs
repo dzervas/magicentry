@@ -26,7 +26,7 @@ pub fn get_partial(name: &str, mut data: BTreeMap<&'static str, Cow<str>>) -> st
 	data.insert("title", CONFIG.title.clone().into());
 	data.insert("path_prefix", path_prefix.into());
 
-	TEMPLATES.render(format!("{}.html", name).as_str(), &data)
+	TEMPLATES.render(name, &data)
 }
 
 pub fn get_request_origin(req: &HttpRequest) -> Result<String> {

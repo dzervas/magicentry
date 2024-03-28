@@ -52,14 +52,20 @@ lazy_static! {
 		let mut handlebars = handlebars::Handlebars::new();
 		handlebars.register_templates_directory(
 			"static/templates",
-			handlebars::DirectorySourceOptions::default()
+			handlebars::DirectorySourceOptions {
+				tpl_extension: ".html.hbs".to_string(),
+				..Default::default()
+			}
 		)
 		.expect("Failed to register templates directory");
 
 		// The partials are the same as the templates
 		handlebars.register_templates_directory(
 			"static/partials",
-			handlebars::DirectorySourceOptions::default()
+			handlebars::DirectorySourceOptions {
+				tpl_extension: ".html.hbs".to_string(),
+				..Default::default()
+			}
 		)
 		.expect("Failed to register partials directory");
 
