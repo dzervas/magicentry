@@ -15,7 +15,7 @@ ARG TARGETPLATFORM
 RUN echo $(test "$TARGETPLATFORM" = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
 RUN rustup target add $(cat /.target-triplet)
 
-RUN test "$TARGETPLATFORM" = "linux/arm64" || exit 0 && apt-get update && apt-get install -y g++-aarch64-linux-gnu && apt-get clean
+RUN test "$TARGETPLATFORM" = "linux/arm64" || exit 0 && apt-get update && apt-get install -y gcc-aarch64-linux-gnu && apt-get clean
 
 RUN cargo init --vcs none --bin
 COPY Cargo.toml Cargo.lock .
