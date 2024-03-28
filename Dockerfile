@@ -1,4 +1,4 @@
-FROM node:alpine as frontend
+FROM --platform=$BUILDPLATFORM node:alpine as frontend
 
 WORKDIR /usr/src/app
 
@@ -7,17 +7,25 @@ COPY *.js *.json ./
 RUN npm install --include=dev
 RUN npm run build
 
-FROM rust as builder
+FROM --platform=$BUILDPLATFORM rust as builder
 
 WORKDIR /usr/src/app
 
+ARG TARGETPLATFORM
+RUN echo $(test "$TARGETPLATFORM" = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
+RUN rustup target add $(cat /.target-triplet)
+
+RUN test "$TARGETPLATFORM" = "linux/arm64" || exit 0 && apt-get update && apt-get install -y g++-aarch64-linux-gnu && apt-get clean
+
 RUN cargo init --vcs none --bin
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock .
+COPY .cargo .cargo
+
 # Enable mount-type caching and dependency caching to be compatible with github actions
-RUN cargo build --release && rm target/release/deps/magicentry*
+RUN cargo build --release --target $(cat /.target-triplet) && rm target/$(cat /.target-triplet)/release/deps/magicentry*
 
 COPY . .
-RUN cargo build --release && cp target/release/magicentry .
+RUN cargo build --release --target $(cat /.target-triplet) && cp target/$(cat /.target-triplet)/release/magicentry .
 
 FROM gcr.io/distroless/cc-debian12
 
