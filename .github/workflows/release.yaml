@@ -58,25 +58,55 @@ jobs:
           commit_message: Bump version to ${{ steps.new_app.outputs.new_version }}
           file_pattern: Cargo.toml chart/Chart.yaml
 
-  release:
+  build:
     runs-on: ubuntu-latest
     needs: bump
     permissions:
       contents: write
+    strategy:
+      matrix:
+        target:
+          - name: amd64
+            triplet: x86_64-unknown-linux-gnu
+          - name: aarch64
+            triplet: aarch64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
+
+      - run: sudo apt-get install -y gcc-aarch64-linux-gnu
+        if: matrix.target.triplet == 'aarch64-unknown-linux-gnu'
+
+      - name: Install Rust toolchain
+        id: rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          ref: ${{ needs.bump.outputs.new_ref }}
+          target: ${{ matrix.target.triplet }}
 
-      # - name: Setup Rust
-      #   run: rustup toolchain install stable --profile minimal
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: ${{ steps.rust.outputs.cachekey }}
 
-      # - uses: Swatinem/rust-cache@v2
-      #   with:
-      #     prefix-key: magicentry
+      - name: Compile
+        run: |
+          cargo build --release --target ${{ matrix.target.triplet }}
+          cp target/${{ matrix.target.triplet }}/release/magicentry magicentry-${{ matrix.target.name }}
 
-      # - name: Build
-      #   run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: magicentry-*
+
+  release:
+    runs-on: ubuntu-latest
+    needs:
+      - bump
+      - build
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -88,7 +118,7 @@ jobs:
           target_commitish: ${{ needs.bump.outputs.new_ref }}
           generate_release_notes: true
           make_latest: true
-          # files: target/release/magicentry
+          files: magicentry-*
 
   docker:
     runs-on: ubuntu-latest
