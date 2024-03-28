@@ -29,24 +29,27 @@ pub struct ScopedLogin {
 }
 
 impl ScopedLogin {
-	pub fn get_redirect_url(&self, code: &str) -> Option<String> {
+	pub fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = urlencoding::decode(&self.scope).ok()?.to_string();
 		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
 		let redirect_uri = redirect_url_clean.parse::<Uri>().ok()?;
 
-		// TODO: Check against the config for the valid scopes
-		// let config_client = CONFIG.oidc_clients
-		// 	.iter()
-		// 	.find(|c|
-		// 		c.id == self.client_id &&
-		// 		c.redirect_uris.contains(&redirect_url));
+		let origin_authority = redirect_uri.authority()?;
+		let origin_scheme = redirect_uri.scheme()?;
+		let origin = format!("{}://{}", origin_scheme, origin_authority);
 
-		// if config_scope.is_none() {
-		// 	log::warn!("Invalid redirect_uri: {} for client_id: {}", redirect_url, self.client_id);
-		// 	return None;
-		// }
+		let config_scope = CONFIG.auth_url_scopes
+			.iter()
+			.find(|c|
+				user.has_any_realm(&c.realms) &&
+				c.origin == origin);
 
-		Some(format!("{}://{}/__magicentry_auth_code?code={}", redirect_uri.scheme()?, redirect_uri.authority()?, code))
+		if config_scope.is_none() {
+			log::warn!("Invalid redirect_uri: {}", redirect_url);
+			return None;
+		}
+
+		Some(format!("{}/__magicentry_auth_code?code={}", origin, code))
 	}
 }
 

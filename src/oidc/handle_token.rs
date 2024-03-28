@@ -81,7 +81,12 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 		// We're using client_id - client_secret
 		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
 		let session_client_id = auth_req.client_id.clone();
-		let config_client = CONFIG.oidc_clients.iter().find(|c| c.id == session_client_id).ok_or(AppErrorKind::InvalidClientID)?;
+		let config_client = CONFIG.oidc_clients
+			.iter()
+			.find(|c|
+				session.user.has_any_realm(&c.realms) &&
+				c.id == session_client_id)
+			.ok_or(AppErrorKind::InvalidClientID)?;
 
 		if req_client_id != session_client_id {
 			return Err(AppErrorKind::NotMatchingClientID.into());

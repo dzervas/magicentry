@@ -2,6 +2,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 
 use crate::token::OIDCCodeToken;
+use crate::user::User;
 use crate::CONFIG;
 use crate::error::Result;
 
@@ -16,7 +17,7 @@ pub struct OIDCClient {
 }
 
 impl OIDCClient {
-	pub async fn from_code(db: &reindeer::Db, code: &String) -> Result<Option<OIDCClient>> {
+	pub async fn from_code(db: &reindeer::Db, code: &String, user: &User) -> Result<Option<OIDCClient>> {
 		let token = OIDCCodeToken::from_code(db, code).await?;
 		let auth_req = if let Some(metadata) = token.metadata {
 			serde_qs::from_str::<AuthorizeRequest>(&metadata)?
@@ -27,6 +28,7 @@ impl OIDCClient {
 		let config_client = CONFIG.oidc_clients
 			.iter()
 			.find(|c|
+				user.has_any_realm(&c.realms) &&
 				c.id == auth_req.client_id);
 
 		if let Some(client) = config_client {

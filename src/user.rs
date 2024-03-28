@@ -18,6 +18,11 @@ impl User {
 			.iter()
 			.find_map(|u| if u.email == email { Some(u.clone()) } else { None })
 	}
+
+	pub fn has_any_realm(&self, realms: &[String]) -> bool {
+		self.realms.contains(&"all".to_string()) ||
+		self.realms.iter().any(|r| realms.contains(r))
+	}
 }
 
 impl PartialEq<String> for User {

@@ -33,7 +33,7 @@ impl AuthorizeRequest {
 		OIDCCodeToken::new(db, user, Some(bound_to), Some(self_string)).await
 	}
 
-	pub fn get_redirect_url(&self, code: &str) -> Option<String> {
+	pub fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = if let Some(redirect_url_enc) = &self.redirect_uri {
 			urlencoding::decode(&redirect_url_enc).ok()?.to_string()
 		} else {
@@ -43,6 +43,7 @@ impl AuthorizeRequest {
 		let config_client = CONFIG.oidc_clients
 			.iter()
 			.find(|c|
+				user.has_any_realm(&c.realms) &&
 				c.id == self.client_id &&
 				c.redirect_uris.contains(&redirect_url));
 
@@ -120,7 +121,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 	println!("OIDC Session: {:?}", oidc_session);
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = auth_req.get_redirect_url(&oidc_session.code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url = auth_req.get_redirect_url(&oidc_session.code, &oidc_session.user).ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_uri = redirect_url.parse::<Uri>()?;
 	let redirect_url_scheme = redirect_url_uri.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_authority = redirect_url_uri.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;

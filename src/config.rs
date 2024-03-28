@@ -26,6 +26,7 @@ pub struct ConfigFile {
 	pub auth_url_name_header: String,
 	pub auth_url_email_header: String,
 	pub auth_url_realm_header: String,
+	pub auth_url_scopes: Vec<crate::auth_url::AuthUrlScope>,
 
 	pub oidc_enable: bool,
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
@@ -66,6 +67,7 @@ impl Default for ConfigFile {
 			auth_url_email_header: "Remote-Email".to_string(),
 			auth_url_name_header : "Remote-Name".to_string(),
 			auth_url_realm_header: "Remote-Group".to_string(),
+			auth_url_scopes      : vec![],
 
 			oidc_enable       : true,
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),

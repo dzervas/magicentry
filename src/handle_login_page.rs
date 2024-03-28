@@ -14,8 +14,8 @@ use crate::utils::get_partial;
 async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	if let Ok(user_session) = SessionToken::from_session(&db, &session).await {
 		if let Ok(scoped_login) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-			let scoped_code = ProxyCookieToken::new(&db, user_session.user, Some(user_session.code), Some(scoped_login.clone().into())).await?.code;
-			let redirect_url = scoped_login.get_redirect_url(&scoped_code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+			let scoped_token = ProxyCookieToken::new(&db, user_session.user, Some(user_session.code), Some(scoped_login.clone().into())).await?;
+			let redirect_url = scoped_login.get_redirect_url(&scoped_token.code, &scoped_token.user).ok_or(AppErrorKind::InvalidRedirectUri)?;
 			info!("Redirecting pre-authenticated user to scope {}", &scoped_login.scope);
 			return Ok(HttpResponse::Found()
 				.append_header(("Location", redirect_url.as_str()))
@@ -27,10 +27,7 @@ async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::
 			.finish())
 	}
 
-	// TODO: Add realm
-	let mut login_data = BTreeMap::new();
-	login_data.insert("realm", "default".into());
-	let login_page = get_partial("login", login_data)?;
+	let login_page = get_partial("login", BTreeMap::new())?;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())

@@ -16,6 +16,10 @@ auth_url_user_header: Remote-User
 auth_url_name_header: Remote-Name
 auth_url_email_header: Remote-Email
 auth_url_realm_header: Remote-Group
+auth_url_scopes:
+  - origin: http://localhost:8080
+    realms:
+      - example
 
 oidc_enable: true
 oidc_code_duration: 1m
