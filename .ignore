@@ -4,5 +4,6 @@
 .vscode
 /chart
 /migrations
-/static
+/static/css
+/static/js
 /tests/oidc-integration
