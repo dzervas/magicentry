@@ -12,12 +12,14 @@ derive_more = "0.99.17"
 duration-str = "0.7"
 env_logger = "0.11"
 formatx = "0.2"
+futures = "0.3"
 handlebars = { version = "5.1.2", features = ["dir_source"] }
 hex = "0.4.3"
 jwt-simple = { version = "0.12", default-features = false, features = ["pure-rust"] }
 lazy_static = "1.4"
 lettre = { version = "0.11", features = ["rustls-tls", "tokio1-rustls-tls", "builder", "pool", "smtp-transport"], default-features = false }
 log = "0.4"
+notify = "6"
 rand = "0.8"
 reindeer = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }

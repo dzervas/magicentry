@@ -44,11 +44,7 @@ lazy_static! {
 }
 
 lazy_static! {
-	pub static ref CONFIG: RwLock<ConfigFile> = RwLock::new(serde_yaml::from_str::<ConfigFile>(
-		&std::fs::read_to_string(CONFIG_FILE.as_str())
-			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
-		)
-		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str()));
+	pub static ref CONFIG: RwLock<ConfigFile> = RwLock::new(ConfigFile::default());
 
 	pub static ref TEMPLATES: handlebars::Handlebars<'static> = {
 		let mut handlebars = handlebars::Handlebars::new();

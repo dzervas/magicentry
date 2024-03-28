@@ -159,6 +159,12 @@ impl From<ToStrError> for Error {
 	}
 }
 
+impl From<std::io::Error> for Error {
+	fn from(error: std::io::Error) -> Self {
+		format!("ToStr error: {}", error).into()
+	}
+}
+
 impl From<actix_web::cookie::ParseError> for Error {
 	fn from(error: actix_web::cookie::ParseError) -> Self {
 		format!("Actix Cookie error: {}", error).into()
@@ -240,6 +246,12 @@ impl From<serde_qs::Error> for Error {
 impl From<serde_json::Error> for Error {
 	fn from(error: serde_json::Error) -> Self {
 		format!("Serde-JSON error: {}", error).into()
+	}
+}
+
+impl From<serde_yaml::Error> for Error {
+	fn from(error: serde_yaml::Error) -> Self {
+		format!("Serde-YAML error: {}", error).into()
 	}
 }
 
