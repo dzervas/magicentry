@@ -1,5 +1,6 @@
 use actix_session::Session;
 use actix_web::http::header::ContentType;
+use actix_web::http::Uri;
 use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use formatx::formatx;
@@ -119,11 +120,18 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 
 	// TODO: Check the state with the cookie for CSRF
 	let redirect_url = auth_req.get_redirect_url(&oidc_session.code).ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url_uri = redirect_url.parse::<Uri>()?;
+	let redirect_url_scheme = redirect_url_uri.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url_authority = redirect_url_uri.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url_str = format!("{}://{}", redirect_url_scheme, redirect_url_authority);
+
 	let authorize_page_str = get_partial("authorize");
 	let authorize_page = formatx!(
 		authorize_page_str,
+		name = &token.user.name.unwrap_or("(empty)".to_string()),
+		username = &token.user.username.unwrap_or("(empty)".to_string()),
 		email = &token.user.email,
-		client = "TODO",
+		client = redirect_url_str,
 		link = redirect_url
 	)?;
 
