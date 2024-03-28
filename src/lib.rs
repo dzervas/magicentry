@@ -47,4 +47,25 @@ lazy_static! {
 			.expect(format!("Unable to open config file `{:?}`", CONFIG_FILE.as_str()).as_str())
 		)
 		.expect(format!("Unable to parse config file `{:?}`", CONFIG_FILE.as_str()).as_str());
+
+	pub static ref TEMPLATES: handlebars::Handlebars<'static> = {
+		let mut handlebars = handlebars::Handlebars::new();
+		handlebars.register_templates_directory(
+			"static/templates",
+			handlebars::DirectorySourceOptions::default()
+		)
+		.expect("Failed to register templates directory");
+
+		// The partials are the same as the templates
+		handlebars.register_templates_directory(
+			"static/partials",
+			handlebars::DirectorySourceOptions::default()
+		)
+		.expect("Failed to register partials directory");
+
+		#[cfg(debug_assertions)]
+		handlebars.set_dev_mode(true);
+
+		handlebars
+	};
 }

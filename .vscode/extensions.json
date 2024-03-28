@@ -1,5 +1,6 @@
 {
 	"recommendations": [
-		"tim-koehler.helm-intellisense"
+		"tim-koehler.helm-intellisense",
+		"andrejunges.handlebars"
 	]
 }

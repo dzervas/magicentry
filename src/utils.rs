@@ -1,8 +1,10 @@
-use std::fs;
+use std::borrow::Cow;
+use std::collections::BTreeMap;
 
 use actix_session::Session;
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
+use handlebars::RenderError;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 use reindeer::Db;
@@ -10,25 +12,21 @@ use reindeer::Db;
 use crate::handle_login_action::ScopedLogin;
 use crate::oidc::handle_authorize::AuthorizeRequest;
 use crate::token::{ProxyCookieToken, SessionToken};
-use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN};
+use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN, TEMPLATES};
 use crate::error::{AppErrorKind, Result};
 
-pub fn get_partial(name: &str) -> String {
+pub fn get_partial(name: &str, mut data: BTreeMap<&'static str, Cow<str>>) -> std::result::Result<String, RenderError> {
 	let path_prefix = if CONFIG.path_prefix.ends_with('/') {
 		&CONFIG.path_prefix[..CONFIG.path_prefix.len() - 1]
 	} else {
 		&CONFIG.path_prefix
 	};
 
-	let outer_content = fs::read_to_string("static/outer.html").expect("Unable to open static/outer.html");
-	let inner_content = fs::read_to_string(format!("static/{}.html", name)).expect(format!("Unable to open static/{}.html", name).as_str());
+	// TODO: Serialize the whole CONFIG
+	data.insert("title", CONFIG.title.clone().into());
+	data.insert("path_prefix", path_prefix.into());
 
-	formatx::formatx!(
-		outer_content,
-		title = &CONFIG.title,
-		path_prefix = path_prefix,
-		content = inner_content
-	).expect(format!("Unable to format static/outer.html with title `{:?}` and path_prefix `{:?}`", &CONFIG.title, path_prefix).as_str())
+	TEMPLATES.render(format!("{}.html", name).as_str(), &data)
 }
 
 pub fn get_request_origin(req: &HttpRequest) -> Result<String> {

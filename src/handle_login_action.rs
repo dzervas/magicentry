@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
@@ -12,8 +14,8 @@ use serde::{Deserialize, Serialize};
 use crate::error::Response;
 use crate::token::MagicLinkToken;
 use crate::user::User;
-use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
+use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {
@@ -62,7 +64,7 @@ impl From<ScopedLogin> for String {
 
 #[post("/login")]
 async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<reindeer::Db>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
-	let login_action_page = get_partial("login_action");
+	let login_action_page = get_partial("login_action", BTreeMap::new())?;
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
 		.body(login_action_page));

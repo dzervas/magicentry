@@ -1,22 +1,21 @@
+use std::collections::BTreeMap;
+
 use actix_session::Session;
 use actix_web::http::header::{self, ContentType};
 use actix_web::{get, web, HttpResponse};
-use formatx::formatx;
 
 use crate::error::Response;
 use crate::token::{ProxyCookieToken, SessionToken};
-use crate::{CONFIG, SCOPED_LOGIN};
 use crate::utils::get_partial;
+use crate::{CONFIG, SCOPED_LOGIN};
 
 #[get("/")]
 async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let token = SessionToken::from_session(&db, &session).await?;
 
-	let index_page = formatx!(
-		get_partial("index"),
-		email = &token.user.email,
-		path_prefix = &CONFIG.path_prefix
-	)?;
+	let mut index_data = BTreeMap::new();
+	index_data.insert("email", token.user.email.clone().into());
+	let index_page = get_partial("index", index_data)?;
 
 
 	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {

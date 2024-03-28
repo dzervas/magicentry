@@ -1,13 +1,12 @@
+use std::collections::BTreeMap;
 use std::string::FromUtf8Error;
 
 use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
 use derive_more::{Display, Error as DeriveError};
-use formatx::formatx;
 use reqwest::header::ToStrError;
 
 use crate::utils::get_partial;
-use crate::CONFIG;
 
 pub type Response = std::result::Result<HttpResponse, Error>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -116,14 +115,15 @@ impl ResponseError for Error {
 				.append_header((header::LOCATION, "/login"))
 				.finish()
 		} else {
-			let partial = get_partial("error");
-			let page = formatx!(
-				partial,
-				path_prefix = &CONFIG.path_prefix,
-				code = self.status_code().as_u16(),
-				error = self.status_code().canonical_reason().unwrap_or_default(),
-				description = description
-			).unwrap_or_else(|_| {
+			let status_code = self.status_code().as_u16().to_string();
+			let error_name = self.status_code().canonical_reason().unwrap_or_default().to_string();
+
+			let mut page_data = BTreeMap::new();
+			page_data.insert("code", status_code.into());
+			page_data.insert("error", error_name.into());
+			page_data.insert("description", description.into());
+
+			let page = get_partial("error", page_data).unwrap_or_else(|_| {
 				log::error!("Could not format error page");
 				"Internal server error".to_string()
 			});
@@ -258,5 +258,11 @@ impl From<jwt_simple::reexports::ct_codecs::Error> for Error {
 impl From<webauthn_rs::prelude::WebauthnError> for Error {
 	fn from(error: webauthn_rs::prelude::WebauthnError) -> Self {
 		format!("WebAuthN error: {}", error).into()
+	}
+}
+
+impl From<handlebars::RenderError> for Error {
+	fn from(error: handlebars::RenderError) -> Self {
+		format!("Handlebars render error: {}", error).into()
 	}
 }

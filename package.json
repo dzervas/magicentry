@@ -4,10 +4,10 @@
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
     "start": "concurrently 'npm:tailwind-dev' 'npm:webpack-dev'",
-    "tailwind-dev": "tailwindcss -i static/main.css -o static/main.build.css --watch",
+    "tailwind-dev": "tailwindcss -i static/css/main.css -o static/main.build.css --watch",
     "webpack-dev": "webpack watch --mode development",
 
-    "build": "webpack build --mode production && tailwindcss -i static/main.css -o static/main.build.css --minify"
+    "build": "webpack build --mode production && tailwindcss -i static/css/main.css -o static/main.build.css --minify"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

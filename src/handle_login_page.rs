@@ -1,13 +1,13 @@
+use std::collections::BTreeMap;
+
 use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpRequest, HttpResponse};
-use formatx::formatx;
 use log::info;
 
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_action::ScopedLogin;
 use crate::token::{ProxyCookieToken, SessionToken};
-use crate::CONFIG;
 use crate::utils::get_partial;
 
 #[get("/login")]
@@ -28,12 +28,9 @@ async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::
 	}
 
 	// TODO: Add realm
-	let login_page = formatx!(
-		get_partial("login"),
-		title = &CONFIG.title,
-		realm = "default",
-		path_prefix = &CONFIG.path_prefix
-	)?;
+	let mut login_data = BTreeMap::new();
+	login_data.insert("realm", "default".into());
+	let login_page = get_partial("login", login_data)?;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
