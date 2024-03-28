@@ -17,7 +17,11 @@ async fn main() -> std::io::Result<()> {
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
-	let db = reindeer::open(&CONFIG.database_url).expect("Failed to open reindeer database.");
+	let config = CONFIG.read().await;
+	let cookie_duration = config.session_duration.clone().to_std().expect("Couldn't parse session_duration");
+	let oidc_enable = config.oidc_enable.clone();
+	let webauthn_enable = config.webauthn_enable.clone();
+	let db = reindeer::open(&config.database_url).expect("Failed to open reindeer database.");
 	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 	token::register_token_kind(&db).expect("Failed to register token kinds");
 	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
@@ -36,8 +40,8 @@ async fn main() -> std::io::Result<()> {
 	};
 
 	// Mailer setup
-	let mailer: Option<SmtpTransport> = if CONFIG.smtp_enable {
-		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&CONFIG.smtp_url)
+	let mailer: Option<SmtpTransport> = if config.smtp_enable {
+		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config.smtp_url)
 			.expect("Failed to create mailer - is the `smtp_url` correct?")
 			.pool_config(smtp::PoolConfig::new())
 			.build())
@@ -46,7 +50,7 @@ async fn main() -> std::io::Result<()> {
 	};
 
 	// HTTP client setup
-	let http_client = if CONFIG.request_enable {
+	let http_client = if config.request_enable {
 		Some(reqwest::Client::new())
 	} else {
 		None
@@ -56,8 +60,8 @@ async fn main() -> std::io::Result<()> {
 	let oidc_key = oidc::init(&db).await;
 
 	HttpServer::new(move || {
-		// Webauthn setup
 		let webauthn = webauthn::init().expect("Failed to create webauthn object");
+
 		let mut app = App::new()
 			// Data
 			.app_data(web::Data::new(db.clone()))
@@ -86,22 +90,16 @@ async fn main() -> std::io::Result<()> {
 					secret.clone()
 				)
 				.cookie_same_site(SameSite::Lax)
-				// .cookie_path(CONFIG.path_prefix.clone())
 				.session_lifecycle(
 					actix_session::config::PersistentSession::default()
 						.session_ttl(
-							actix_web::cookie::time::Duration::try_from(
-								CONFIG
-								.session_duration
-								.to_std()
-								.expect("Couldn't parse session_duration")
-							)
+							actix_web::cookie::time::Duration::try_from(cookie_duration)
 							.expect("Couldn't set session_ttl - something is wrong with session_duration"))
 				)
 				.build());
 
 		// OIDC routes
-		if CONFIG.oidc_enable {
+		if oidc_enable {
 			app = app.app_data(web::Data::new(oidc_key.clone()))
 				.service(oidc::handle_discover::discover)
 				.service(oidc::handle_authorize::authorize_get)
@@ -111,16 +109,18 @@ async fn main() -> std::io::Result<()> {
 				.service(oidc::handle_userinfo::userinfo);
 		}
 
-		// TODO: Make webauthn optional
+		if webauthn_enable {
+			app = app
+				.app_data(web::Data::new(webauthn))
+				.service(webauthn::handle_reg_start::reg_start)
+				.service(webauthn::handle_reg_finish::reg_finish)
+				.service(webauthn::handle_auth_start::auth_start)
+				.service(webauthn::handle_auth_finish::auth_finish);
+		}
 
 		app
-			.app_data(web::Data::new(webauthn))
-			.service(webauthn::handle_reg_start::reg_start)
-			.service(webauthn::handle_reg_finish::reg_finish)
-			.service(webauthn::handle_auth_start::auth_start)
-			.service(webauthn::handle_auth_finish::auth_finish)
 	})
-	.bind(format!("{}:{}", CONFIG.listen_host, CONFIG.listen_port))?
+	.bind(format!("{}:{}", config.listen_host, config.listen_port))?
 	.run()
 	.await
 }

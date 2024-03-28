@@ -12,16 +12,29 @@ pub struct User {
 }
 
 impl User {
-	pub fn from_config(email: &str) -> Option<User> {
+	pub async fn from_config(email: &str) -> Option<User> {
 		CONFIG
+			.read()
+			.await
 			.users
 			.iter()
-			.find_map(|u| if u.email == email { Some(u.clone()) } else { None })
+			.find(|u| u.email == email)
+			.map(|u| u.clone())
 	}
 
 	pub fn has_any_realm(&self, realms: &[String]) -> bool {
 		self.realms.contains(&"all".to_string()) ||
 		self.realms.iter().any(|r| realms.contains(r))
+	}
+
+	pub fn from_config_blocking(email: &str) -> Option<User> {
+		CONFIG
+			.try_read()
+			.expect("Failed to lock config for reading during user lookup")
+			.users
+			.iter()
+			.find(|u| u.email == email)
+			.map(|u| u.clone())
 	}
 }
 
@@ -56,7 +69,8 @@ pub mod as_string {
 
 	pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<User, D::Error> {
 		let email = String::deserialize(deserializer)?;
-		User::from_config(&email).ok_or(serde::de::Error::custom("User not found"))
+		// let runtime = rt::Runtime::new().unwrap();
+		User::from_config_blocking(&email).ok_or(serde::de::Error::custom("User not found"))
 	}
 }
 
@@ -68,7 +82,7 @@ mod tests {
 
 	#[actix_web::test]
 	async fn test_user() {
-		let user = get_valid_user();
+		let user = get_valid_user().await;
 
 		assert!(user == user.email);
 	}

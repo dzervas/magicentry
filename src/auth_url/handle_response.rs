@@ -32,11 +32,12 @@ async fn response(session: Session, db: web::Data<reindeer::Db>, proxied_rewrite
 	info!("New scoped session for: {:?}", &token.metadata);
 	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
 
+	let config = CONFIG.read().await;
 	Ok(HttpResponse::Ok()
 		// TODO: Add realm
-		.append_header((CONFIG.auth_url_email_header.as_str(), scoped_session.user.email.clone()))
-		.append_header((CONFIG.auth_url_user_header.as_str(), scoped_session.user.username.unwrap_or_default()))
-		.append_header((CONFIG.auth_url_name_header.as_str(), scoped_session.user.name.unwrap_or_default()))
-		// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
+		.append_header((config.auth_url_email_header.as_str(), scoped_session.user.email.clone()))
+		.append_header((config.auth_url_user_header.as_str(), scoped_session.user.username.unwrap_or_default()))
+		.append_header((config.auth_url_name_header.as_str(), scoped_session.user.name.unwrap_or_default()))
+		// .append_header((config.auth_url_realm_header.as_str(), user.realms.join(", ")))
 		.finish())
 }

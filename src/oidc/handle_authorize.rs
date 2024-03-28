@@ -33,14 +33,15 @@ impl AuthorizeRequest {
 		OIDCCodeToken::new(db, user, Some(bound_to), Some(self_string)).await
 	}
 
-	pub fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
+	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = if let Some(redirect_url_enc) = &self.redirect_uri {
 			urlencoding::decode(&redirect_url_enc).ok()?.to_string()
 		} else {
 			return None;
 		};
 
-		let config_client = CONFIG.oidc_clients
+		let config = CONFIG.read().await;
+		let config_client = config.oidc_clients
 			.iter()
 			.find(|c|
 				user.has_any_realm(&c.realms) &&
@@ -62,14 +63,15 @@ impl AuthorizeRequest {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
-			..JWTData::new(url)
+			..JWTData::new(url).await
 		};
 		println!("JWT Data: {:?}", jwt_data);
 
+		let config = CONFIG.read().await;
 		let claims = Claims::with_custom_claims(
 			jwt_data,
 			Duration::from_millis(
-				CONFIG.session_duration
+				config.session_duration
 				.num_milliseconds()
 				.try_into()
 				.map_err(|_| AppErrorKind::InvalidDuration)?));
@@ -110,7 +112,8 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 	session.insert(AUTHORIZATION_COOKIE, auth_req.clone())?;
 
 	let Ok(token) = SessionToken::from_session(&db, &session).await else {
-		let base_url = CONFIG.url_from_request(&req);
+		let config = CONFIG.read().await;
+		let base_url = config.url_from_request(&req);
 		let target_url = format!("{}/login?{}", base_url, serde_qs::to_string(&auth_req)?);
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url))
@@ -121,7 +124,7 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 	println!("OIDC Session: {:?}", oidc_session);
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = auth_req.get_redirect_url(&oidc_session.code, &oidc_session.user).ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url = auth_req.get_redirect_url(&oidc_session.code, &oidc_session.user).await.ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_uri = redirect_url.parse::<Uri>()?;
 	let redirect_url_scheme = redirect_url_uri.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_authority = redirect_url_uri.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
@@ -131,11 +134,11 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 	let username = token.user.username.unwrap_or("(empty)".to_string());
 
 	let mut authorize_data = BTreeMap::new();
-	authorize_data.insert("name", name.as_str());
-	authorize_data.insert("username", username.as_str());
-	authorize_data.insert("email", token.user.email.as_str());
-	authorize_data.insert("client", redirect_url_str.as_str());
-	authorize_data.insert("link", redirect_url.as_str());
+	authorize_data.insert("name", name.clone());
+	authorize_data.insert("username", username.clone());
+	authorize_data.insert("email", token.user.email.clone());
+	authorize_data.insert("client", redirect_url_str.clone());
+	authorize_data.insert("link", redirect_url.clone());
 	let authorize_page = get_partial("authorize", authorize_data)?;
 
 	Ok(HttpResponse::Ok()

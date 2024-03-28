@@ -14,7 +14,7 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let token = SessionToken::from_session(&db, &session).await?;
 
 	let mut index_data = BTreeMap::new();
-	index_data.insert("email", token.user.email.as_str());
+	index_data.insert("email", token.user.email.clone());
 	let index_page = get_partial("index", index_data)?;
 
 
@@ -24,12 +24,13 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 			.append_header((header::LOCATION, format!("{}?code={}", scope, proxy_cookie.code)))
 			.finish())
 	} else {
+		let config = CONFIG.read().await;
 		Ok(HttpResponse::Ok()
 			// TODO: Add realm
-			.append_header((CONFIG.auth_url_email_header.as_str(), token.user.email.clone()))
-			.append_header((CONFIG.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
-			.append_header((CONFIG.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()))
-			// .append_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")))
+			.append_header((config.auth_url_email_header.as_str(), token.user.email.clone()))
+			.append_header((config.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
+			.append_header((config.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()))
+			// .append_header((config.auth_url_realm_header.as_str(), user.realms.join(", ")))
 			.content_type(ContentType::html())
 			.body(index_page))
 	}
@@ -55,7 +56,7 @@ mod tests {
 		let db = &db_connect().await;
 		let mut session_map = HashMap::new();
 		let secret = Key::from(&[0; 64]);
-		let user = get_valid_user();
+		let user = get_valid_user().await;
 		session_map.insert(SESSION_COOKIE, "valid_session_id");
 
 		let mut app = actix_test::init_service(
@@ -99,8 +100,9 @@ mod tests {
 
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
-		assert_eq!(resp.headers().get(CONFIG.auth_url_user_header.as_str()).unwrap(), "valid");
-		assert_eq!(resp.headers().get(CONFIG.auth_url_email_header.as_str()).unwrap(), "valid@example.com");
+		let config = CONFIG.read().await;
+		assert_eq!(resp.headers().get(config.auth_url_user_header.as_str()).unwrap(), "valid");
+		assert_eq!(resp.headers().get(config.auth_url_email_header.as_str()).unwrap(), "valid@example.com");
 
 		let req = actix_test::TestRequest::get()
 			.uri("/")

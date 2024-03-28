@@ -33,7 +33,7 @@ mod tests {
 	#[actix_web::test]
 	async fn test_login_link() {
 		let db = &db_connect().await;
-		let user = get_valid_user();
+		let user = get_valid_user().await;
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))

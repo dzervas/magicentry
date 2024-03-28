@@ -43,6 +43,9 @@ pub struct ConfigFile {
 	pub request_url: String,
 	pub request_method: String,
 	pub request_data: Option<String>,
+	pub request_content_type: String,
+
+	pub webauthn_enable: bool,
 
 	pub users: Vec<User>,
 }
@@ -79,11 +82,13 @@ impl Default for ConfigFile {
 			smtp_subject: "{title} Login".to_string(),
 			smtp_body   : "Click the link to login: {magic_link}".to_string(),
 
-			request_enable: false,
-			request_url   : "https://www.cinotify.cc/api/notify".to_string(),
-			request_method: "POST".to_string(),
-			request_data  : Some("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string()),
-			// request_data  : Some(r#"{{ "to": "{email}", "subject": "{title} Login", "body": "Click the link to login: <a href=\"{magic_link}\">Login</a>", "type": "text/html" }}"#.to_string()),
+			request_enable      : false,
+			request_url         : "https://www.cinotify.cc/api/notify".to_string(),
+			request_method      : "POST".to_string(),
+			request_data        : Some("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string()),
+			request_content_type: "application/x-www-form-urlencoded".to_string(),
+
+			webauthn_enable: true,
 
 			users: vec![],
 		}

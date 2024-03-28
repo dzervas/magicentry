@@ -29,7 +29,7 @@ pub struct ScopedLogin {
 }
 
 impl ScopedLogin {
-	pub fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
+	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = urlencoding::decode(&self.scope).ok()?.to_string();
 		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
 		let redirect_uri = redirect_url_clean.parse::<Uri>().ok()?;
@@ -38,7 +38,9 @@ impl ScopedLogin {
 		let origin_scheme = redirect_uri.scheme()?;
 		let origin = format!("{}://{}", origin_scheme, origin_authority);
 
-		let config_scope = CONFIG.auth_url_scopes
+		let config = CONFIG.read().await;
+		let config_scope = config
+			.auth_url_scopes
 			.iter()
 			.find(|c|
 				user.has_any_realm(&c.realms) &&
@@ -71,13 +73,14 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
 		.body(login_action_page));
-	let Some(user) = User::from_config(&form.email) else {
+	let Some(user) = User::from_config(&form.email).await else {
 		// Return 200 to avoid leaking valid emails
 		return result;
 	};
 
 	let link = MagicLinkToken::new(&db, user.clone(), None, None).await?;
-	let base_url = CONFIG.url_from_request(&req);
+	let config = CONFIG.read().await;
+	let base_url = config.url_from_request(&req);
 	let magic_link = format!("{}/login/{}", base_url, link.code);
 	let name = &user.name.clone().unwrap_or_default();
 	let username = &user.username.clone().unwrap_or_default();
@@ -87,13 +90,13 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 
 	if let Some(mailer) = mailer.as_ref() {
 		let email = Message::builder()
-			.from(CONFIG.smtp_from.parse()?)
+			.from(config.smtp_from.parse()?)
 			.to(user.email.parse()?)
-			.subject(formatx!(&CONFIG.smtp_subject, title = &CONFIG.title)?)
+			.subject(formatx!(&config.smtp_subject, title = &config.title)?)
 			.header(LettreContentType::TEXT_HTML)
 			.body(formatx!(
-				&CONFIG.smtp_body,
-				title = &CONFIG.title,
+				&config.smtp_body,
+				title = &config.title,
 				magic_link = &magic_link,
 				name = name,
 				username = username
@@ -104,10 +107,10 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 	}
 
 	if let Some(client) = http_client.as_ref() {
-		let method = reqwest::Method::from_bytes(CONFIG.request_method.as_bytes()).expect("Invalid request_method provided in the config");
+		let method = reqwest::Method::from_bytes(config.request_method.as_bytes()).expect("Invalid request_method provided in the config");
 		let url = formatx!(
-			&CONFIG.request_url,
-			title = &CONFIG.title,
+			&config.request_url,
+			title = &config.title,
 			magic_link = &magic_link,
 			email = &user.email,
 			name = name,
@@ -115,10 +118,10 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 		)?;
 		let mut req = client.request(method, url);
 
-		if let Some(data) = &CONFIG.request_data {
+		if let Some(data) = &config.request_data {
 			let body = formatx!(
 				data.as_str(),
-				title = &CONFIG.title,
+				title = &config.title,
 				magic_link = &magic_link,
 				email = &user.email,
 				name = name,
@@ -126,7 +129,7 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 			)?;
 			req = req
 				// TODO: Make this configurable
-				.header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+				.header(CONTENT_TYPE, config.request_content_type.as_str())
 				.body(body);
 		}
 

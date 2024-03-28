@@ -143,6 +143,9 @@ config:
   request_url: https://www.cinotify.cc/api/notify
   request_data: "to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html"
   request_method: POST
+  request_content_type: application/x-www-form-urlencoded
+
+  webauthn_enable: true
 
   users: []
     # - username: valid

@@ -12,9 +12,9 @@ pub mod handle_reg_finish;
 pub const WEBAUTHN_COOKIE: &str = "webauthn_registration";
 
 pub fn init() -> WebauthnResult<Webauthn> {
-	// TODO: Set the origin from the config
+	let config = CONFIG.try_read().expect("Failed to lock config for reading during webauthn init");
 	let rp_origin = Url::parse("http://localhost:8080").expect("Invalid webauthn URL");
 	WebauthnBuilder::new("localhost", &rp_origin)?
-		.rp_name(&CONFIG.title)
+		.rp_name(&config.title)
 		.build()
 }

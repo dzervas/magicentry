@@ -14,17 +14,18 @@ use crate::utils::{get_request_origin, random_string };
 use crate::{PROXIED_COOKIE, SCOPED_SESSION_COOKIE, SESSION_COOKIE};
 use crate::error::{AppErrorKind, Result};
 
+#[allow(async_fn_in_trait)]
 pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd + Ord + Serialize + DeserializeOwned + Send + Sync + Unpin {
 	const NAME: &'static str;
 	const EPHEMERAL: bool;
 	type BoundType: TokenKindType;
 
-	fn get_duration() -> chrono::Duration;
+	async fn get_duration() -> chrono::Duration;
 
-	fn get_expiry() -> NaiveDateTime {
+	async fn get_expiry() -> NaiveDateTime {
 		chrono::Utc::now()
 			.naive_utc()
-			.checked_add_signed(Self::get_duration())
+			.checked_add_signed(Self::get_duration().await)
 			.expect(format!("Couldn't generate expiry for {:?}", Self::NAME).as_str())
 
 	}
@@ -56,7 +57,7 @@ macro_rules! token_kind {
 					const EPHEMERAL: bool = $ephemeral;
 					type BoundType = $bound_type;
 
-					fn get_duration() -> chrono::Duration { $duration }
+					async fn get_duration() -> chrono::Duration { $duration }
 				}
 			)*
 		}
@@ -145,7 +146,7 @@ impl<K: TokenKindType> Token<K> {
 
 			bound_token.expires_at
 		} else {
-			K::get_expiry()
+			K::get_expiry().await
 		};
 
 		let token = Self {
@@ -180,13 +181,13 @@ impl<K: TokenKindType> Token<K> {
 
 // TODO: The bound type should be absent instead of Self
 token_kind! {
-	MagicLinkToken(duration = crate::CONFIG.link_duration, ephemeral = true, bound_type = Self),
-	SessionToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = Self),
-	ProxyCookieToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
-	ScopedSessionToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = SessionToken),
-	OIDCCodeToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
-	OIDCBearerToken(duration = crate::CONFIG.session_duration, ephemeral = false, bound_type = Self),
-	WebauthnToken(duration = crate::CONFIG.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
+	MagicLinkToken(duration = crate::CONFIG.read().await.link_duration, ephemeral = true, bound_type = Self),
+	SessionToken(duration = crate::CONFIG.read().await.session_duration, ephemeral = false, bound_type = Self),
+	ProxyCookieToken(duration = crate::CONFIG.read().await.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
+	ScopedSessionToken(duration = crate::CONFIG.read().await.session_duration, ephemeral = false, bound_type = SessionToken),
+	OIDCCodeToken(duration = crate::CONFIG.read().await.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
+	OIDCBearerToken(duration = crate::CONFIG.read().await.session_duration, ephemeral = false, bound_type = Self),
+	WebauthnToken(duration = crate::CONFIG.read().await.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
 }
 
 impl SessionToken {
@@ -269,7 +270,7 @@ mod tests {
 	#[actix_web::test]
 	async fn test_token() {
 		let db = &db_connect().await;
-		let user = get_valid_user();
+		let user = get_valid_user().await;
 
 		let link = MagicLinkToken::new(db, user.clone(), None, None).await.unwrap();
 

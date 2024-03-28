@@ -52,7 +52,8 @@ impl<'a> Discovery<'a> {
 
 #[get("/.well-known/openid-configuration")]
 pub async fn discover(req: HttpRequest) -> impl Responder {
-	let base_url = CONFIG.url_from_request(&req);
+	let config = CONFIG.read().await;
+	let base_url = config.url_from_request(&req);
 	let discovery = Discovery::new(&base_url);
 	HttpResponse::Ok().json(discovery)
 }

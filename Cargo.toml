@@ -12,6 +12,7 @@ derive_more = "0.99.17"
 duration-str = "0.7"
 env_logger = "0.11"
 formatx = "0.2"
+handlebars = { version = "5.1.2", features = ["dir_source"] }
 hex = "0.4.3"
 jwt-simple = { version = "0.12", default-features = false, features = ["pure-rust"] }
 lazy_static = "1.4"
@@ -25,6 +26,7 @@ serde_json = "1.0"
 serde_qs = { version = "0.12", features = ["actix-web4"] }
 serde_yaml = "0.9"
 sha2 = "0.10"
+tokio = { version = "1", features = ["full"] }
 urlencoding = "2.1"
 uuid = { version = "1.7", features = ["serde", "v4"] }
 webauthn-rs = { version = "0.4.8", features = ["danger-allow-state-serialisation"] }
@@ -32,7 +34,6 @@ md5 = "0.7.0"
 
 # Dependency of webauthn-rs that needs to be vendored
 openssl = { version = "0.10", features = ["vendored"] }
-handlebars = { version = "5.1.2", features = ["dir_source"] }
 
 [dev-dependencies]
 scraper = "0.19.0"

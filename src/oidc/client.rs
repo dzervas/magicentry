@@ -25,7 +25,8 @@ impl OIDCClient {
 			return Ok(None)
 		};
 
-		let config_client = CONFIG.oidc_clients
+		let config = CONFIG.read().await;
+		let config_client = config.oidc_clients
 			.iter()
 			.find(|c|
 				user.has_any_realm(&c.realms) &&

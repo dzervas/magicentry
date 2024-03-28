@@ -44,8 +44,9 @@ pub struct JWTData {
 }
 
 impl JWTData {
-	pub fn new(base_url: &str) -> Self {
-		let expiry = Utc::now() + CONFIG.session_duration;
+	pub async fn new(base_url: &str) -> Self {
+		let config = CONFIG.read().await;
+		let expiry = Utc::now() + config.session_duration;
 		JWTData {
 			user: String::default(),
 			client_id: String::default(),
@@ -64,6 +65,7 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
 	println!("Session: {:?}", session);
 	let auth_req = AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
+	let config = CONFIG.read().await;
 
 	// TODO: Check the request origin
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
@@ -81,7 +83,7 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 		// We're using client_id - client_secret
 		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
 		let session_client_id = auth_req.client_id.clone();
-		let config_client = CONFIG.oidc_clients
+		let config_client = config.oidc_clients
 			.iter()
 			.find(|c|
 				session.user.has_any_realm(&c.realms) &&
@@ -99,14 +101,14 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 		return Err(AppErrorKind::NoClientCredentialsProvided.into());
 	}
 
-	let base_url = CONFIG.url_from_request(&req);
+	let base_url = config.url_from_request(&req);
 	let id_token = auth_req.generate_id_token(&session.user, &base_url, jwt_keypair.as_ref()).await?;
 	let access_token = OIDCBearerToken::new(&db, session.user, None, None).await?.code;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,
 		token_type: "Bearer".to_string(),
-		expires_in: CONFIG.session_duration.num_seconds(),
+		expires_in: config.session_duration.num_seconds(),
 		id_token,
 		refresh_token: None,
 	}))

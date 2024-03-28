@@ -119,9 +119,9 @@ impl ResponseError for Error {
 			let error_name = self.status_code().canonical_reason().unwrap_or_default();
 
 			let mut page_data = BTreeMap::new();
-			page_data.insert("code", status_code.as_str());
-			page_data.insert("error", error_name);
-			page_data.insert("description", description.as_str());
+			page_data.insert("code", status_code.clone());
+			page_data.insert("error", error_name.to_string());
+			page_data.insert("description", description.clone());
 
 			let page = get_partial("error", page_data).unwrap_or_else(|_| {
 				log::error!("Could not format error page");
@@ -264,5 +264,11 @@ impl From<webauthn_rs::prelude::WebauthnError> for Error {
 impl From<handlebars::RenderError> for Error {
 	fn from(error: handlebars::RenderError) -> Self {
 		format!("Handlebars render error: {}", error).into()
+	}
+}
+
+impl From<tokio::sync::TryLockError> for Error {
+	fn from(error: tokio::sync::TryLockError) -> Self {
+		format!("Mutex lock error: {}", error).into()
 	}
 }

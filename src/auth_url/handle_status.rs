@@ -26,12 +26,13 @@ async fn status(req: HttpRequest, db: web::Data<reindeer::Db>) -> Response {
 	};
 
 	let mut response_builder = HttpResponse::Ok();
+	let config = CONFIG.read().await;
 	let response = response_builder
-		.insert_header((CONFIG.auth_url_email_header.as_str(), token.user.email.clone()))
-		.insert_header((CONFIG.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
-		.insert_header((CONFIG.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()));
+		.insert_header((config.auth_url_email_header.as_str(), token.user.email.clone()))
+		.insert_header((config.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
+		.insert_header((config.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()));
 		// TODO: Add realm
-		// .insert_header((CONFIG.auth_url_realm_header.as_str(), user.realms.join(", ")));
+		// .insert_header((config.auth_url_realm_header.as_str(), user.realms.join(", ")));
 
 	if let Some(cookie) = cookie {
 		Ok(response.cookie(cookie).finish())
