@@ -93,7 +93,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: binaries
+          name: binary-${{ matrix.target.name }}
           path: magicentry-*
 
   release:
@@ -106,7 +106,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: binaries
+          pattern: binary-*
+          merge-multiple: true
 
       - name: Create release
         uses: softprops/action-gh-release@v2
@@ -118,7 +119,7 @@ jobs:
           target_commitish: ${{ needs.bump.outputs.new_ref }}
           generate_release_notes: true
           make_latest: true
-          files: magicentry-*
+          files: binary/magicentry-*
 
   docker:
     runs-on: ubuntu-latest
