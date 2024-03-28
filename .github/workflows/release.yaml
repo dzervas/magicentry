@@ -119,7 +119,7 @@ jobs:
           target_commitish: ${{ needs.bump.outputs.new_ref }}
           generate_release_notes: true
           make_latest: true
-          files: binary/magicentry-*
+          files: magicentry-*
 
   docker:
     runs-on: ubuntu-latest
