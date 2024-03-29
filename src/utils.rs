@@ -87,6 +87,7 @@ pub mod tests {
 	use reindeer::Db;
 	use reindeer::Entity;
 
+	use crate::config::ConfigFile;
 	use crate::user::User;
 
 	use super::*;
@@ -100,19 +101,20 @@ pub mod tests {
 	}
 
 	pub async fn get_valid_user() -> User {
+		ConfigFile::reload().await.expect("Failed to reload config file");
 		let user_email = "valid@example.com";
 		let user_realms = vec!["example".to_string()];
 		let config = CONFIG.read().await;
 		let user = config
 			.users
 			.iter()
-			.find_map(|u| if u.email == user_email { Some(u.clone()) } else { None })
+			.find(|u| u.email == user_email)
 			.unwrap();
 
 		assert_eq!(user.email, user_email);
 		assert_eq!(user.realms, user_realms);
 
-		user
+		user.to_owned()
 	}
 
 	#[test]
