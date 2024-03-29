@@ -13,10 +13,10 @@ session_duration: 1mon
 title: MagicEntry
 
 auth_url_enable: true
-auth_url_user_header: Remote-User
-auth_url_name_header: Remote-Name
-auth_url_email_header: Remote-Email
-auth_url_realm_header: Remote-Group
+auth_url_user_header: X-Auth-User
+auth_url_name_header: X-Auth-Name
+auth_url_email_header: X-Auth-Email
+auth_url_realms_header: X-Auth-Realms
 auth_url_scopes:
   - origin: http://localhost:8080
     realms:

@@ -14,6 +14,7 @@ pub struct ConfigFile {
 	pub listen_host: String,
 	pub listen_port: u16,
 	pub path_prefix: String,
+	pub external_url: String,
 
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub link_duration: Duration,
@@ -27,7 +28,7 @@ pub struct ConfigFile {
 	pub auth_url_user_header: String,
 	pub auth_url_name_header: String,
 	pub auth_url_email_header: String,
-	pub auth_url_realm_header: String,
+	pub auth_url_realms_header: String,
 	pub auth_url_scopes: Vec<crate::auth_url::AuthUrlScope>,
 
 	pub oidc_enable: bool,
@@ -60,6 +61,7 @@ impl Default for ConfigFile {
 			listen_host: std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
 			listen_port: std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
 			path_prefix: "/".to_string(),
+			external_url: "http://localhost:8080".to_string(),
 
 			link_duration   : Duration::try_hours(12).unwrap(),
 			session_duration: Duration::try_days(30).unwrap(),
@@ -68,10 +70,10 @@ impl Default for ConfigFile {
 			static_path: "static".to_string(),
 
 			auth_url_enable      : true,
-			auth_url_user_header : "Remote-User".to_string(),
-			auth_url_email_header: "Remote-Email".to_string(),
-			auth_url_name_header : "Remote-Name".to_string(),
-			auth_url_realm_header: "Remote-Group".to_string(),
+			auth_url_user_header : "X-Auth-User".to_string(),
+			auth_url_email_header: "X-Auth-Email".to_string(),
+			auth_url_name_header : "X-Auth-Name".to_string(),
+			auth_url_realms_header: "X-Auth-Realms".to_string(),
 			auth_url_scopes      : vec![],
 
 			oidc_enable       : true,

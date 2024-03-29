@@ -14,10 +14,11 @@ pub const WEBAUTHN_COOKIE: &str = "webauthn_registration";
 pub fn init() -> WebauthnResult<Webauthn> {
 	let config = CONFIG.try_read().expect("Failed to lock config for reading during webauthn init");
 	let title = config.title.clone();
+	let external_url = config.external_url.clone();
 	drop(config);
 
-	let rp_origin = Url::parse("http://localhost:8080").expect("Invalid webauthn URL");
-	WebauthnBuilder::new("localhost", &rp_origin)?
+	let rp_origin = Url::parse(&external_url).expect("Invalid webauthn URL");
+	WebauthnBuilder::new(&rp_origin.host().unwrap().to_string(), &rp_origin)?
 		.rp_name(&title)
 		.build()
 }
