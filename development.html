@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Installation - MagicEntry</title>
+        <title>Development - MagicEntry</title>
 
 
         <!-- Custom HTML head -->
@@ -88,7 +88,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded "><a href="installation.html" class="active"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="development.html"><strong aria-hidden="true">4.</strong> Development</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="flows.html"><strong aria-hidden="true">4.1.</strong> Flows</a></li></ol></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="development.html" class="active"><strong aria-hidden="true">4.</strong> Development</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="flows.html"><strong aria-hidden="true">4.1.</strong> Flows</a></li></ol></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -173,105 +173,21 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="installation"><a class="header" href="#installation">Installation</a></h1>
-<h2 id="standalone"><a class="header" href="#standalone">Standalone</a></h2>
-<p>MagicEntry can be used as a standalone application.</p>
-<p>Download the latest release from the <a href="https://github.com/dzervas/magicentry/releases">releases page</a>.</p>
-<p>You most probably need the non <code>-kube</code> version (the <code>-kube</code> has Kubernetes capabilities -
-for running MagicEntry in Kuberentes see the <a href="usge.html#kubernetes">relevant section</a>).</p>
-<pre><code class="language-bash">./magicentry
-</code></pre>
-<p>This will start the MagicEntry server on port 8080 with the default configuration,
-overwritten by the yaml config pointed to by <code>$CONFIG_FILE</code> (defaults to <code>config.yaml</code>).</p>
-<p>For configuration check out the <a href="configuration.html">Configuration</a> section.</p>
-<h2 id="docker"><a class="header" href="#docker">Docker</a></h2>
-<p>MagicEntry is also available as a Docker image:</p>
-<pre><code class="language-bash">docker run -p 127.0.0.1:8080:8080 ghcr.io/dzervas/magicentry:latest
-</code></pre>
-<p>again the default configuration is used, but you can mount your own configuration file:</p>
-<pre><code class="language-bash">docker run -v $(pwd)/config.yaml:/config.yaml -p 127.0.0.1:8080:8080 ghcr.io/dzervas/magicentry:latest
-</code></pre>
-<h2 id="kuberentes"><a class="header" href="#kuberentes">Kuberentes</a></h2>
-<p>You can use the official helm chart to deploy MagicEntry in Kubernetes:</p>
-<pre><code class="language-bash">helm install --update --namespace auth --values values.yaml magicentry oci://ghcr.io/dzervas/charts/magicentry
-</code></pre>
-<p>For the values check out the chart's <a href="https://github.com/dzervas/magicentry/blob/main/chart/values.yaml">values.yaml</a>.</p>
-<h3 id="example-valuesyaml"><a class="header" href="#example-valuesyaml">Example values.yaml</a></h3>
-<pre><code class="language-yaml">ingress:
-  enabled: true
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      location /oidc/token {
-      deny all;
-      return 403;
-      }
-  hosts:
-  - host: auth.example.com
-    paths:
-    - path: /
-      pathType: Prefix
-  # Make sure that the secret `auth-dzerv-art-cert` exists or gets created by cert-manager
-  tls:
-  - hosts:
-    - auth.example.com
-    secretName: auth-example-com-cert
-persistence:
-  enabled: true
-  size: 1Gi
-
-config:
-  title: Example Auth Service
-  external_url: "https://auth.example.com"
-  auth_url_enable: true
-  request_enable: true # Defaults to CI Notify
-
-  oidc_enable: true
-  oidc_clients:
-  - id: SFOSOtKaOgwdnSkEyeDiztJE5LY0AMZJ0feDezV2620 # Generated with `gpg --gen-random 2 32 | basenc --base64url -w 0`
-    secret: zwn7k2Vj-Ux5K382lTPbDbeckDEsrpIWDfPVdV07RLOdrOYGIxLP5z25t6Y7J_1wwJ07rfRU_XeKF3ODCj6NGQ # Generated with `gpg --gen-random 2 64 | basenc --base64url -w 0`
-    redirect_uris:
-    - https://myservice.example.com/auth/openid/callback
-    realms:
-    - myservice
-
-  users:
-  - name: My Awesome Name
-    email: awesome@example.com
-    username: awesome
-    realms:
-    # `all` is a special realm that allows access to all realms
-    # for more check out the [realms](./realms.md) section
-    - all
-  - name: A guest
-    email: guest@example.com
-    username: guest
-    realms:
-    - myservice
-</code></pre>
-<p>To make an ingress resource use the <code>auth.example.com</code> as <a href="https://kubernetes.github.io/ingress-nginx/examples/auth/oauth-external-auth/">auth-url</a>
-you can add the following annotations to the ingress resource:</p>
-<pre><code class="language-yaml">magicentry.rs/realms: myservice
-magicentry.rs/auth-url: "true"
-nginx.ingress.kubernetes.io/auth-url: "http://magicentry.auth.svc.cluster.local:8080/auth-url/status"
-nginx.ingress.kubernetes.io/auth-signin: "https://auth.example.com/login"
-nginx.ingress.kubernetes.io/server-snippet: |
-  location = /__magicentry_auth_code {
-      add_header Set-Cookie "code=$arg_code; Path=/; HttpOnly; Secure; Max-Age=60; SameSite=Lax";
-      return 302 /;
-  }
-</code></pre>
+                        <h1 id="development"><a class="header" href="#development">Development</a></h1>
+<p>Resources that target people that want to contribute to the project.</p>
+<ul>
+<li><a href="flows.html">Flows</a></li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="introduction.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="configuration.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
 
-                            <a rel="next prefetch" href="configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="flows.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
 
@@ -281,11 +197,11 @@ nginx.ingress.kubernetes.io/server-snippet: |
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="introduction.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="configuration.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
 
-                    <a rel="next prefetch" href="configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="flows.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
             </nav>

@@ -89,7 +89,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li></ol>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="introduction.html"><strong aria-hidden="true">1.</strong> Introduction</a></li><li class="chapter-item expanded "><a href="installation.html"><strong aria-hidden="true">2.</strong> Installation</a></li><li class="chapter-item expanded "><a href="configuration.html"><strong aria-hidden="true">3.</strong> Configuration</a></li><li class="chapter-item expanded "><a href="development.html"><strong aria-hidden="true">4.</strong> Development</a></li><li><ol class="section"><li class="chapter-item expanded "><a href="flows.html"><strong aria-hidden="true">4.1.</strong> Flows</a></li></ol></li></ol>
             </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -303,6 +303,97 @@ users:
       - public
 
 </code></pre>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="development"><a class="header" href="#development">Development</a></h1>
+<p>Resources that target people that want to contribute to the project.</p>
+<ul>
+<li><a href="flows.html">Flows</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="flows"><a class="header" href="#flows">Flows</a></h1>
+<p>This page describes the available paths of interaction that a user or client can take.</p>
+<p>"Client" is any third-party application that uses the API and "user" is a browser and is considered a physical person.</p>
+<h2 id="global-login"><a class="header" href="#global-login">Global Login</a></h2>
+<p>This flow describes the login process that a user needs to take to gain access to any user-bound resource.</p>
+<p>There's no other path that a user can take to authenticate themselves.</p>
+<ol>
+<li>(Optional) Visit the index (<code>GET /</code>) and get redirected to <code>/login</code></li>
+<li>(Optional) View the page that contains the form to initiate the login process (<code>GET /login</code>)</li>
+<li>Post the user's email address (<code>POST /login</code>) in a form-data format with the email having the input name <code>email</code>
+<ul>
+<li>A "magic link" should be delivered to the user by some means (HTTP request, e-mail, etc.)</li>
+</ul>
+</li>
+<li>(Optional) View the resulting success message, regardless of the actual existence of the user (to avoid leaking valid email addresses)</li>
+<li>Visit the magic link (<code>GET /link/{magic}</code>), gain a valid session (cookie for example)
+<ul>
+<li>The session and the link should be valid only for the same user that initiated the flow</li>
+<li>The session and the link should not be valid after the first visit</li>
+<li>The link should be valid for a limited amount of time, enough to allow for possible delivery latency (e.g. 4 hours for possible email gray-listing)</li>
+<li>The session should be valid for a limited amount of time</li>
+</ul>
+</li>
+</ol>
+<h2 id="global-logout"><a class="header" href="#global-logout">Global Logout</a></h2>
+<p>This flow describes the flow that allows a user to invalidate its current session.</p>
+<p>There's no other path that a user can take to un-authenticate themselves.</p>
+<ol>
+<li>Visit the logout page (<code>GET /logout</code>)
+<ul>
+<li>The session ID gained during login should no longer be valid</li>
+<li>Delete the session storage (e.g. cookie) that the ID is held</li>
+</ul>
+</li>
+</ol>
+<h2 id="global-status"><a class="header" href="#global-status">Global Status</a></h2>
+<p>This is the page that shows the current state of the authenticated user</p>
+<ol>
+<li>Visit the index page (<code>GET /</code>)
+<ul>
+<li>Show the current user name, email, username</li>
+<li>Show the current global sessions, scoped sessions and client authorizations (TODO)</li>
+</ul>
+</li>
+</ol>
+<h2 id="scoped-login"><a class="header" href="#scoped-login">Scoped Login</a></h2>
+<p>This flow is targeted for clients and not for users.</p>
+<p>This allows any configured client to be able to authenticate the user while hosted under a different domain
+thus maintaining the secrecy of the global session (which would give total control of the user's data to the client)</p>
+<p>The most common use case is to alter a proxy's responses according to the authentication status of the user</p>
+<p>For example using <a href="https://kubernetes.github.io/ingress-nginx/">ingress-nginx</a> to show a private page only to users that are authenticated for <code>hello.example.com</code> using the <a href="https://kubernetes.github.io/ingress-nginx/examples/auth/oauth-external-auth/">auth-url</a> annotation.</p>
+<ol>
+<li>(Optional) Visit the target application (<code>https://hello.example.com/</code>)</li>
+<li>Redirect the user to the login page with the target scope as a url-encoded query parameter (<code>GET /login?scope=https%3A%2F%2Fhello.example.com%2F</code>)
+<ul>
+<li>The target application URL should be checked against the possible valid applications (e.g. from the config file)</li>
+</ul>
+</li>
+<li>Set the scope in a user-faced storage (e.g. cookie)</li>
+<li>(if the user does not have a valid global session) Initiate and finish the <a href="flows.html#global-login">Global Login flow</a></li>
+<li>Redirect the user back to the application according to the scope while passing a scoped session code as a query parameter (<code>https://hello.example.com/?code=&lt;scoped-code&gt;</code>)
+<ul>
+<li>A scoped session code must abide by the scoped session rules described in <a href="flows.html#global-login">Global Login</a></li>
+<li>A scoped session code must only be valid for requests that their headers <code>X-Original-Url</code> and <code>Referer</code> point to a sub-directory of the path (<code>https://hello.example.com</code>)</li>
+<li>A scoped session code must be bound to the global session that it was created from and it can't out-live it</li>
+<li>A scoped session code must be valid for a very short amount of time (until the proxy is able to set it as a cookie and the service can replace it)</li>
+<li>A scoped session code must only be valid for one time use</li>
+</ul>
+</li>
+</ol>
+<h2 id="scoped-login---long-term-session"><a class="header" href="#scoped-login---long-term-session">Scoped Login - long term session</a></h2>
+<p>As the <a href="flows.html#scoped-login">Scoped Login</a> flow generates a valid scoped session that is leaked through a GET request, the generated scoped session code must get replaced by a different scoped session transfered during the first use of the code</p>
+<ol>
+<li>Request the status of the user's authentication (<code>GET /status</code>) with the appropriate <code>X-Original-Url</code> and <code>Referer</code> headers (e.g. through a <a href="https://kubernetes.github.io/ingress-nginx/examples/rewrite/">rewrite</a>)
+<ul>
+<li>If it's the first request after the <a href="flows.html#scoped-login">Scoped Login flow</a>, an accompanied scoped session code must be transferred through a cookie (<code>scoped_session_code</code>) and a new long-lived scoped session cookie should be sent to the user that is valid for the appropriate target URL
+<ul>
+<li>The new scoped session must be valid for as long as the bound global session is valid for</li>
+<li>The new scoped session must be valid for the exact host AND path that the proxy checks the status (e.g. the rewrite target, <code>https://hello.example.com/auth-status</code>)</li>
+<li>The old scoped session code should no longer be valid</li>
+</ul>
+</li>
+<li>If it's any follow-up request the scoped session should be validated and on success return <code>HTTP OK 200</code></li>
+</ul>
+</li>
+</ol>
 
                     </main>
 
