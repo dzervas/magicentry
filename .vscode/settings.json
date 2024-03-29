@@ -19,6 +19,7 @@
 		"rngs",
 		"Seedable",
 		"sqlx",
+		"unauthenticate",
 		"urlencoding",
 		"userinfo",
 		"webauthn"
