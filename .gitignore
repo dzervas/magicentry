@@ -26,3 +26,5 @@ target/
 /test
 node_modules
 /static/*.build.*
+/docs/book
+/book

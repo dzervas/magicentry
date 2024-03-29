@@ -9,6 +9,7 @@
 		"hasher",
 		"jwks",
 		"keypair",
+		"Kuberentes",
 		"lettre",
 		"magicentry",
 		"oidc",
