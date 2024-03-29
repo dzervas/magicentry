@@ -1,3 +1,5 @@
+#![warn(rust_2018_idioms)]
+
 use lazy_static::lazy_static;
 use tokio::sync::RwLock;
 

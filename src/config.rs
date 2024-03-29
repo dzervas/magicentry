@@ -1,4 +1,3 @@
-use actix_web::dev::ServerHandle;
 use chrono::Duration;
 use notify::{RecommendedWatcher, Watcher};
 use reindeer::{AsBytes, Db, Entity};
@@ -117,31 +116,20 @@ impl ConfigFile {
 		format!("{}://{}{}", scheme, host, path_prefix)
 	}
 
-	fn _reload(config: &mut Self) -> crate::error::Result<()> {
+	pub async fn reload() -> crate::error::Result<()> {
+		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
 		*config = serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
 		Ok(())
 	}
 
-	pub async fn reload() -> crate::error::Result<()> {
-		let mut config = CONFIG.write().await;
-		Self::_reload(&mut config)
-	}
-
-	pub fn reload_blocking() -> crate::error::Result<()> {
-		let mut config = CONFIG.try_write();
-		while config.is_err() { config = CONFIG.try_write() }
-
-		Self::_reload(&mut config.unwrap())
-	}
-
-	pub fn watch(handle: ServerHandle) -> RecommendedWatcher {
+	pub fn watch() -> RecommendedWatcher {
 		let mut watcher = notify::recommended_watcher(
 			move |_| {
 				futures::executor::block_on(async {
-					log::info!("Waiting for server to shut down...");
-					handle.stop(true).await;
-					ConfigFile::reload_blocking().unwrap();
+					if let Err(e) = ConfigFile::reload().await {
+						log::error!("Failed to reload config file: {}", e);
+					}
 				})
 			},
 		).expect("Failed to create watcher");

@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, HashMap};
 
-use actix_web::dev::ServerHandle;
 use futures::{StreamExt, TryStreamExt};
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::api::WatchEvent;
@@ -97,25 +96,12 @@ impl IngressConfig {
 	}
 }
 
-pub async fn watch(handle: ServerHandle) -> Result<()> {
+pub async fn watch() -> Result<()> {
 	let client = Client::try_default().await?;
 	let ingresses: Api<Ingress> = Api::all(client);
 
 	log::info!("Watching for Ingresses");
 
-	// watcher(ingresses, watcher::Config::default())
-	// .applied_objects()
-	// .try_for_each(|r| async move {
-	// 	if skip_initial {
-	// 		skip_initial = false;
-	// 		return Ok(());
-	// 	}
-
-	// 	println!("Ingress Updated: {:?}", r);
-	// 	Ok(())
-	// }).await?;
-
-	// let wp = WatchParams::default();
 	let mut stream = ingresses.watch(&Default::default(), "0").await?.boxed();
 	while let Some(status) = stream.try_next().await? {
 		let ingress = match status {
@@ -136,49 +122,8 @@ pub async fn watch(handle: ServerHandle) -> Result<()> {
 			continue;
 		};
 
-		// if let WatchEvent::Added(_) = status {
-		// 	let config = CONFIG.read().await;
-		// 	if config.auth_url_scopes.iter().any(|s| s.origin == ingress_config.) {
-		// 		// We already know about this ingress
-		// 		return Ok(());
-		// 	}
-		// }
-
 		log::info!("Saw ingress modification {:?}", ingress.metadata.name.as_ref().unwrap());
-	}
-
-	Ok(())
-}
-
-pub async fn get_current() -> Result<()> {
-	let client = Client::try_default().await?;
-	let ingresses: Api<Ingress> = Api::all(client);
-
-	let ingress_list = ingresses.list(&Default::default()).await?;
-	let ingresses = ingress_list
-		.iter()
-		.filter(|ingress| ingress.metadata.annotations.is_some())
-		.filter(|ingress|
-			ingress.metadata.annotations
-				.as_ref()
-				.unwrap()
-				.iter()
-				.any(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
-		)
-		.collect::<Vec<&Ingress>>();
-
-	let mut config = CONFIG.write().await;
-	config.title = "Ingresses".to_string();
-	println!("Updated title: {}", config.title);
-	drop(config);
-
-	for ingress in ingresses {
-		let Some(ingress_config) = IngressConfig::from_map(ingress.metadata.annotations.as_ref().unwrap()) else {
-			log::warn!("Ingress {:?} has invalid magicentry.rs annotations", ingress.metadata.name.as_ref().unwrap());
-			continue;
-		};
-
-		ingress_config.process(ingress).await?;
+		ingress_config.process(&ingress).await?;
 	}
 
 	Ok(())

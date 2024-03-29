@@ -24,6 +24,7 @@ pub fn get_partial(name: &str, mut data: BTreeMap<&str, String>) -> Result<Strin
 	// TODO: Serialize the whole CONFIG
 	data.insert("title", config.title.clone());
 	data.insert("path_prefix", path_prefix.to_string());
+	drop(config);
 
 	let result = TEMPLATES.render(name, &data)?;
 

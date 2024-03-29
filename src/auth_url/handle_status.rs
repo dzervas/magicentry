@@ -7,7 +7,7 @@ use crate::{CONFIG, SCOPED_SESSION_COOKIE};
 
 #[get("/auth-url/status")]
 async fn status(req: HttpRequest, db: web::Data<reindeer::Db>) -> Response {
-	let (token, cookie): (ScopedSessionToken, Option<Cookie>) = if let Ok(Some(token)) = ScopedSessionToken::from_session(&db, &req).await {
+	let (token, cookie): (ScopedSessionToken, Option<Cookie<'_>>) = if let Ok(Some(token)) = ScopedSessionToken::from_session(&db, &req).await {
 		#[cfg(debug_assertions)]
 		println!("Found scoped session from proxy cookie: {:?}", &token.code);
 		(token, None)

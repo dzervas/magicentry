@@ -19,13 +19,13 @@ pub async fn main() -> std::io::Result<()> {
 
 	ConfigFile::reload().await.expect("Failed to load config file");
 	loop {
-		#[cfg(feature = "kube")]
-		config_kube::get_current().await.expect("Failed to get current config");
-
 		let config = CONFIG.read().await;
 		let cookie_duration = config.session_duration.clone().to_std().expect("Couldn't parse session_duration");
 		let oidc_enable = config.oidc_enable.clone();
 		let webauthn_enable = config.webauthn_enable.clone();
+		let listen_host = config.listen_host.clone();
+		let listen_port = config.listen_port.clone();
+
 		let db = reindeer::open(config.database_url.clone().as_str()).expect("Failed to open reindeer database.");
 		config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 		token::register_token_kind(&db).expect("Failed to register token kinds");
@@ -63,6 +63,7 @@ pub async fn main() -> std::io::Result<()> {
 
 		// OIDC setup
 		let oidc_key = oidc::init(&db).await;
+		drop(config);
 
 		let server = HttpServer::new(move || {
 			let webauthn = webauthn::init().expect("Failed to create webauthn object");
@@ -126,13 +127,13 @@ pub async fn main() -> std::io::Result<()> {
 			app
 		})
 		.disable_signals()
-		.bind(format!("{}:{}", config.listen_host.clone(), config.listen_port.clone()))?
+		.bind(format!("{}:{}", listen_host, listen_port))?
 		.run();
 
-		let _config_watcher = config::ConfigFile::watch(server.handle());
+		let _config_watcher = config::ConfigFile::watch();
 
 		#[cfg(feature = "kube")]
-		let _kube_watcher = config_kube::watch(server.handle()).await.expect("Failed to watch for Ingresses");
+		let _kube_watcher = config_kube::watch().await.expect("Failed to watch for Ingresses");
 
 		server.await?
 	}
