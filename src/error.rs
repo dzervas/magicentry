@@ -284,3 +284,17 @@ impl From<tokio::sync::TryLockError> for Error {
 		format!("Mutex lock error: {}", error).into()
 	}
 }
+
+#[cfg(feature = "kube")]
+impl From<kube::Error> for Error {
+	fn from(error: kube::Error) -> Self {
+		format!("Kube error: {}", error).into()
+	}
+}
+
+#[cfg(feature = "kube")]
+impl From<kube::runtime::watcher::Error> for Error {
+	fn from(error: kube::runtime::watcher::Error) -> Self {
+		format!("Kube error: {}", error).into()
+	}
+}

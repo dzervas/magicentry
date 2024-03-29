@@ -19,6 +19,9 @@ pub async fn main() -> std::io::Result<()> {
 
 	ConfigFile::reload().await.expect("Failed to load config file");
 	loop {
+		#[cfg(feature = "kube")]
+		config_kube::get_current().await.expect("Failed to get current config");
+
 		let config = CONFIG.read().await;
 		let cookie_duration = config.session_duration.clone().to_std().expect("Couldn't parse session_duration");
 		let oidc_enable = config.oidc_enable.clone();
@@ -126,8 +129,10 @@ pub async fn main() -> std::io::Result<()> {
 		.bind(format!("{}:{}", config.listen_host.clone(), config.listen_port.clone()))?
 		.run();
 
-		println!("Server running on http://{}:{}", config.listen_host.clone(), config.listen_port.clone());
-		let _watcher = config::ConfigFile::watch(server.handle());
+		let _config_watcher = config::ConfigFile::watch(server.handle());
+
+		#[cfg(feature = "kube")]
+		let _kube_watcher = config_kube::watch(server.handle()).await.expect("Failed to watch for Ingresses");
 
 		server.await?
 	}

@@ -5,6 +5,8 @@ use crate::config::ConfigFile;
 
 pub mod auth_url;
 pub mod config;
+#[cfg(feature = "kube")]
+pub mod config_kube;
 pub mod error;
 pub mod token;
 pub mod oidc;
