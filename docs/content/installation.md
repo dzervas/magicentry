@@ -1,4 +1,7 @@
-# Installation
+---
+title: Installation
+weight: 20
+---
 
 ## Standalone
 
@@ -7,7 +10,7 @@ MagicEntry can be used as a standalone application.
 Download the latest release from the [releases page](https://github.com/dzervas/magicentry/releases).
 
 You most probably need the non `-kube` version (the `-kube` has Kubernetes capabilities -
-for running MagicEntry in Kuberentes see the [relevant section](usge.md#kubernetes)).
+for running MagicEntry in Kuberentes see the [relevant section](#kubernetes)).
 
 ```bash
 ./magicentry
@@ -32,7 +35,7 @@ again the default configuration is used, but you can mount your own configuratio
 docker run -v $(pwd)/config.yaml:/config.yaml -p 127.0.0.1:8080:8080 ghcr.io/dzervas/magicentry:latest
 ```
 
-## Kuberentes
+## Kubernetes
 
 You can use the official helm chart to deploy MagicEntry in Kubernetes:
 

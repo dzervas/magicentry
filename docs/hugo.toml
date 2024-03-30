@@ -1,0 +1,7 @@
+baseURL = "https://magicentry.rs/"
+languageCode = "en-us"
+title = "MagicEntry"
+theme = "github.com/onweru/compose"
+
+[outputs]
+	home = ["HTML", "RSS","JSON"]

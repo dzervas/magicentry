@@ -5,9 +5,19 @@ on:
   push:
     branches:
       - main
+    paths:
+      - .cargo/**
+      - Cargo.toml
+      - src/**
+      - .github/workflows/test.yaml
   pull_request:
     branches:
       - main
+    paths:
+      - .cargo/**
+      - Cargo.*
+      - src/**
+      - .github/workflows/test.yaml
 
 jobs:
   test:

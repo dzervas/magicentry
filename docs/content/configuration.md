@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Configuration
+weight: 10
+---
 
 MagicEntry is configured via a yaml file. You can check out the complete
 default configuration [here](https://github.com/dzervas/magicentry/blob/main/config.sample.yaml).
@@ -33,5 +36,4 @@ users:
     realms:
       - example
       - public
-
 ```

@@ -1,4 +1,7 @@
-# Introduction
+---
+title: MagicEntry
+weight: 1
+---
 
 MagicEntry is a simple identity provider. Its target use case is for hobbyists
 and small organizations that need a simple way to manage user accounts and access

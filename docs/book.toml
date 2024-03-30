@@ -1,9 +1,0 @@
-[book]
-authors = ["Dimitris Zervas"]
-language = "en"
-multilingual = false
-src = "src"
-title = "MagicEntry"
-
-[output.html]
-cname = "magicentry.rs"
