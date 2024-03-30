@@ -70,6 +70,9 @@ jobs:
             triplet: x86_64-unknown-linux-gnu
           - name: aarch64
             triplet: aarch64-unknown-linux-gnu
+        feature:
+          - default
+          - kube
     steps:
       - uses: actions/checkout@v4
 
@@ -88,8 +91,8 @@ jobs:
 
       - name: Compile
         run: |
-          cargo build --release --target ${{ matrix.target.triplet }}
-          cp target/${{ matrix.target.triplet }}/release/magicentry magicentry-${{ matrix.target.name }}
+          cargo build --release --target ${{ matrix.target.triplet }} --features ${{ matrix.feature }}
+          cp target/${{ matrix.target.triplet }}/release/magicentry magicentry-${{ matrix.feature }}-${{ matrix.target.name }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -129,6 +132,9 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
+        feature:
+          - default
+          - kube
     permissions:
       contents: read
       packages: write
@@ -153,16 +159,15 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.actor }}/magicentry
+          images: ghcr.io/${{ github.repository }}
           tags: |
-            # On a pull request, tag the image with the PR ID e.g. pr-123
-            type=ref,event=pr
-            # Add the short commit hash as a tag
             type=sha
-            # Add the latest tag if this is the main (default) branch
-            type=raw,value=latest,enable={{ is_default_branch }}
-            # Add the version tag if this is a release
-            type=raw,value=v${{ needs.bump.outputs.app }},enable={{ is_default_branch }}
+
+            type=raw,value=latest,enable=${{ matrix.feature == 'default' }}
+            type=raw,value=v${{ needs.bump.outputs.app }},enable=${{ matrix.feature == 'default' }}
+
+            type=raw,value=${{ matrix.feature }}-latest,enable=${{ matrix.feature != 'default' }}
+            type=raw,value=${{ matrix.feature }}-v${{ needs.bump.outputs.app }},enable=${{ matrix.feature != 'default' }}
 
       - name: Docker Build
         uses: docker/build-push-action@v5
@@ -171,7 +176,6 @@ jobs:
           cache-to: type=gha,mode=max
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # If we don't specify the platform, it also pushes for unknown/unknown
           platforms: ${{ matrix.platform }}
 
   chart:

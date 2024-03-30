@@ -5,6 +5,7 @@ edition = "2021"
 rust-version = "1.77"
 
 [features]
+default = []
 kube = [
 	"dep:kube",
 	"dep:k8s-openapi",
