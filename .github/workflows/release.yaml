@@ -82,7 +82,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          prefix-key: ${{ steps.rust.outputs.cachekey }}
+          prefix-key: ${{ steps.rust.outputs.cachekey }}-${{ matrix.target.triplet }}-${{ matrix.feature }}
 
       - name: Compile
         run: |
@@ -175,8 +175,8 @@ jobs:
       - name: Docker Build
         uses: docker/build-push-action@v5
         with:
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=magicentry-${{ matrix.feature }}
+          cache-to: type=gha,mode=max,scope=magicentry-${{ matrix.feature }}
           push: true
           build-args: |
             FEATURES=${{ matrix.feature }}
