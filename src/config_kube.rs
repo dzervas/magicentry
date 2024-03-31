@@ -92,6 +92,8 @@ impl IngressConfig {
 			}
 		}
 
+		drop(config);
+
 		Ok(())
 	}
 }

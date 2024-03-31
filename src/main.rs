@@ -8,6 +8,7 @@ use actix_web::cookie::{Key, SameSite};
 use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
 use reindeer::Entity;
+use tokio::select;
 
 // Do not compile in tests at all as the SmtpTransport is not available
 #[actix_web::main]
@@ -18,123 +19,130 @@ pub async fn main() -> std::io::Result<()> {
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
 	ConfigFile::reload().await.expect("Failed to load config file");
-	loop {
-		let config = CONFIG.read().await;
-		let cookie_duration = config.session_duration.clone().to_std().expect("Couldn't parse session_duration");
-		let oidc_enable = config.oidc_enable.clone();
-		let webauthn_enable = config.webauthn_enable.clone();
-		let listen_host = config.listen_host.clone();
-		let listen_port = config.listen_port.clone();
 
-		let db = reindeer::open(config.database_url.clone().as_str()).expect("Failed to open reindeer database.");
-		config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-		token::register_token_kind(&db).expect("Failed to register token kinds");
-		webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
+	let config = CONFIG.read().await;
+	let cookie_duration = config.session_duration.clone().to_std().expect("Couldn't parse session_duration");
+	let oidc_enable = config.oidc_enable.clone();
+	let webauthn_enable = config.webauthn_enable.clone();
+	let listen_host = config.listen_host.clone();
+	let listen_port = config.listen_port.clone();
+	let title = config.title.clone();
+	let external_url = config.external_url.clone();
 
-		let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
-			let secret = secret_kv.value.expect("Failed to load secret from database");
-			let master = hex::decode(secret).expect("Failed to decode secret - is something wrong with the database?");
-			Key::from(&master)
-		} else {
-			let key = Key::generate();
-			let master = hex::encode(key.master());
+	let db = reindeer::open(config.database_url.clone().as_str()).expect("Failed to open reindeer database.");
+	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
+	token::register_token_kind(&db).expect("Failed to register token kinds");
+	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
 
-			ConfigKV::set(ConfigKeys::Secret, Some(master), &db).expect("Unable to set secret in the database");
+	let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
+		let secret = secret_kv.value.expect("Failed to load secret from database");
+		let master = hex::decode(secret).expect("Failed to decode secret - is something wrong with the database?");
+		Key::from(&master)
+	} else {
+		let key = Key::generate();
+		let master = hex::encode(key.master());
 
-			key
-		};
+		ConfigKV::set(ConfigKeys::Secret, Some(master), &db).expect("Unable to set secret in the database");
 
-		// Mailer setup
-		let mailer: Option<SmtpTransport> = if config.smtp_enable {
-			Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config.smtp_url)
-				.expect("Failed to create mailer - is the `smtp_url` correct?")
-				.pool_config(smtp::PoolConfig::new())
-				.build())
-		} else {
-			None
-		};
+		key
+	};
 
-		// HTTP client setup
-		let http_client = if config.request_enable {
-			Some(reqwest::Client::new())
-		} else {
-			None
-		};
+	// Mailer setup
+	let mailer: Option<SmtpTransport> = if config.smtp_enable {
+		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config.smtp_url)
+			.expect("Failed to create mailer - is the `smtp_url` correct?")
+			.pool_config(smtp::PoolConfig::new())
+			.build())
+	} else {
+		None
+	};
 
-		// OIDC setup
-		let oidc_key = oidc::init(&db).await;
-		drop(config);
+	// HTTP client setup
+	let http_client = if config.request_enable {
+		Some(reqwest::Client::new())
+	} else {
+		None
+	};
 
-		let server = HttpServer::new(move || {
-			let webauthn = webauthn::init().expect("Failed to create webauthn object");
+	// OIDC setup
+	let oidc_key = oidc::init(&db).await;
+	drop(config);
 
-			let mut app = App::new()
-				// Data
-				.app_data(web::Data::new(db.clone()))
-				.app_data(web::Data::new(mailer.clone()))
-				.app_data(web::Data::new(http_client.clone()))
+	let server = HttpServer::new(move || {
+		let webauthn = webauthn::init(title.clone(), external_url.clone()).expect("Failed to create webauthn object");
 
-				.default_service(web::route().to(error::not_found))
+		let mut app = App::new()
+			// Data
+			.app_data(web::Data::new(db.clone()))
+			.app_data(web::Data::new(mailer.clone()))
+			.app_data(web::Data::new(http_client.clone()))
 
-				// Auth routes
-				.service(handle_index::index)
-				.service(handle_login_page::login_page)
-				.service(handle_login_action::login_action)
-				.service(handle_login_link::login_link)
-				.service(handle_logout::logout)
-				.service(handle_static::static_files)
-				.service(handle_static::favicon)
+			.default_service(web::route().to(error::not_found))
 
-				.service(auth_url::handle_status::status)
-				.service(auth_url::handle_response::response)
+			// Auth routes
+			.service(handle_index::index)
+			.service(handle_login_page::login_page)
+			.service(handle_login_action::login_action)
+			.service(handle_login_link::login_link)
+			.service(handle_logout::logout)
+			.service(handle_static::static_files)
+			.service(handle_static::favicon)
 
-				// Middleware
-				.wrap(Logger::default())
-				.wrap(
-					SessionMiddleware::builder(
-						CookieSessionStore::default(),
-						secret.clone()
-					)
-					.cookie_same_site(SameSite::Lax)
-					.session_lifecycle(
-						actix_session::config::PersistentSession::default()
-							.session_ttl(
-								actix_web::cookie::time::Duration::try_from(cookie_duration)
-								.expect("Couldn't set session_ttl - something is wrong with session_duration"))
-					)
-					.build());
+			.service(auth_url::handle_status::status)
+			.service(auth_url::handle_response::response)
 
-			// OIDC routes
-			if oidc_enable {
-				app = app.app_data(web::Data::new(oidc_key.clone()))
-					.service(oidc::handle_discover::discover)
-					.service(oidc::handle_authorize::authorize_get)
-					.service(oidc::handle_authorize::authorize_post)
-					.service(oidc::handle_token::token)
-					.service(oidc::handle_jwks::jwks)
-					.service(oidc::handle_userinfo::userinfo);
-			}
+			// Middleware
+			.wrap(Logger::default())
+			.wrap(
+				SessionMiddleware::builder(
+					CookieSessionStore::default(),
+					secret.clone()
+				)
+				.cookie_same_site(SameSite::Lax)
+				.session_lifecycle(
+					actix_session::config::PersistentSession::default()
+						.session_ttl(
+							actix_web::cookie::time::Duration::try_from(cookie_duration)
+							.expect("Couldn't set session_ttl - something is wrong with session_duration"))
+				)
+				.build());
 
-			if webauthn_enable {
-				app = app
-					.app_data(web::Data::new(webauthn))
-					.service(webauthn::handle_reg_start::reg_start)
-					.service(webauthn::handle_reg_finish::reg_finish)
-					.service(webauthn::handle_auth_start::auth_start)
-					.service(webauthn::handle_auth_finish::auth_finish);
-			}
+		// OIDC routes
+		if oidc_enable {
+			app = app.app_data(web::Data::new(oidc_key.clone()))
+				.service(oidc::handle_discover::discover)
+				.service(oidc::handle_authorize::authorize_get)
+				.service(oidc::handle_authorize::authorize_post)
+				.service(oidc::handle_token::token)
+				.service(oidc::handle_jwks::jwks)
+				.service(oidc::handle_userinfo::userinfo);
+		}
 
-			app
-		})
-		.disable_signals()
-		.bind(format!("{}:{}", listen_host, listen_port))?
-		.run();
+		if webauthn_enable {
+			app = app
+				.app_data(web::Data::new(webauthn))
+				.service(webauthn::handle_reg_start::reg_start)
+				.service(webauthn::handle_reg_finish::reg_finish)
+				.service(webauthn::handle_auth_start::auth_start)
+				.service(webauthn::handle_auth_finish::auth_finish);
+		}
 
-		let _config_watcher = config::ConfigFile::watch();
+		app
+	})
+	.bind(format!("{}:{}", listen_host, listen_port))
+	.unwrap()
+	.run();
 
-		#[cfg(feature = "kube")]
-		let _kube_watcher = config_kube::watch().await.expect("Failed to watch for Ingresses");
+	let _config_watcher = config::ConfigFile::watch();
 
-		server.await?
+	if cfg!(feature = "kube") {
+		let kube_watcher = config_kube::watch();
+
+		select! {
+			r = server => r,
+			k = kube_watcher => Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Kube watcher failed: {:?}", k))),
+		}
+	} else {
+		server.await
 	}
 }
