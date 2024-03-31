@@ -82,8 +82,8 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
 	let magic_link = format!("{}/login/{}", base_url, link.code);
-	let name = &user.name.clone().unwrap_or_default();
-	let username = &user.username.clone().unwrap_or_default();
+	let name = &user.name.clone();
+	let username = &user.username.clone();
 
 	#[cfg(debug_assertions)]
 	println!("Link: {} {:?}", &magic_link, link);

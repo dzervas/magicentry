@@ -36,8 +36,8 @@ async fn response(session: Session, db: web::Data<reindeer::Db>, proxied_rewrite
 	Ok(HttpResponse::Ok()
 		// TODO: Add realm
 		.append_header((config.auth_url_email_header.as_str(), scoped_session.user.email.clone()))
-		.append_header((config.auth_url_user_header.as_str(), scoped_session.user.username.unwrap_or_default()))
-		.append_header((config.auth_url_name_header.as_str(), scoped_session.user.name.unwrap_or_default()))
-		// .append_header((config.auth_url_realm_header.as_str(), user.realms.join(", ")))
+		.append_header((config.auth_url_user_header.as_str(), scoped_session.user.username.clone()))
+		.append_header((config.auth_url_name_header.as_str(), scoped_session.user.name.clone()))
+		.append_header((config.auth_url_realms_header.as_str(), scoped_session.user.realms.join(",")))
 		.finish())
 }

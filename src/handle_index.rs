@@ -28,9 +28,9 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 		Ok(HttpResponse::Ok()
 			// TODO: Add realm
 			.append_header((config.auth_url_email_header.as_str(), token.user.email.clone()))
-			.append_header((config.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
-			.append_header((config.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()))
-			// .append_header((config.auth_url_realm_header.as_str(), user.realms.join(", ")))
+			.append_header((config.auth_url_user_header.as_str(), token.user.username.clone()))
+			.append_header((config.auth_url_name_header.as_str(), token.user.name.clone()))
+			.append_header((config.auth_url_realms_header.as_str(), token.user.realms.join(",")))
 			.content_type(ContentType::html())
 			.body(index_page))
 	}

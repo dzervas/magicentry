@@ -163,11 +163,13 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
-		let resp_userinfo = serde_json::from_slice::<UserInfoResponse>(&body).unwrap();
+		let resp_userinfo = serde_json::from_slice::<UserInfoResponse<'_>>(&body).unwrap();
 		assert_eq!(resp_userinfo, UserInfoResponse {
-			user: "valid@example.com".to_string(),
-			email: "valid@example.com".to_string(),
-			preferred_username: "valid".to_string(),
+			user: "valid@example.com",
+			name: "Valid User",
+			email: "valid@example.com",
+			email_verified: true,
+			preferred_username: "valid",
 		})
 	}
 }

@@ -5,10 +5,10 @@ use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
-	pub username: Option<String>,
+	pub username: String,
 	pub realms: Vec<String>,
 	pub email: String,
-	pub name: Option<String>,
+	pub name: String,
 }
 
 impl User {

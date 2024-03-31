@@ -29,10 +29,9 @@ async fn status(req: HttpRequest, db: web::Data<reindeer::Db>) -> Response {
 	let config = CONFIG.read().await;
 	let response = response_builder
 		.insert_header((config.auth_url_email_header.as_str(), token.user.email.clone()))
-		.insert_header((config.auth_url_user_header.as_str(), token.user.username.unwrap_or_default()))
-		.insert_header((config.auth_url_name_header.as_str(), token.user.name.unwrap_or_default()));
-		// TODO: Add realm
-		// .insert_header((config.auth_url_realm_header.as_str(), user.realms.join(", ")));
+		.insert_header((config.auth_url_user_header.as_str(), token.user.username.clone()))
+		.insert_header((config.auth_url_name_header.as_str(), token.user.name.clone()))
+		.insert_header((config.auth_url_realms_header.as_str(), token.user.realms.join(",")));
 
 	if let Some(cookie) = cookie {
 		Ok(response.cookie(cookie).finish())

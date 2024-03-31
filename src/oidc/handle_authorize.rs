@@ -130,12 +130,9 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 	let redirect_url_authority = redirect_url_uri.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_str = format!("{}://{}", redirect_url_scheme, redirect_url_authority);
 
-	let name = token.user.name.unwrap_or("(empty)".to_string());
-	let username = token.user.username.unwrap_or("(empty)".to_string());
-
 	let mut authorize_data = BTreeMap::new();
-	authorize_data.insert("name", name.clone());
-	authorize_data.insert("username", username.clone());
+	authorize_data.insert("name", token.user.name.clone());
+	authorize_data.insert("username", token.user.username.clone());
 	authorize_data.insert("email", token.user.email.clone());
 	authorize_data.insert("client", redirect_url_str.clone());
 	authorize_data.insert("link", redirect_url.clone());

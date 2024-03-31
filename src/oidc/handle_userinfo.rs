@@ -28,23 +28,25 @@ pub async fn token_from_request(db: &reindeer::Db, req: HttpRequest) -> Result<U
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct UserInfoResponse {
+pub struct UserInfoResponse<'a> {
 	#[serde(rename = "sub")]
-	pub user: String,
-	pub email: String,
-	pub preferred_username: String,
+	pub user: &'a str,
+	pub name: &'a str,
+	pub email: &'a str,
+	pub email_verified: bool,
+	pub preferred_username: &'a str,
 }
 
 #[get("/oidc/userinfo")]
 pub async fn userinfo(db: web::Data<reindeer::Db>, req: HttpRequest) -> Response {
 	let user = token_from_request(&db, req).await?;
 
-	let username = user.username.unwrap_or(user.email.clone());
-
 	let resp = UserInfoResponse {
-		user: user.email.clone(),
-		email: user.email.clone(),
-		preferred_username: username,
+		user: &user.email,
+		name: &user.name,
+		email: &user.email,
+		email_verified: true,
+		preferred_username: &user.username,
 	};
 
 	Ok(HttpResponse::Ok().json(resp))
