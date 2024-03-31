@@ -34,4 +34,4 @@ jobs:
           prefix-key: ${{ steps.rust.outputs.cachekey }}
 
       - name: Test
-        run: cargo test --release
+        run: cargo test --release --all-features

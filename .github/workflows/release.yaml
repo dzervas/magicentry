@@ -168,6 +168,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           push: true
+          build-args: |
+            FEATURES=${{ matrix.feature }}
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platform }}
 

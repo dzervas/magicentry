@@ -18,14 +18,14 @@ COPY .cargo .cargo
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
 	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
 	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \
-	cargo build && \
+	cargo build --all-features && \
 	rm target/debug/deps/magicentry*
 
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
 	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
 	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \
-	cargo build && \
+	cargo build --all-features && \
 	cp target/debug/magicentry /usr/local/bin/
 
 ENV CONFIG_FILE=/config.yaml

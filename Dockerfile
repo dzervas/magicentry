@@ -22,10 +22,11 @@ COPY Cargo.toml Cargo.lock .
 COPY .cargo .cargo
 
 # Enable mount-type caching and dependency caching to be compatible with github actions
-RUN cargo build --release --target $(cat /.target-triplet) && rm target/$(cat /.target-triplet)/release/deps/magicentry*
+ARG FEATURES="default"
+RUN cargo build --release --features=$FEATURES --target $(cat /.target-triplet) && rm target/$(cat /.target-triplet)/release/deps/magicentry*
 
 COPY . .
-RUN cargo build --release --target $(cat /.target-triplet) && cp target/$(cat /.target-triplet)/release/magicentry .
+RUN cargo build --release --features=$FEATURES --target $(cat /.target-triplet) && cp target/$(cat /.target-triplet)/release/magicentry .
 
 FROM gcr.io/distroless/cc-debian12
 
