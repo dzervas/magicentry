@@ -8,6 +8,7 @@ use actix_web::cookie::{Key, SameSite};
 use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
 use reindeer::Entity;
+#[cfg(feature = "kube")]
 use tokio::select;
 
 // Do not compile in tests at all as the SmtpTransport is not available
@@ -135,14 +136,18 @@ pub async fn main() -> std::io::Result<()> {
 
 	let _config_watcher = config::ConfigFile::watch();
 
-	if cfg!(feature = "kube") {
+	#[cfg(feature = "kube")]
+	{
 		let kube_watcher = config_kube::watch();
 
 		select! {
 			r = server => r,
 			k = kube_watcher => Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Kube watcher failed: {:?}", k))),
 		}
-	} else {
+	}
+
+	#[cfg(not(feature = "kube"))]
+	{
 		server.await
 	}
 }
