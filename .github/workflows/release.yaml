@@ -69,7 +69,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: v${{ needs.bump.outputs.app }}
+          ref: ${{ needs.bump.outputs.new_ref }}
 
       - run: sudo apt-get install -y gcc-aarch64-linux-gnu
         if: matrix.target.triplet == 'aarch64-unknown-linux-gnu'
@@ -133,7 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: v${{ needs.bump.outputs.app }}
+          ref: ${{ needs.bump.outputs.new_ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -194,7 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: v${{ needs.bump.outputs.app }}
+          ref: ${{ needs.bump.outputs.new_ref }}
 
       - name: Install Helm
         uses: azure/setup-helm@v4
