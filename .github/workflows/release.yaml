@@ -21,12 +21,11 @@ jobs:
       contents: write
     outputs:
       app: ${{ steps.new_app.outputs.new_version }}
-      chart: ${{ steps.new_chart.outputs.new_version }}
       new_ref: ${{ steps.commit.outputs.commit_hash }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Current chart version
+      - name: Current versions
         id: version
         run: |
           echo "app=$(grep -oP '(?<=^version = ")[\w\.]+' Cargo.toml)" >> $GITHUB_OUTPUT
@@ -38,16 +37,10 @@ jobs:
           current_version: ${{ steps.version.outputs.app }}
           level: ${{ github.event.inputs.bump }}
 
-      - uses: actions-ecosystem/action-bump-semver@v1
-        id: new_chart
-        with:
-          current_version: ${{ steps.version.outputs.app }}
-          level: patch
-
       - name: Update Chart.yaml and Cargo.toml
         run: |
           sed -i "s/^appVersion: .*/appVersion: ${{ steps.new_app.outputs.new_version }}/" chart/Chart.yaml
-          sed -i "s/^version: .*/version: ${{ steps.new_chart.outputs.new_version }}/" chart/Chart.yaml
+          sed -i "s/^version: .*/version: ${{ steps.new_app.outputs.new_version }}/" chart/Chart.yaml
           sed -i "s/^version = .*/version = \"${{ steps.new_app.outputs.new_version }}\"/" Cargo.toml
 
       - name: Commit changes
