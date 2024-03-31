@@ -68,6 +68,8 @@ jobs:
           - kube
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: v${{ needs.bump.outputs.app }}
 
       - run: sudo apt-get install -y gcc-aarch64-linux-gnu
         if: matrix.target.triplet == 'aarch64-unknown-linux-gnu'
@@ -122,9 +124,6 @@ jobs:
     needs: bump
     strategy:
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
         feature:
           - default
           - kube
@@ -134,7 +133,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.new_ref }}
+          ref: v${{ needs.bump.outputs.app }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -153,6 +152,17 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          # org.opencontainers.image.created=
+          annotations: |
+            org.opencontainers.image.title=MagicEntry
+            org.opencontainers.image.description=A simple identity provider for human beings
+            org.opencontainers.image.vendor=dzervas
+            org.opencontainers.image.authors=Dimitris Zervas <dzervas@dzervas.gr>
+            org.opencontainers.image.url=https://magicentry.rs
+            org.opencontainers.image.documentation=https://magicentry.rs
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.bump.outputs.app }}
+            org.opencontainers.image.revision=v${{ needs.bump.outputs.app }}
           tags: |
             type=sha
 
@@ -171,7 +181,9 @@ jobs:
           build-args: |
             FEATURES=${{ matrix.feature }}
           tags: ${{ steps.meta.outputs.tags }}
-          platforms: ${{ matrix.platform }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
 
   chart:
     runs-on: ubuntu-latest
@@ -182,7 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.bump.outputs.new_ref }}
+          ref: v${{ needs.bump.outputs.app }}
 
       - name: Install Helm
         uses: azure/setup-helm@v4
