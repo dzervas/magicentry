@@ -15,6 +15,8 @@ pub struct Discovery<'a> {
 	pub authorization_endpoint: String,
 	pub token_endpoint: String,
 	pub userinfo_endpoint: String,
+	pub end_session_endpoint: String,
+	// TODO: check_session_iframe
 	pub jwks_uri: String,
 
 	#[serde(serialize_with = "serialize_vec_with_space")]
@@ -29,13 +31,14 @@ pub struct Discovery<'a> {
 }
 
 impl<'a> Discovery<'a> {
-	pub fn new(base: &'a str) -> Self {
+	pub async fn new(base: &'a str, external_url: &'a str) -> Self {
 		Discovery {
 			issuer: base,
 
-			authorization_endpoint: format!("{}/oidc/authorize", base),
+			authorization_endpoint: format!("{}/oidc/authorize", external_url),
 			token_endpoint: format!("{}/oidc/token", base),
 			userinfo_endpoint: format!("{}/oidc/userinfo", base),
+			end_session_endpoint: format!("{}/logout", external_url),
 			jwks_uri: format!("{}/oidc/jwks", base),
 
 			scopes_supported: vec!["openid", "profile", "email"],
@@ -54,6 +57,7 @@ impl<'a> Discovery<'a> {
 pub async fn discover(req: HttpRequest) -> impl Responder {
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
-	let discovery = Discovery::new(&base_url);
+	let external_url = config.external_url.clone();
+	let discovery = Discovery::new(&base_url, &external_url).await;
 	HttpResponse::Ok().json(discovery)
 }

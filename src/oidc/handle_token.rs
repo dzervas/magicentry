@@ -1,4 +1,3 @@
-use actix_web::HttpRequest;
 use actix_web::{post, web, HttpResponse};
 use chrono::Utc;
 use jwt_simple::algorithms::RS256KeyPair;
@@ -44,13 +43,13 @@ pub struct JWTData {
 }
 
 impl JWTData {
-	pub async fn new(base_url: &str) -> Self {
+	pub async fn new() -> Self {
 		let config = CONFIG.read().await;
 		let expiry = Utc::now() + config.session_duration;
 		JWTData {
 			user: String::default(),
 			client_id: String::default(),
-			from_url: base_url.to_string(),
+			from_url: config.external_url.clone(),
 			expires_at: expiry.timestamp() as u64,
 			iat: Utc::now().timestamp() as u64,
 		}
@@ -58,7 +57,7 @@ impl JWTData {
 }
 
 #[post("/oidc/token")]
-pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
+pub async fn token(db: web::Data<reindeer::Db>, token_req: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
 	#[cfg(debug_assertions)]
 	log::info!("Token request: {:?}", token_req);
 
@@ -101,9 +100,8 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 		return Err(AppErrorKind::NoClientCredentialsProvided.into());
 	}
 
-	let base_url = config.url_from_request(&req);
-	let id_token = auth_req.generate_id_token(&session.user, &base_url, jwt_keypair.as_ref()).await?;
-	let access_token = OIDCBearerToken::new(&db, session.user, None, None).await?.code;
+	let id_token = auth_req.generate_id_token(&session.user, jwt_keypair.as_ref()).await?;
+	let access_token = OIDCBearerToken::new(&db, session.user, session.bound_to, None).await?.code;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,
