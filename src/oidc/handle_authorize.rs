@@ -59,11 +59,11 @@ impl AuthorizeRequest {
 			self.state.clone().unwrap_or_default()))
 	}
 
-	pub async fn generate_id_token(&self, user: &User, keypair: &RS256KeyPair) -> Result<String, Error> {
+	pub async fn generate_id_token(&self, user: &User, url: String, keypair: &RS256KeyPair) -> Result<String, Error> {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
-			..JWTData::new().await
+			..JWTData::new(url).await
 		};
 		println!("JWT Data: {:?}", jwt_data);
 
