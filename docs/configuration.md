@@ -1,7 +1,4 @@
----
-title: Configuration
-weight: 10
----
+# Configuration
 
 MagicEntry is configured via a yaml file. You can check out the complete
 default configuration [here](https://github.com/dzervas/magicentry/blob/main/config.sample.yaml).

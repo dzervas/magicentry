@@ -38,16 +38,15 @@ jobs:
         id: pages
         uses: actions/configure-pages@v4
 
-      - name: Build
-        run: hugo -e production -s docs -b "${{ steps.pages.outputs.base_url }}" --minify
-
-      - name: Populate CNAME
-        run: echo "${{ steps.pages.outputs.base_url }}" > docs/public/CNAME
+      - name: Add static content
+        run: |
+          cp static/favicon.ico docs/favicon.ico
+          echo "${{ steps.pages.outputs.base_url }}" > docs/CNAME
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/public
+          path: docs
 
   # Deployment job
   deploy:

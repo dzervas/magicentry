@@ -1,7 +1,4 @@
----
-title: Flows
-weight: 35
----
+# Flows
 
 This page describes the available paths of interaction that a user or client can take.
 
