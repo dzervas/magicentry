@@ -105,7 +105,14 @@ pub async fn watch() -> Result<()> {
 	log::info!("Watching for Ingresses");
 
 	let mut stream = ingresses.watch(&Default::default(), "0").await?.boxed();
-	while let Some(status) = stream.try_next().await? {
+
+	loop {
+		let Some(status) = stream.try_next().await? else {
+			log::error!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
+			tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+			continue;
+		};
+
 		let ingress = match status {
 			WatchEvent::Added(i) | WatchEvent::Modified(i) | WatchEvent::Deleted(i) => i,
 			_ => continue,
@@ -127,6 +134,4 @@ pub async fn watch() -> Result<()> {
 		log::info!("Saw ingress modification {:?}", ingress.metadata.name.as_ref().unwrap());
 		ingress_config.process(&ingress).await?;
 	}
-
-	Ok(())
 }
