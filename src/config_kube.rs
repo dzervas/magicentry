@@ -97,6 +97,35 @@ impl IngressConfig {
 
 		Ok(())
 	}
+
+	pub async fn from_ingress(ingress: &Ingress) -> Option<Self> {
+		let annotations = get_ingress_annotations(ingress).await;
+		Self::from_map(&annotations)
+	}
+}
+
+async fn get_ingress_annotations(ingress: &Ingress) -> BTreeMap<String, String> {
+	ingress.metadata.annotations
+		.as_ref()
+		.unwrap_or(&BTreeMap::new())
+		.iter()
+		.filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
+		.map(|(k, v)| (k.clone(), v.clone()))
+		.collect()
+}
+
+async fn process_ingress(ingress: &Ingress) {
+	let name = ingress.metadata.name.clone().unwrap_or_default();
+
+	log::debug!("Inspecting ingress resource {}", name);
+	let Some(ingress_config) = IngressConfig::from_ingress(&ingress).await else {
+		return
+	};
+
+	log::info!("Discovered ingress {}", name);
+	ingress_config.process(&ingress).await.unwrap_or_else(|e| {
+		log::error!("Failed to process ingress {}: {:?}", name, e);
+	});
 }
 
 pub async fn watch() -> Result<()> {
@@ -108,30 +137,21 @@ pub async fn watch() -> Result<()> {
 	loop {
 		watcher::watcher(ingresses.clone(), Default::default())
 			.try_for_each(|event| async move {
-				// TODO: Take care of deleted events too
-				let Event::Applied(ingress) = event else {
-					return Ok(());
-				};
-
-				let Some(annotations) = ingress.metadata.annotations.as_ref() else {
-					return Ok(());
-				};
-
-				if !annotations.iter().any(|(k, _)| k.starts_with(ANNOTATION_PREFIX)) {
-					return Ok(());
+				match event {
+					Event::Applied(ingress) => {
+						process_ingress(&ingress).await;
+					}
+					Event::Restarted(ingresses) => {
+						let handles = ingresses.iter().map(|ingress| {
+							process_ingress(&ingress)
+						});
+						futures::future::join_all(handles).await;
+					}
+					Event::Deleted(ingress) => {
+						// TODO: Take care of deleted events too
+						log::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.clone().unwrap_or_default());
+					}
 				}
-
-				let name = ingress.metadata.name.clone().unwrap_or_default();
-
-				let Some(ingress_config) = IngressConfig::from_map(annotations) else {
-					log::warn!("Ingress {} has invalid magicentry.rs annotations", name);
-					return Ok(());
-				};
-
-				log::info!("Saw ingress modification {}", name);
-				ingress_config.process(&ingress).await.unwrap_or_else(|e| {
-					log::error!("Failed to process ingress {}: {:?}", name, e);
-				});
 
 				Ok(())
 			}
