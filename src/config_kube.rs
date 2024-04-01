@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
-use futures::{StreamExt, TryStreamExt};
+use futures::TryStreamExt;
 use k8s_openapi::api::networking::v1::Ingress;
-use kube::api::WatchEvent;
+use kube::runtime::watcher::Event;
+use kube::runtime::watcher;
 use kube::{Api, Client};
 use serde::{Deserialize, Serialize};
 
@@ -104,34 +105,43 @@ pub async fn watch() -> Result<()> {
 
 	log::info!("Watching for Ingresses");
 
-	let mut stream = ingresses.watch(&Default::default(), "0").await?.boxed();
-
 	loop {
-		let Some(status) = stream.try_next().await? else {
-			log::error!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
-			tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-			continue;
-		};
+		watcher::watcher(ingresses.clone(), Default::default())
+			.try_for_each(|event| async move {
+				// TODO: Take care of deleted events too
+				let Event::Applied(ingress) = event else {
+					return Ok(());
+				};
 
-		let ingress = match status {
-			WatchEvent::Added(i) | WatchEvent::Modified(i) | WatchEvent::Deleted(i) => i,
-			_ => continue,
-		};
+				let Some(annotations) = ingress.metadata.annotations.as_ref() else {
+					return Ok(());
+				};
 
-		let Some(annotations) = ingress.metadata.annotations.as_ref() else {
-			continue;
-		};
+				if !annotations.iter().any(|(k, _)| k.starts_with(ANNOTATION_PREFIX)) {
+					return Ok(());
+				}
 
-		if !annotations.iter().any(|(k, _)| k.starts_with(ANNOTATION_PREFIX)) {
-			continue;
-		}
+				let name = ingress.metadata.name.clone().unwrap_or_default();
 
-		let Some(ingress_config) = IngressConfig::from_map(annotations) else {
-			log::warn!("Ingress {:?} has invalid magicentry.rs annotations", ingress.metadata.name.as_ref().unwrap());
-			continue;
-		};
+				let Some(ingress_config) = IngressConfig::from_map(annotations) else {
+					log::warn!("Ingress {} has invalid magicentry.rs annotations", name);
+					return Ok(());
+				};
 
-		log::info!("Saw ingress modification {:?}", ingress.metadata.name.as_ref().unwrap());
-		ingress_config.process(&ingress).await?;
+				log::info!("Saw ingress modification {}", name);
+				ingress_config.process(&ingress).await.unwrap_or_else(|e| {
+					log::error!("Failed to process ingress {}: {:?}", name, e);
+				});
+
+				Ok(())
+			}
+		)
+		.await
+		.unwrap_or_else(|e| {
+			log::error!("Ingress watch stream ended unexpectedly: {:?}", e);
+		});
+
+		log::warn!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
+		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 	}
 }
