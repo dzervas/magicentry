@@ -38,7 +38,7 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["full"] }
 urlencoding = "2.1"
 uuid = { version = "1.7", features = ["serde", "v4"] }
-webauthn-rs = { version = "0.4.8", features = ["danger-allow-state-serialisation"] }
+webauthn-rs = { version = "0.5.0", features = ["danger-allow-state-serialisation"] }
 md5 = "0.7.0"
 
 # Dependency of webauthn-rs that needs to be vendored
