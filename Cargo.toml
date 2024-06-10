@@ -12,7 +12,7 @@ kube = [
 ]
 
 [dependencies]
-actix-web = "4.6"
+actix-web = "4.7"
 actix-session = { version = "0.9", features = ["cookie-session"] }
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = "0.99.17"
