@@ -1,12 +1,12 @@
 use magicentry::config::{ConfigFile, ConfigKV, ConfigKeys};
 pub use magicentry::*;
 
-use lettre::transport::smtp;
 use actix_session::storage::CookieSessionStore;
 use actix_session::SessionMiddleware;
 use actix_web::cookie::{Key, SameSite};
-use actix_web::{web, App, HttpServer};
 use actix_web::middleware::Logger;
+use actix_web::{web, App, HttpServer};
+use lettre::transport::smtp;
 use reindeer::Entity;
 #[cfg(feature = "kube")]
 use tokio::select;
@@ -19,10 +19,16 @@ pub async fn main() -> std::io::Result<()> {
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
-	ConfigFile::reload().await.expect("Failed to load config file");
+	ConfigFile::reload()
+		.await
+		.expect("Failed to load config file");
 
 	let config = CONFIG.read().await;
-	let cookie_duration = config.session_duration.clone().to_std().expect("Couldn't parse session_duration");
+	let cookie_duration = config
+		.session_duration
+		.clone()
+		.to_std()
+		.expect("Couldn't parse session_duration");
 	let oidc_enable = config.oidc_enable.clone();
 	let webauthn_enable = config.webauthn_enable.clone();
 	let listen_host = config.listen_host.clone();
@@ -30,30 +36,37 @@ pub async fn main() -> std::io::Result<()> {
 	let title = config.title.clone();
 	let external_url = config.external_url.clone();
 
-	let db = reindeer::open(config.database_url.clone().as_str()).expect("Failed to open reindeer database.");
+	let db = reindeer::open(config.database_url.clone().as_str())
+		.expect("Failed to open reindeer database.");
 	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 	token::register_token_kind(&db).expect("Failed to register token kinds");
 	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
 
 	let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
-		let secret = secret_kv.value.expect("Failed to load secret from database");
-		let master = hex::decode(secret).expect("Failed to decode secret - is something wrong with the database?");
+		let secret = secret_kv
+			.value
+			.expect("Failed to load secret from database");
+		let master = hex::decode(secret)
+			.expect("Failed to decode secret - is something wrong with the database?");
 		Key::from(&master)
 	} else {
 		let key = Key::generate();
 		let master = hex::encode(key.master());
 
-		ConfigKV::set(ConfigKeys::Secret, Some(master), &db).expect("Unable to set secret in the database");
+		ConfigKV::set(ConfigKeys::Secret, Some(master), &db)
+			.expect("Unable to set secret in the database");
 
 		key
 	};
 
 	// Mailer setup
 	let mailer: Option<SmtpTransport> = if config.smtp_enable {
-		Some(smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config.smtp_url)
-			.expect("Failed to create mailer - is the `smtp_url` correct?")
-			.pool_config(smtp::PoolConfig::new())
-			.build())
+		Some(
+			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config.smtp_url)
+				.expect("Failed to create mailer - is the `smtp_url` correct?")
+				.pool_config(smtp::PoolConfig::new())
+				.build(),
+		)
 	} else {
 		None
 	};
@@ -70,7 +83,8 @@ pub async fn main() -> std::io::Result<()> {
 	drop(config);
 
 	let server = HttpServer::new(move || {
-		let webauthn = webauthn::init(title.clone(), external_url.clone()).expect("Failed to create webauthn object");
+		let webauthn = webauthn::init(title.clone(), external_url.clone())
+			.expect("Failed to create webauthn object");
 
 		let mut app = App::new()
 			// Data
@@ -110,8 +124,10 @@ pub async fn main() -> std::io::Result<()> {
 
 		// OIDC routes
 		if oidc_enable {
-			app = app.app_data(web::Data::new(oidc_key.clone()))
+			app = app
+				.app_data(web::Data::new(oidc_key.clone()))
 				.service(oidc::handle_discover::discover)
+				.service(oidc::handle_discover::discover_preflight)
 				.service(oidc::handle_authorize::authorize_get)
 				.service(oidc::handle_authorize::authorize_post)
 				.service(oidc::handle_token::token)
