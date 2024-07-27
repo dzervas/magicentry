@@ -23,8 +23,7 @@ impl User {
 	}
 
 	pub fn has_any_realm(&self, realms: &[String]) -> bool {
-		self.realms.contains(&"all".to_string()) ||
-		self.realms.iter().any(|r| realms.contains(r))
+		self.realms.contains(&"all".to_string()) || self.realms.iter().any(|r| realms.contains(r))
 	}
 
 	pub fn from_config_blocking(email: &str) -> Option<User> {
@@ -67,7 +66,9 @@ pub mod as_string {
 		serializer.serialize_str(&user.email)
 	}
 
-	pub fn deserialize<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<User, D::Error> {
+	pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+		deserializer: D,
+	) -> Result<User, D::Error> {
 		let email = String::deserialize(deserializer)?;
 		// let runtime = rt::Runtime::new().unwrap();
 		User::from_config_blocking(&email).ok_or(serde::de::Error::custom("User not found"))

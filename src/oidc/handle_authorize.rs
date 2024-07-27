@@ -5,16 +5,16 @@ use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
 use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
-use log::info;
 use jwt_simple::prelude::*;
+use log::info;
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
-use crate::token::{OIDCCodeToken, SessionToken};
 use crate::oidc::handle_token::JWTData;
+use crate::token::{OIDCCodeToken, SessionToken};
 use crate::user::User;
-use crate::{AUTHORIZATION_COOKIE, CONFIG};
 use crate::utils::get_partial;
+use crate::{AUTHORIZATION_COOKIE, CONFIG};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthorizeRequest {
@@ -28,7 +28,12 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn generate_session_code(&self, db: &reindeer::Db, user: User, bound_to: String) -> std::result::Result<OIDCCodeToken, Error> {
+	pub async fn generate_session_code(
+		&self,
+		db: &reindeer::Db,
+		user: User,
+		bound_to: String,
+	) -> std::result::Result<OIDCCodeToken, Error> {
 		let self_string = String::try_from(self)?;
 		OIDCCodeToken::new(db, user, Some(bound_to), Some(self_string)).await
 	}
@@ -41,25 +46,35 @@ impl AuthorizeRequest {
 		};
 
 		let config = CONFIG.read().await;
-		let config_client = config.oidc_clients
-			.iter()
-			.find(|c|
-				user.has_any_realm(&c.realms) &&
-				c.id == self.client_id &&
-				c.redirect_uris.contains(&redirect_url));
+		let config_client = config.oidc_clients.iter().find(|c| {
+			user.has_any_realm(&c.realms)
+				&& c.id == self.client_id
+				&& c.redirect_uris.contains(&redirect_url)
+		});
 
 		if config_client.is_none() {
-			log::warn!("Invalid redirect_uri: {} for client_id: {}", redirect_url, self.client_id);
+			log::warn!(
+				"Invalid redirect_uri: {} for client_id: {}",
+				redirect_url,
+				self.client_id
+			);
 			return None;
 		}
 
-		Some(format!("{}?code={}&state={}",
+		Some(format!(
+			"{}?code={}&state={}",
 			redirect_url,
 			code,
-			self.state.clone().unwrap_or_default()))
+			self.state.clone().unwrap_or_default()
+		))
 	}
 
-	pub async fn generate_id_token(&self, user: &User, url: String, keypair: &RS256KeyPair) -> Result<String, Error> {
+	pub async fn generate_id_token(
+		&self,
+		user: &User,
+		url: String,
+		keypair: &RS256KeyPair,
+	) -> Result<String, Error> {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
@@ -71,10 +86,13 @@ impl AuthorizeRequest {
 		let claims = Claims::with_custom_claims(
 			jwt_data,
 			Duration::from_millis(
-				config.session_duration
-				.num_milliseconds()
-				.try_into()
-				.map_err(|_| AppErrorKind::InvalidDuration)?));
+				config
+					.session_duration
+					.num_milliseconds()
+					.try_into()
+					.map_err(|_| AppErrorKind::InvalidDuration)?,
+			),
+		);
 		let id_token = keypair.sign(claims)?;
 
 		Ok(id_token)
@@ -95,7 +113,12 @@ impl TryFrom<&AuthorizeRequest> for String {
 	}
 }
 
-async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>, auth_req: AuthorizeRequest) -> Response {
+async fn authorize(
+	req: HttpRequest,
+	session: Session,
+	db: web::Data<reindeer::Db>,
+	auth_req: AuthorizeRequest,
+) -> Response {
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 
 	if let Some(code_challenge_method) = auth_req.code_challenge_method.as_ref() {
@@ -117,17 +140,26 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 		let target_url = format!("{}/login?{}", base_url, serde_qs::to_string(&auth_req)?);
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url))
-			.finish())
+			.finish());
 	};
 
-	let oidc_session = auth_req.generate_session_code(&db, token.user.clone(), token.code).await?;
+	let oidc_session = auth_req
+		.generate_session_code(&db, token.user.clone(), token.code)
+		.await?;
 	println!("OIDC Session: {:?}", oidc_session);
 
 	// TODO: Check the state with the cookie for CSRF
-	let redirect_url = auth_req.get_redirect_url(&oidc_session.code, &oidc_session.user).await.ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url = auth_req
+		.get_redirect_url(&oidc_session.code, &oidc_session.user)
+		.await
+		.ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_uri = redirect_url.parse::<Uri>()?;
-	let redirect_url_scheme = redirect_url_uri.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
-	let redirect_url_authority = redirect_url_uri.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url_scheme = redirect_url_uri
+		.scheme_str()
+		.ok_or(AppErrorKind::InvalidRedirectUri)?;
+	let redirect_url_authority = redirect_url_uri
+		.authority()
+		.ok_or(AppErrorKind::InvalidRedirectUri)?;
 	let redirect_url_str = format!("{}://{}", redirect_url_scheme, redirect_url_authority);
 
 	let mut authorize_data = BTreeMap::new();
@@ -146,11 +178,21 @@ async fn authorize(req: HttpRequest, session: Session, db: web::Data<reindeer::D
 }
 
 #[get("/oidc/authorize")]
-pub async fn authorize_get(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>, data: web::Query<AuthorizeRequest>) -> impl Responder {
+pub async fn authorize_get(
+	req: HttpRequest,
+	session: Session,
+	db: web::Data<reindeer::Db>,
+	data: web::Query<AuthorizeRequest>,
+) -> impl Responder {
 	authorize(req, session, db, data.into_inner()).await
 }
 
 #[post("/oidc/authorize")]
-pub async fn authorize_post(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>, data: web::Form<AuthorizeRequest>) -> impl Responder {
+pub async fn authorize_post(
+	req: HttpRequest,
+	session: Session,
+	db: web::Data<reindeer::Db>,
+	data: web::Form<AuthorizeRequest>,
+) -> impl Responder {
 	authorize(req, session, db, data.into_inner()).await
 }

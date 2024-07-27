@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::error::{AppErrorKind, Response};
-use crate::token::{OIDCBearerToken, OIDCCodeToken};
 use crate::oidc::handle_authorize::AuthorizeRequest;
+use crate::token::{OIDCBearerToken, OIDCCodeToken};
 use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -57,13 +57,19 @@ impl JWTData {
 }
 
 #[post("/oidc/token")]
-pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web::Form<TokenRequest>, jwt_keypair: web::Data<RS256KeyPair>) -> Response {
+pub async fn token(
+	req: HttpRequest,
+	db: web::Data<reindeer::Db>,
+	token_req: web::Form<TokenRequest>,
+	jwt_keypair: web::Data<RS256KeyPair>,
+) -> Response {
 	#[cfg(debug_assertions)]
 	log::info!("Token request: {:?}", token_req);
 
 	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
 	println!("Session: {:?}", session);
-	let auth_req = AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
+	let auth_req =
+		AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
 	let config = CONFIG.read().await;
 
 	// TODO: Check the request origin
@@ -73,20 +79,23 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize().clone();
-		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+		let generated_code_challenge =
+			Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(AppErrorKind::InvalidCodeVerifier.into());
 		}
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
-		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
+		let req_client_id = token_req
+			.client_id
+			.clone()
+			.ok_or(AppErrorKind::NoClientID)?;
 		let session_client_id = auth_req.client_id.clone();
-		let config_client = config.oidc_clients
+		let config_client = config
+			.oidc_clients
 			.iter()
-			.find(|c|
-				session.user.has_any_realm(&c.realms) &&
-				c.id == session_client_id)
+			.find(|c| session.user.has_any_realm(&c.realms) && c.id == session_client_id)
 			.ok_or(AppErrorKind::InvalidClientID)?;
 
 		if req_client_id != session_client_id {
@@ -101,8 +110,12 @@ pub async fn token(req: HttpRequest, db: web::Data<reindeer::Db>, token_req: web
 	}
 
 	let base_url = config.url_from_request(&req);
-	let id_token = auth_req.generate_id_token(&session.user, base_url, jwt_keypair.as_ref()).await?;
-	let access_token = OIDCBearerToken::new(&db, session.user, session.bound_to, None).await?.code;
+	let id_token = auth_req
+		.generate_id_token(&session.user, base_url, jwt_keypair.as_ref())
+		.await?;
+	let access_token = OIDCBearerToken::new(&db, session.user, session.bound_to, None)
+		.await?
+		.code;
 
 	Ok(HttpResponse::Ok().json(TokenResponse {
 		access_token,

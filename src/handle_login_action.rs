@@ -5,8 +5,8 @@ use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
-use lettre::{AsyncTransport, Message};
 use lettre::message::header::ContentType as LettreContentType;
+use lettre::{AsyncTransport, Message};
 use log::info;
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
@@ -42,9 +42,7 @@ impl ScopedLogin {
 		let config_scope = config
 			.auth_url_scopes
 			.iter()
-			.find(|c|
-				user.has_any_realm(&c.realms) &&
-				c.origin == origin);
+			.find(|c| user.has_any_realm(&c.realms) && c.origin == origin);
 
 		if config_scope.is_none() {
 			log::warn!("Invalid redirect_uri: {}", redirect_url);
@@ -68,7 +66,14 @@ impl From<ScopedLogin> for String {
 }
 
 #[post("/login")]
-async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginInfo>, db: web::Data<reindeer::Db>, mailer: web::Data<Option<SmtpTransport>>, http_client: web::Data<Option<reqwest::Client>>) -> Response {
+async fn login_action(
+	req: HttpRequest,
+	session: Session,
+	form: web::Form<LoginInfo>,
+	db: web::Data<reindeer::Db>,
+	mailer: web::Data<Option<SmtpTransport>>,
+	http_client: web::Data<Option<reqwest::Client>>,
+) -> Response {
 	let login_action_page = get_partial("login_action", BTreeMap::new())?;
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
@@ -107,7 +112,8 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 	}
 
 	if let Some(client) = http_client.as_ref() {
-		let method = reqwest::Method::from_bytes(config.request_method.as_bytes()).expect("Invalid request_method provided in the config");
+		let method = reqwest::Method::from_bytes(config.request_method.as_bytes())
+			.expect("Invalid request_method provided in the config");
 		let url = formatx!(
 			&config.request_url,
 			title = &config.title,
@@ -136,7 +142,12 @@ async fn login_action(req: HttpRequest, session: Session, form: web::Form<LoginI
 		info!("Sending request for user {}", &user.email);
 		let resp = req.send().await?;
 		if !resp.status().is_success() {
-			log::warn!("Request for user {} failed: {} {}", &user.email, resp.status(), resp.text().await.unwrap_or_default());
+			log::warn!(
+				"Request for user {} failed: {} {}",
+				&user.email,
+				resp.status(),
+				resp.text().await.unwrap_or_default()
+			);
 		}
 	}
 
@@ -165,14 +176,16 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(None::<SmtpTransport>))
 				.app_data(web::Data::new(None::<reqwest::Client>))
-				.service(login_action)
+				.service(login_action),
 		)
 		.await;
 
 		// Login
 		let req = actix_test::TestRequest::post()
 			.uri("/login")
-			.set_form(&LoginInfo { email: "valid@example.com".to_string() })
+			.set_form(&LoginInfo {
+				email: "valid@example.com".to_string(),
+			})
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
@@ -181,15 +194,16 @@ mod tests {
 		// Invalid login
 		let req = actix_test::TestRequest::post()
 			.uri("/login")
-			.set_form(&LoginInfo { email: "invalid@example.com".to_string() })
+			.set_form(&LoginInfo {
+				email: "invalid@example.com".to_string(),
+			})
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
-		let links = MagicLinkToken::get_with_filter(|t| {
-			t.user == "invalid@example.com"
-		}, db).unwrap();
+		let links =
+			MagicLinkToken::get_with_filter(|t| t.user == "invalid@example.com", db).unwrap();
 		assert!(links.is_empty());
 	}
 }

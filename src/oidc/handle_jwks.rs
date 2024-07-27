@@ -35,7 +35,6 @@ pub struct JwksResponse {
 	pub keys: Vec<JWKSResponseItem>,
 }
 
-
 #[get("/oidc/jwks")]
 pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response {
 	let comp = key.as_ref().public_key().to_components();
@@ -46,9 +45,7 @@ pub async fn jwks(key: web::Data<RS256KeyPair>) -> Response {
 		..Default::default()
 	};
 
-	let resp = JwksResponse {
-		keys: vec![item],
-	};
+	let resp = JwksResponse { keys: vec![item] };
 
 	Ok(HttpResponse::Ok().json(resp))
 }

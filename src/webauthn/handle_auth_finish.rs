@@ -17,9 +17,16 @@ pub struct AuthFinishResponse {
 }
 
 #[post("/webauthn/auth/finish")]
-pub async fn auth_finish(session: Session, db: web::Data<reindeer::Db>, webauthn: web::Data<Webauthn>, req: Json<PublicKeyCredential>) -> Result<Json<AuthFinishResponse>> {
+pub async fn auth_finish(
+	session: Session,
+	db: web::Data<reindeer::Db>,
+	webauthn: web::Data<Webauthn>,
+	req: Json<PublicKeyCredential>,
+) -> Result<Json<AuthFinishResponse>> {
 	// Since we trust the registration token and it holds the user, we treat it as an authentication token as well
-	let auth_code = session.remove_as::<String>(WEBAUTHN_COOKIE).ok_or(AppErrorKind::TokenNotFound)??;
+	let auth_code = session
+		.remove_as::<String>(WEBAUTHN_COOKIE)
+		.ok_or(AppErrorKind::TokenNotFound)??;
 	let auth_token = WebauthnToken::from_code(&db, &auth_code).await?;
 	let auth = serde_json::from_str(&auth_token.metadata.ok_or(AppErrorKind::TokenNotFound)?)?;
 

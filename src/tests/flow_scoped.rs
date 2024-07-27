@@ -1,8 +1,8 @@
+use crate::utils::tests::db_connect;
+use crate::*;
 use actix_session::storage::CookieSessionStore;
 use actix_session::SessionMiddleware;
 use actix_web::test::{call_service, TestRequest};
-use crate::utils::tests::db_connect;
-use crate::*;
 
 use actix_web::cookie::{Cookie, Key};
 use actix_web::http::StatusCode;
@@ -25,25 +25,25 @@ async fn test_global_login() {
 			.service(handle_logout::logout)
 			.service(auth_url::handle_status::status)
 			.wrap(
-				SessionMiddleware::builder(
-					CookieSessionStore::default(),
-					secret
-				)
-				.cookie_content_security(actix_session::config::CookieContentSecurity::Signed)
-				.cookie_secure(false)
-				.build())
+				SessionMiddleware::builder(CookieSessionStore::default(), secret)
+					.cookie_content_security(actix_session::config::CookieContentSecurity::Signed)
+					.cookie_secure(false)
+					.build(),
+			),
 	)
 	.await;
 
 	let scope = "http%3A%2F%2Flocalhost%3A8080";
-	let resp = call_service(&mut app,
+	let resp = call_service(
+		&mut app,
 		TestRequest::post()
 			.uri(format!("/login?rd={}", scope).as_str())
 			.set_form(&handle_login_action::LoginInfo {
-				email: "valid@example.com".to_string()
+				email: "valid@example.com".to_string(),
 			})
-			.to_request()
-		).await;
+			.to_request(),
+	)
+	.await;
 	assert_eq!(resp.status(), StatusCode::OK);
 	let headers = resp.headers().clone();
 	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
@@ -62,12 +62,14 @@ async fn test_global_login() {
 
 	println!("Login link: {}", &login_link);
 
-	let resp = call_service(&mut app,
+	let resp = call_service(
+		&mut app,
 		TestRequest::get()
 			.uri(&login_link)
 			.cookie(parsed_cookie)
-			.to_request()
-		).await;
+			.to_request(),
+	)
+	.await;
 	assert_eq!(resp.status(), StatusCode::FOUND);
 	let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
 	println!("Location header: {}", &location_header);
@@ -75,24 +77,28 @@ async fn test_global_login() {
 
 	let one_time_code = location_header.split("=").nth(1).unwrap();
 
-	let resp = call_service(&mut app,
+	let resp = call_service(
+		&mut app,
 		TestRequest::get()
 			.uri("/auth-url/status")
 			.cookie(Cookie::new(PROXIED_COOKIE, one_time_code))
 			.append_header(("x-original-url", "http://localhost:8080"))
-			.to_request()
-		).await;
+			.to_request(),
+	)
+	.await;
 	assert_eq!(resp.status(), StatusCode::OK);
 	let headers = resp.headers().clone();
 	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
 
-	let resp = call_service(&mut app,
+	let resp = call_service(
+		&mut app,
 		TestRequest::get()
 			.uri("/auth-url/status")
 			.cookie(parsed_cookie)
 			.append_header(("x-original-url", "http://localhost:8080"))
-			.to_request()
-		).await;
+			.to_request(),
+	)
+	.await;
 	assert_eq!(resp.status(), StatusCode::OK);
 }

@@ -121,20 +121,20 @@ impl ConfigFile {
 	pub async fn reload() -> crate::error::Result<()> {
 		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-		*config = serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
+		*config =
+			serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
 		Ok(())
 	}
 
 	pub fn watch() -> RecommendedWatcher {
-		let mut watcher = notify::recommended_watcher(
-			move |_| {
-				futures::executor::block_on(async {
-					if let Err(e) = ConfigFile::reload().await {
-						log::error!("Failed to reload config file: {}", e);
-					}
-				})
-			},
-		).expect("Failed to create watcher");
+		let mut watcher = notify::recommended_watcher(move |_| {
+			futures::executor::block_on(async {
+				if let Err(e) = ConfigFile::reload().await {
+					log::error!("Failed to reload config file: {}", e);
+				}
+			})
+		})
+		.expect("Failed to create watcher");
 
 		watcher
 			.watch(CONFIG_FILE.as_ref(), notify::RecursiveMode::NonRecursive)
@@ -166,10 +166,7 @@ pub struct ConfigKV {
 
 impl ConfigKV {
 	pub fn set(key: ConfigKeys, value: Option<String>, db: &Db) -> Result<(), reindeer::Error> {
-		let config = Self {
-			key,
-			value,
-		};
+		let config = Self { key, value };
 
 		config.save(db)
 	}

@@ -9,7 +9,11 @@ use crate::utils::get_post_login_location;
 use crate::SESSION_COOKIE;
 
 #[get("/login/{magic}")]
-async fn login_link(magic: web::Path<String>, session: Session, db: web::Data<reindeer::Db>) -> Response {
+async fn login_link(
+	magic: web::Path<String>,
+	session: Session,
+	db: web::Data<reindeer::Db>,
+) -> Response {
 	let token = MagicLinkToken::from_code(&db, &magic).await?;
 
 	info!("User {} logged in", &token.user.email);
@@ -37,7 +41,7 @@ mod tests {
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
-				.service(login_link)
+				.service(login_link),
 		)
 		.await;
 

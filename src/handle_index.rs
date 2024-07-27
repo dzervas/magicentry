@@ -17,20 +17,40 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	index_data.insert("email", token.user.email.clone());
 	let index_page = get_partial("index", index_data)?;
 
-
 	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {
-		let proxy_cookie = ProxyCookieToken::new(&db, token.user, Some(token.code.clone()), Some(scope.clone())).await?;
+		let proxy_cookie = ProxyCookieToken::new(
+			&db,
+			token.user,
+			Some(token.code.clone()),
+			Some(scope.clone()),
+		)
+		.await?;
 		Ok(HttpResponse::Found()
-			.append_header((header::LOCATION, format!("{}?code={}", scope, proxy_cookie.code)))
+			.append_header((
+				header::LOCATION,
+				format!("{}?code={}", scope, proxy_cookie.code),
+			))
 			.finish())
 	} else {
 		let config = CONFIG.read().await;
 		Ok(HttpResponse::Ok()
 			// TODO: Add realm
-			.append_header((config.auth_url_email_header.as_str(), token.user.email.clone()))
-			.append_header((config.auth_url_user_header.as_str(), token.user.username.clone()))
-			.append_header((config.auth_url_name_header.as_str(), token.user.name.clone()))
-			.append_header((config.auth_url_realms_header.as_str(), token.user.realms.join(",")))
+			.append_header((
+				config.auth_url_email_header.as_str(),
+				token.user.email.clone(),
+			))
+			.append_header((
+				config.auth_url_user_header.as_str(),
+				token.user.username.clone(),
+			))
+			.append_header((
+				config.auth_url_name_header.as_str(),
+				token.user.name.clone(),
+			))
+			.append_header((
+				config.auth_url_realms_header.as_str(),
+				token.user.realms.join(","),
+			))
 			.content_type(ContentType::html())
 			.body(index_page))
 	}
@@ -41,7 +61,7 @@ mod tests {
 	use super::*;
 	use crate::token::MagicLinkToken;
 	use crate::utils::tests::*;
-	use crate::{SESSION_COOKIE, handle_login_link};
+	use crate::{handle_login_link, SESSION_COOKIE};
 
 	use std::collections::HashMap;
 
@@ -65,13 +85,11 @@ mod tests {
 				.service(index)
 				.service(handle_login_link::login_link)
 				.wrap(
-					SessionMiddleware::builder(
-						CookieSessionStore::default(),
-						secret
-					)
-					.cookie_secure(false)
-					.cookie_same_site(SameSite::Lax)
-					.build())
+					SessionMiddleware::builder(CookieSessionStore::default(), secret)
+						.cookie_secure(false)
+						.cookie_same_site(SameSite::Lax)
+						.build(),
+				),
 		)
 		.await;
 
@@ -101,12 +119,20 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		let config = CONFIG.read().await;
-		assert_eq!(resp.headers().get(config.auth_url_user_header.as_str()).unwrap(), "valid");
-		assert_eq!(resp.headers().get(config.auth_url_email_header.as_str()).unwrap(), "valid@example.com");
+		assert_eq!(
+			resp.headers()
+				.get(config.auth_url_user_header.as_str())
+				.unwrap(),
+			"valid"
+		);
+		assert_eq!(
+			resp.headers()
+				.get(config.auth_url_email_header.as_str())
+				.unwrap(),
+			"valid@example.com"
+		);
 
-		let req = actix_test::TestRequest::get()
-			.uri("/")
-			.to_request();
+		let req = actix_test::TestRequest::get().uri("/").to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);

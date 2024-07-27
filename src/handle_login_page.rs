@@ -14,17 +14,29 @@ use crate::utils::get_partial;
 async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	if let Ok(user_session) = SessionToken::from_session(&db, &session).await {
 		if let Ok(scoped_login) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-			let scoped_token = ProxyCookieToken::new(&db, user_session.user, Some(user_session.code), Some(scoped_login.clone().into())).await?;
-			let redirect_url = scoped_login.get_redirect_url(&scoped_token.code, &scoped_token.user).await.ok_or(AppErrorKind::InvalidRedirectUri)?;
-			info!("Redirecting pre-authenticated user to scope {}", &scoped_login.scope);
+			let scoped_token = ProxyCookieToken::new(
+				&db,
+				user_session.user,
+				Some(user_session.code),
+				Some(scoped_login.clone().into()),
+			)
+			.await?;
+			let redirect_url = scoped_login
+				.get_redirect_url(&scoped_token.code, &scoped_token.user)
+				.await
+				.ok_or(AppErrorKind::InvalidRedirectUri)?;
+			info!(
+				"Redirecting pre-authenticated user to scope {}",
+				&scoped_login.scope
+			);
 			return Ok(HttpResponse::Found()
 				.append_header(("Location", redirect_url.as_str()))
-				.finish())
+				.finish());
 		}
 
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/"))
-			.finish())
+			.finish());
 	}
 
 	let login_page = get_partial("login", BTreeMap::new())?;
@@ -54,22 +66,25 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.service(login_page)
 				.wrap(
-					SessionMiddleware::builder(
-						CookieSessionStore::default(),
-						secret
-					)
-					.cookie_secure(false)
-					.cookie_same_site(SameSite::Lax)
-					.build())
+					SessionMiddleware::builder(CookieSessionStore::default(), secret)
+						.cookie_secure(false)
+						.cookie_same_site(SameSite::Lax)
+						.build(),
+				),
 		)
 		.await;
 
-		let req = actix_test::TestRequest::get()
-			.uri("/login")
-			.to_request();
+		let req = actix_test::TestRequest::get().uri("/login").to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
-		assert_eq!(resp.headers().get("Content-Type").unwrap().to_str().unwrap(), ContentType::html().to_string().as_str());
+		assert_eq!(
+			resp.headers()
+				.get("Content-Type")
+				.unwrap()
+				.to_str()
+				.unwrap(),
+			ContentType::html().to_string().as_str()
+		);
 	}
 }

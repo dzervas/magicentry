@@ -8,14 +8,13 @@ async fn static_files(filename: web::Path<String>) -> HttpResponse {
 		"main.css" => ("main.build.css", "text/css"),
 		"logo.svg" => ("logo.svg", "image/svg+xml"),
 		"webauthn.js" => ("webauthn.build.js", "text/javascript"),
-		_ => return HttpResponse::NotFound().finish()
+		_ => return HttpResponse::NotFound().finish(),
 	};
 
-	let content = fs::read_to_string(format!("static/{}", file)).expect(format!("Unable to open static/{}", file).as_str());
+	let content = fs::read_to_string(format!("static/{}", file))
+		.expect(format!("Unable to open static/{}", file).as_str());
 
-	HttpResponse::Ok()
-		.content_type(content_type)
-		.body(content)
+	HttpResponse::Ok().content_type(content_type).body(content)
 }
 
 #[get("/favicon.ico")]

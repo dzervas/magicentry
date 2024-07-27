@@ -14,30 +14,47 @@ pub struct ProxiedRewrite {
 }
 
 #[get("/auth-url/response")]
-async fn response(session: Session, db: web::Data<reindeer::Db>, proxied_rewrite: web::Query<ProxiedRewrite>) -> Response {
+async fn response(
+	session: Session,
+	db: web::Data<reindeer::Db>,
+	proxied_rewrite: web::Query<ProxiedRewrite>,
+) -> Response {
 	let code = &proxied_rewrite.code;
 
 	let token = if let Ok(token) = ProxyCookieToken::from_code(&db, code).await {
 		token
 	} else {
-		return Ok(HttpResponse::Unauthorized().finish())
+		return Ok(HttpResponse::Unauthorized().finish());
 	};
 
 	let scoped_session = ScopedSessionToken::new(
 		&db,
 		token.user,
 		token.bound_to.clone(),
-		token.metadata.clone()
-	).await?;
+		token.metadata.clone(),
+	)
+	.await?;
 	info!("New scoped session for: {:?}", &token.metadata);
 	session.insert(SCOPED_SESSION_COOKIE, scoped_session.code)?;
 
 	let config = CONFIG.read().await;
 	Ok(HttpResponse::Ok()
 		// TODO: Add realm
-		.append_header((config.auth_url_email_header.as_str(), scoped_session.user.email.clone()))
-		.append_header((config.auth_url_user_header.as_str(), scoped_session.user.username.clone()))
-		.append_header((config.auth_url_name_header.as_str(), scoped_session.user.name.clone()))
-		.append_header((config.auth_url_realms_header.as_str(), scoped_session.user.realms.join(",")))
+		.append_header((
+			config.auth_url_email_header.as_str(),
+			scoped_session.user.email.clone(),
+		))
+		.append_header((
+			config.auth_url_user_header.as_str(),
+			scoped_session.user.username.clone(),
+		))
+		.append_header((
+			config.auth_url_name_header.as_str(),
+			scoped_session.user.name.clone(),
+		))
+		.append_header((
+			config.auth_url_realms_header.as_str(),
+			scoped_session.user.realms.join(","),
+		))
 		.finish())
 }

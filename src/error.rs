@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::string::FromUtf8Error;
 
 use actix_web::http::header::{self, ContentType};
-use actix_web::{error::ResponseError, HttpResponse, http::StatusCode};
+use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error as DeriveError};
 use reqwest::header::ToStrError;
 
@@ -41,11 +41,15 @@ pub enum AppErrorKind {
 	InvalidDuration,
 	#[display(fmt = "Client sent a redirect_uri different from the one in the config")]
 	InvalidRedirectUri,
-	#[display(fmt = "The client_id shown during authorization does not match the client_id provided")]
+	#[display(
+		fmt = "The client_id shown during authorization does not match the client_id provided"
+	)]
 	NotMatchingClientID,
 	#[display(fmt = "Client sent a client_id that is not in the config")]
 	InvalidClientID,
-	#[display(fmt = "Client sent a client_secret that does not correspond to the client_id it sent")]
+	#[display(
+		fmt = "Client sent a client_secret that does not correspond to the client_id it sent"
+	)]
 	InvalidClientSecret,
 	#[display(fmt = "Client did not send a client_id")]
 	NoClientID,
@@ -61,9 +65,11 @@ pub enum AppErrorKind {
 	InvalidOIDCCode,
 	#[display(fmt = "The code_verifier does not match the code_challenge")]
 	InvalidCodeVerifier,
-	#[display(fmt = "The client tried to create a token without providing any credentials (client_verifier or client_secret)")]
+	#[display(
+		fmt = "The client tried to create a token without providing any credentials (client_verifier or client_secret)"
+	)]
 	NoClientCredentialsProvided,
-PasskeyAlreadyRegistered,
+	PasskeyAlreadyRegistered,
 }
 
 #[derive(Debug, Display, DeriveError, Clone)]
@@ -78,13 +84,14 @@ impl ResponseError for Error {
 		if let Some(app_error) = &self.app_error {
 			match app_error {
 				AppErrorKind::TokenNotFound => StatusCode::FOUND,
-				AppErrorKind::NotLoggedIn |
-				AppErrorKind::InvalidOIDCCode |
-				AppErrorKind::InvalidClientID |
-				AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
+				AppErrorKind::NotLoggedIn
+				| AppErrorKind::InvalidOIDCCode
+				| AppErrorKind::InvalidClientID
+				| AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
 				AppErrorKind::NotFound => StatusCode::NOT_FOUND,
-				AppErrorKind::InvalidTargetUser |
-				AppErrorKind::InvalidParentToken => StatusCode::INTERNAL_SERVER_ERROR,
+				AppErrorKind::InvalidTargetUser | AppErrorKind::InvalidParentToken => {
+					StatusCode::INTERNAL_SERVER_ERROR
+				}
 
 				_ => StatusCode::BAD_REQUEST,
 			}
@@ -110,7 +117,9 @@ impl ResponseError for Error {
 			log::warn!("{}", self);
 		}
 
-		if self.app_error == Some(AppErrorKind::TokenNotFound) || self.app_error == Some(AppErrorKind::NotLoggedIn) {
+		if self.app_error == Some(AppErrorKind::TokenNotFound)
+			|| self.app_error == Some(AppErrorKind::NotLoggedIn)
+		{
 			HttpResponse::build(status)
 				.append_header((header::LOCATION, "/login"))
 				.finish()

@@ -9,13 +9,25 @@ use reindeer::{Db, Entity};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::user::User;
-use crate::utils::{get_request_origin, random_string };
-use crate::{PROXIED_COOKIE, SCOPED_SESSION_COOKIE, SESSION_COOKIE};
 use crate::error::{AppErrorKind, Result};
+use crate::user::User;
+use crate::utils::{get_request_origin, random_string};
+use crate::{PROXIED_COOKIE, SCOPED_SESSION_COOKIE, SESSION_COOKIE};
 
 #[allow(async_fn_in_trait)]
-pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd + Ord + Serialize + DeserializeOwned + Send + Sync + Unpin {
+pub trait TokenKindType:
+	std::fmt::Debug
+	+ Clone
+	+ PartialEq
+	+ Eq
+	+ PartialOrd
+	+ Ord
+	+ Serialize
+	+ DeserializeOwned
+	+ Send
+	+ Sync
+	+ Unpin
+{
 	const NAME: &'static str;
 	const EPHEMERAL: bool;
 	type BoundType: TokenKindType;
@@ -27,7 +39,6 @@ pub trait TokenKindType: std::fmt::Debug + Clone + PartialEq + Eq + PartialOrd +
 			.naive_utc()
 			.checked_add_signed(Self::get_duration().await)
 			.expect(format!("Couldn't generate expiry for {:?}", Self::NAME).as_str())
-
 	}
 }
 
@@ -100,7 +111,7 @@ impl<K: TokenKindType> Token<K> {
 
 	pub async fn is_valid(&self, db: &Db) -> Result<bool> {
 		if self.is_expired(db).await? {
-			return Ok(false)
+			return Ok(false);
 		}
 
 		let other = Self::from_code(db, &self.code).await?;
@@ -136,7 +147,12 @@ impl<K: TokenKindType> Token<K> {
 		Ok(token)
 	}
 
-	pub async fn new(db: &Db, user: User, bound_to: Option<String>, metadata: Option<String>) -> Result<Self> {
+	pub async fn new(
+		db: &Db,
+		user: User,
+		bound_to: Option<String>,
+		metadata: Option<String>,
+	) -> Result<Self> {
 		let expires_at = if let Some(bound_code) = &bound_to {
 			let bound_token: Token<K::BoundType> = Token::from_code(db, &bound_code).await?;
 
@@ -169,11 +185,10 @@ impl<K: TokenKindType> Token<K> {
 		let code_opt = Some(self.code.clone());
 
 		// TODO: Use link & cascade instead
-		Self::filter_remove(|t| {
-			t.code == code ||
-			t.bound_to == code_opt ||
-			t.expires_at <= now
-		}, &db)?;
+		Self::filter_remove(
+			|t| t.code == code || t.bound_to == code_opt || t.expires_at <= now,
+			&db,
+		)?;
 
 		Ok(())
 	}
@@ -213,16 +228,25 @@ impl ScopedSessionToken {
 		if let Some(session_id) = req.cookie(SCOPED_SESSION_COOKIE) {
 			let token = ScopedSessionToken::from_code(db, &session_id.value().to_string()).await?;
 			let metadata = token.metadata.clone().unwrap_or_default();
-			let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
-			let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
-			let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+			let scope_parsed = metadata
+				.parse::<Uri>()
+				.map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+			let scope_scheme = scope_parsed
+				.scheme_str()
+				.ok_or(AppErrorKind::InvalidRedirectUri)?;
+			let scope_authority = scope_parsed
+				.authority()
+				.ok_or(AppErrorKind::InvalidRedirectUri)?;
 			let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
 
 			if origin == scope_origin {
 				return Ok(Some(token));
 			}
 
-			warn!("Invalid scope for scoped session: {} vs {}", origin, scope_origin);
+			warn!(
+				"Invalid scope for scoped session: {} vs {}",
+				origin, scope_origin
+			);
 		}
 
 		Ok(None)
@@ -231,28 +255,36 @@ impl ScopedSessionToken {
 
 impl ScopedSessionToken {
 	pub async fn from_proxy_cookie(db: &Db, req: &actix_web::HttpRequest) -> Result<Option<Self>> {
-		let cookie = req.cookie(PROXIED_COOKIE).ok_or(AppErrorKind::MissingCookieHeader)?;
+		let cookie = req
+			.cookie(PROXIED_COOKIE)
+			.ok_or(AppErrorKind::MissingCookieHeader)?;
 
 		let code = cookie.value().to_string();
 		let token = ProxyCookieToken::from_code(db, &code).await?;
 		let metadata = token.metadata.clone().unwrap_or_default();
-		let scope_parsed = metadata.parse::<Uri>().map_err(|_| AppErrorKind::InvalidRedirectUri)?;
-		let scope_scheme = scope_parsed.scheme_str().ok_or(AppErrorKind::InvalidRedirectUri)?;
-		let scope_authority = scope_parsed.authority().ok_or(AppErrorKind::InvalidRedirectUri)?;
+		let scope_parsed = metadata
+			.parse::<Uri>()
+			.map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+		let scope_scheme = scope_parsed
+			.scheme_str()
+			.ok_or(AppErrorKind::InvalidRedirectUri)?;
+		let scope_authority = scope_parsed
+			.authority()
+			.ok_or(AppErrorKind::InvalidRedirectUri)?;
 		let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
 		let origin = get_request_origin(req)?;
 
 		if origin != scope_origin {
-			warn!("Invalid scope for proxy cookie: {} vs {}", &origin, &scope_origin);
+			warn!(
+				"Invalid scope for proxy cookie: {} vs {}",
+				&origin, &scope_origin
+			);
 			return Ok(None);
 		}
 
-		let scoped_session = ScopedSessionToken::new(
-			db,
-			token.user,
-			token.bound_to.clone(),
-			Some(scope_origin)
-		).await?;
+		let scoped_session =
+			ScopedSessionToken::new(db, token.user, token.bound_to.clone(), Some(scope_origin))
+				.await?;
 		info!("New scoped session for: {}", &origin);
 
 		Ok(Some(scoped_session))
@@ -272,14 +304,19 @@ mod tests {
 		let db = &db_connect().await;
 		let user = get_valid_user().await;
 
-		let link = MagicLinkToken::new(db, user.clone(), None, None).await.unwrap();
+		let link = MagicLinkToken::new(db, user.clone(), None, None)
+			.await
+			.unwrap();
 
 		assert_eq!(link.user, user.email);
 		assert_eq!(link.code.len(), RANDOM_STRING_LEN * 2);
 		assert!(link.expires_at > Utc::now().naive_utc());
 
 		// Test visit function
-		let user_from_link = MagicLinkToken::from_code(db, &link.code).await.unwrap().user;
+		let user_from_link = MagicLinkToken::from_code(db, &link.code)
+			.await
+			.unwrap()
+			.user;
 		assert_eq!(user, user_from_link);
 
 		// Test expired UserLink

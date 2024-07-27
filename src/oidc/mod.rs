@@ -4,22 +4,27 @@ use reindeer::{Db, Entity};
 use crate::config::{ConfigKV, ConfigKeys};
 
 pub mod client;
-pub mod handle_discover;
 pub mod handle_authorize;
-pub mod handle_token;
+pub mod handle_discover;
 pub mod handle_jwks;
+pub mod handle_token;
 pub mod handle_userinfo;
 
 pub async fn init(db: &Db) -> RS256KeyPair {
 	if let Ok(Some(keypair)) = ConfigKV::get(&ConfigKeys::JWTKeyPair, db) {
-		let pem = keypair.value.expect("Failed to load JWT keypair from database");
+		let pem = keypair
+			.value
+			.expect("Failed to load JWT keypair from database");
 		RS256KeyPair::from_pem(&pem).expect("Failed to load JWT keypair from database")
 	} else {
 		log::warn!("Generating JWT keypair for RSA 4096. This is going to take some time...");
 		let keypair = RS256KeyPair::generate(4096).expect("Failed to generate RSA 4096 keypair");
-		let keypair_pem = keypair.to_pem().expect("Failed to convert keypair to PEM - that's super weird");
+		let keypair_pem = keypair
+			.to_pem()
+			.expect("Failed to convert keypair to PEM - that's super weird");
 
-		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), &db).expect("Unable to save secret in the database");
+		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), &db)
+			.expect("Unable to save secret in the database");
 
 		keypair
 	}
@@ -36,10 +41,10 @@ mod tests {
 	use actix_session::SessionMiddleware;
 	use actix_web::cookie::Cookie;
 	use actix_web::cookie::Key;
+	use actix_web::http::StatusCode;
+	use actix_web::test as actix_test;
 	use actix_web::web;
 	use actix_web::App;
-	use actix_web::test as actix_test;
-	use actix_web::http::StatusCode;
 
 	use tests::handle_token::TokenRequest;
 	use tests::handle_token::TokenResponse;
@@ -63,12 +68,7 @@ mod tests {
 				.service(handle_authorize::authorize_post)
 				.service(handle_token::token)
 				.service(handle_userinfo::userinfo)
-				.wrap(
-					SessionMiddleware::builder(
-						CookieSessionStore::default(),
-						secret
-					)
-					.build())
+				.wrap(SessionMiddleware::builder(CookieSessionStore::default(), secret).build()),
 		)
 		.await;
 
@@ -107,7 +107,13 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		println!("Headers: {:?}", resp.headers());
-		assert!(resp.headers().get("Location").unwrap().to_str().unwrap().starts_with(redirect_url));
+		assert!(resp
+			.headers()
+			.get("Location")
+			.unwrap()
+			.to_str()
+			.unwrap()
+			.starts_with(redirect_url));
 
 		let headers = resp.headers().clone();
 		let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
@@ -136,7 +142,12 @@ mod tests {
 			.unwrap();
 		assert!(a_href.starts_with(redirect_url));
 		let location_url = reqwest::Url::parse(a_href).unwrap();
-		let code = location_url.query_pairs().find(|(k, _)| k == "code").unwrap().1.to_string();
+		let code = location_url
+			.query_pairs()
+			.find(|(k, _)| k == "code")
+			.unwrap()
+			.1
+			.to_string();
 		println!("New Code: {}", code);
 
 		let req = actix_test::TestRequest::post()
@@ -158,18 +169,24 @@ mod tests {
 
 		let req = actix_test::TestRequest::get()
 			.uri("/oidc/userinfo")
-			.append_header(("Authorization", format!("Bearer {}", resp_token.access_token)))
+			.append_header((
+				"Authorization",
+				format!("Bearer {}", resp_token.access_token),
+			))
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
 		let resp_userinfo = serde_json::from_slice::<UserInfoResponse<'_>>(&body).unwrap();
-		assert_eq!(resp_userinfo, UserInfoResponse {
-			user: "valid@example.com",
-			name: "Valid User",
-			email: "valid@example.com",
-			email_verified: true,
-			preferred_username: "valid",
-		})
+		assert_eq!(
+			resp_userinfo,
+			UserInfoResponse {
+				user: "valid@example.com",
+				name: "Valid User",
+				email: "valid@example.com",
+				email_verified: true,
+				preferred_username: "valid",
+			}
+		)
 	}
 }
