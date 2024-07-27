@@ -10,16 +10,16 @@ pub mod config;
 #[cfg(feature = "kube")]
 pub mod config_kube;
 pub mod error;
-pub mod token;
 pub mod oidc;
+pub mod token;
 pub mod user;
 pub mod utils;
 pub mod webauthn;
 
 pub mod handle_index;
-pub mod handle_login_page;
 pub mod handle_login_action;
 pub mod handle_login_link;
+pub mod handle_login_page;
 pub mod handle_logout;
 pub mod handle_static;
 
@@ -37,7 +37,8 @@ pub const SESSION_COOKIE: &str = "session_id";
 pub type SmtpTransport = lettre::transport::smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
 #[cfg(not(test))]
 lazy_static! {
-	static ref CONFIG_FILE: String = std::env::var("CONFIG_FILE").unwrap_or("config.yaml".to_string());
+	static ref CONFIG_FILE: String =
+		std::env::var("CONFIG_FILE").unwrap_or("config.yaml".to_string());
 }
 
 #[cfg(test)]
@@ -52,22 +53,21 @@ lazy_static! {
 
 	pub static ref TEMPLATES: handlebars::Handlebars<'static> = {
 		let mut handlebars = handlebars::Handlebars::new();
+		let mut dir_src = handlebars::DirectorySourceOptions::default();
+		dir_src.tpl_extension = ".html.hbs".to_string();
+
 		handlebars.register_templates_directory(
 			"static/templates",
-			handlebars::DirectorySourceOptions {
-				tpl_extension: ".html.hbs".to_string(),
-				..Default::default()
-			}
+			dir_src
 		)
 		.expect("Failed to register templates directory");
 
+		let mut dir_src = handlebars::DirectorySourceOptions::default();
+		dir_src.tpl_extension = ".html.hbs".to_string();
 		// The partials are the same as the templates
 		handlebars.register_templates_directory(
 			"static/partials",
-			handlebars::DirectorySourceOptions {
-				tpl_extension: ".html.hbs".to_string(),
-				..Default::default()
-			}
+			dir_src
 		)
 		.expect("Failed to register partials directory");
 

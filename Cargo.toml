@@ -17,7 +17,7 @@ duration-str = "0.11"
 env_logger = "0.11"
 formatx = "0.2"
 futures = "0.3"
-handlebars = { version = "5.1.2", features = ["dir_source"] }
+handlebars = { version = "6.0.0", features = ["dir_source"] }
 hex = "0.4.3"
 jwt-simple = { version = "0.12", default-features = false, features = [
 	"pure-rust",

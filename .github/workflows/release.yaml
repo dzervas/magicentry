@@ -173,7 +173,7 @@ jobs:
             type=raw,value=${{ matrix.feature }}-v${{ needs.bump.outputs.app }},enable=${{ matrix.feature != 'default' }}
 
       - name: Docker Build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           cache-from: type=gha,scope=magicentry-${{ matrix.feature }}
           cache-to: type=gha,mode=max,scope=magicentry-${{ matrix.feature }}
