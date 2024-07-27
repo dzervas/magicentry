@@ -31,7 +31,7 @@ macro_rules! generate_cors_preflight {
 			}
 
 			HttpResponse::NoContent()
-				.append_header(("Access-Control-Allow-Origin", allowed_origins.join(", ")))
+				.append_header(("Access-Control-Allow-Origin", origin))
 				.append_header(("Access-Control-Allow-Headers", "Content-Type"))
 				.append_header((
 					"Access-Control-Allow-Methods",
