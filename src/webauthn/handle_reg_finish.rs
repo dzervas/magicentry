@@ -30,7 +30,7 @@ pub async fn reg_finish(
 
 	let sk = webauthn.finish_passkey_registration(&req, &reg_state)?;
 
-	if PasskeyStore::get_with_filter(|p| p.passkey.cred_id() == sk.cred_id(), &db)?.len() > 0 {
+	if !PasskeyStore::get_with_filter(|p| p.passkey.cred_id() == sk.cred_id(), &db)?.is_empty() {
 		return Err(AppErrorKind::PasskeyAlreadyRegistered.into());
 	}
 

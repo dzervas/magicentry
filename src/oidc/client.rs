@@ -37,7 +37,7 @@ impl OIDCClient {
 
 		if let Some(client) = config_client {
 			if let Some(redirect_url_enc) = &auth_req.redirect_uri {
-				let redirect_uri = urlencoding::decode(&redirect_url_enc)?;
+				let redirect_uri = urlencoding::decode(redirect_url_enc)?;
 				if !client.redirect_uris.contains(&redirect_uri.to_string()) {
 					warn!(
 						"Invalid redirect_uri: {} for client_id: {}",

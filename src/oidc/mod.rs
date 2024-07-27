@@ -23,7 +23,7 @@ pub async fn init(db: &Db) -> RS256KeyPair {
 			.to_pem()
 			.expect("Failed to convert keypair to PEM - that's super weird");
 
-		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), &db)
+		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), db)
 			.expect("Unable to save secret in the database");
 
 		keypair
@@ -98,7 +98,7 @@ mod tests {
 		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
 		assert!(target.starts_with("http://localhost:8080/login"));
 
-		let token = MagicLinkToken::new(&db, user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(db, user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())
@@ -132,7 +132,7 @@ mod tests {
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
 		let body_str = std::str::from_utf8(&body).unwrap();
-		let html_parse = scraper::Html::parse_document(&body_str);
+		let html_parse = scraper::Html::parse_document(body_str);
 		let a_href = html_parse
 			.select(&scraper::Selector::parse("a").unwrap())
 			.next()

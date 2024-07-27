@@ -3,6 +3,8 @@ use serde::{Serialize, Serializer};
 
 use crate::CONFIG;
 
+// Serialize a vector of strings as a space-separated string
+#[allow(clippy::ptr_arg)]
 fn serialize_vec_with_space<S: Serializer>(
 	vec: &Vec<&str>,
 	serializer: S,

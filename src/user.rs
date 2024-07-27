@@ -18,8 +18,7 @@ impl User {
 			.await
 			.users
 			.iter()
-			.find(|u| u.email == email)
-			.map(|u| u.clone())
+			.find(|u| u.email == email).cloned()
 	}
 
 	pub fn has_any_realm(&self, realms: &[String]) -> bool {
@@ -32,8 +31,7 @@ impl User {
 			.expect("Failed to lock config for reading during user lookup")
 			.users
 			.iter()
-			.find(|u| u.email == email)
-			.map(|u| u.clone())
+			.find(|u| u.email == email).cloned()
 	}
 }
 
@@ -52,9 +50,9 @@ impl PartialEq<&str> for User {
 /// MD5 is only used to generate a UUID for this user, which is not a secret,
 /// not used for authentication and not a user-provided value.
 /// webauthn-rs expects a UUIDv4 and the only hash function producing 16 bytes is MD5.
-impl Into<Uuid> for &User {
-	fn into(self) -> Uuid {
-		let hash = md5::compute(self.email.as_bytes());
+impl From<&User> for Uuid {
+	fn from(val: &User) -> Self {
+		let hash = md5::compute(val.email.as_bytes());
 		Uuid::from_bytes(hash.0)
 	}
 }

@@ -29,10 +29,10 @@ pub async fn main() -> std::io::Result<()> {
 		.clone()
 		.to_std()
 		.expect("Couldn't parse session_duration");
-	let oidc_enable = config.oidc_enable.clone();
-	let webauthn_enable = config.webauthn_enable.clone();
+	let oidc_enable = config.oidc_enable;
+	let webauthn_enable = config.webauthn_enable;
 	let listen_host = config.listen_host.clone();
-	let listen_port = config.listen_port.clone();
+	let listen_port = config.listen_port;
 	let title = config.title.clone();
 	let external_url = config.external_url.clone();
 

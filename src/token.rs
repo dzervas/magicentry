@@ -38,7 +38,7 @@ pub trait TokenKindType:
 		chrono::Utc::now()
 			.naive_utc()
 			.checked_add_signed(Self::get_duration().await)
-			.expect(format!("Couldn't generate expiry for {:?}", Self::NAME).as_str())
+			.unwrap_or_else(|| panic!("Couldn't generate expiry for {:?}", Self::NAME))
 	}
 }
 
@@ -130,8 +130,9 @@ impl<K: TokenKindType> Token<K> {
 		Self::from_code(db, code).await
 	}
 
+	#[allow(clippy::ptr_arg)]
 	pub async fn from_code(db: &Db, code: &String) -> Result<Self> {
-		let token = Self::get(code, &db)?.ok_or(AppErrorKind::TokenNotFound)?;
+		let token = Self::get(code, db)?.ok_or(AppErrorKind::TokenNotFound)?;
 
 		// Can't call is_valid as async recursion is not allowed
 		let is_expired = token.is_expired(db).await?;
@@ -154,7 +155,7 @@ impl<K: TokenKindType> Token<K> {
 		metadata: Option<String>,
 	) -> Result<Self> {
 		let expires_at = if let Some(bound_code) = &bound_to {
-			let bound_token: Token<K::BoundType> = Token::from_code(db, &bound_code).await?;
+			let bound_token: Token<K::BoundType> = Token::from_code(db, bound_code).await?;
 
 			if !bound_token.is_valid(db).await? {
 				return Err(AppErrorKind::InvalidParentToken.into());
@@ -168,10 +169,10 @@ impl<K: TokenKindType> Token<K> {
 		let token = Self {
 			code: random_string(),
 			_kind: PhantomData,
-			user: user,
+			user,
 			expires_at,
 			bound_to,
-			metadata: metadata,
+			metadata,
 		};
 
 		token.save(db)?;
@@ -187,7 +188,7 @@ impl<K: TokenKindType> Token<K> {
 		// TODO: Use link & cascade instead
 		Self::filter_remove(
 			|t| t.code == code || t.bound_to == code_opt || t.expires_at <= now,
-			&db,
+			db,
 		)?;
 
 		Ok(())
@@ -324,7 +325,7 @@ mod tests {
 		let expired_user_link = MagicLinkToken {
 			code: expired_target.clone(),
 			_kind: PhantomData,
-			user: user,
+			user,
 			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(2).unwrap(),
 			bound_to: None,
 			metadata: None,

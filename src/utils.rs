@@ -81,7 +81,7 @@ pub async fn get_post_login_location(
 	if let Some(Ok(oidc_auth_req)) = oidc_authorize_req_opt {
 		// let oidc_code = Token::new(&db, TokenKind::OIDCCode, &user, Some(user_session.code), Some(String::try_from(oidc_auth_req)?)).await?.code;
 		let oidc_code = oidc_auth_req
-			.generate_session_code(&db, user_session.user.clone(), user_session.code.clone())
+			.generate_session_code(db, user_session.user.clone(), user_session.code.clone())
 			.await?
 			.code;
 		let redirect_url = oidc_auth_req
@@ -92,7 +92,7 @@ pub async fn get_post_login_location(
 		Ok(redirect_url)
 	} else if let Some(Ok(scoped_login)) = scoped_login_opt {
 		let scoped_code = ProxyCookieToken::new(
-			&db,
+			db,
 			user_session.user.clone(),
 			Some(user_session.code.clone()),
 			Some(scoped_login.clone().into()),

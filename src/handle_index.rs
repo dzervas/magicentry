@@ -98,7 +98,7 @@ mod tests {
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
-		let token = MagicLinkToken::new(&db, user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(db, user, None, None).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(format!("/login/{}", token.code).as_str())

@@ -40,7 +40,7 @@ impl AuthorizeRequest {
 
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = if let Some(redirect_url_enc) = &self.redirect_uri {
-			urlencoding::decode(&redirect_url_enc).ok()?.to_string()
+			urlencoding::decode(redirect_url_enc).ok()?.to_string()
 		} else {
 			return None;
 		};

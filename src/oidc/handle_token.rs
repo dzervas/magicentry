@@ -78,7 +78,7 @@ pub async fn token(
 		// Client secret is not required and only the request origin should be checked
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
-		let generated_code_challenge_bytes = hasher.finalize().clone();
+		let generated_code_challenge_bytes = hasher.finalize();
 		let generated_code_challenge =
 			Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
 

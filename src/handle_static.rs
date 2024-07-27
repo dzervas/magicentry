@@ -12,7 +12,7 @@ async fn static_files(filename: web::Path<String>) -> HttpResponse {
 	};
 
 	let content = fs::read_to_string(format!("static/{}", file))
-		.expect(format!("Unable to open static/{}", file).as_str());
+		.unwrap_or_else(|_| panic!("Unable to open static/{}", file));
 
 	HttpResponse::Ok().content_type(content_type).body(content)
 }

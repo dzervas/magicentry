@@ -45,7 +45,7 @@ mod tests {
 		)
 		.await;
 
-		let token = MagicLinkToken::new(&db, user, None, None).await.unwrap();
+		let token = MagicLinkToken::new(db, user, None, None).await.unwrap();
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()

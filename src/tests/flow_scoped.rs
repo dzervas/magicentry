@@ -13,7 +13,7 @@ async fn test_global_login() {
 	let db = db_connect().await;
 	let secret = Key::from(&[0; 64]);
 	let email_stub: SmtpTransport = lettre::transport::stub::AsyncStubTransport::new_ok();
-	let mut app = actix_test::init_service(
+	let app = actix_test::init_service(
 		App::new()
 			.app_data(web::Data::new(db))
 			.app_data(web::Data::new(Some(email_stub.clone())))
@@ -35,7 +35,7 @@ async fn test_global_login() {
 
 	let scope = "http%3A%2F%2Flocalhost%3A8080";
 	let resp = call_service(
-		&mut app,
+		&app,
 		TestRequest::post()
 			.uri(format!("/login?rd={}", scope).as_str())
 			.set_form(&handle_login_action::LoginInfo {
@@ -63,7 +63,7 @@ async fn test_global_login() {
 	println!("Login link: {}", &login_link);
 
 	let resp = call_service(
-		&mut app,
+		&app,
 		TestRequest::get()
 			.uri(&login_link)
 			.cookie(parsed_cookie)
@@ -78,7 +78,7 @@ async fn test_global_login() {
 	let one_time_code = location_header.split("=").nth(1).unwrap();
 
 	let resp = call_service(
-		&mut app,
+		&app,
 		TestRequest::get()
 			.uri("/auth-url/status")
 			.cookie(Cookie::new(PROXIED_COOKIE, one_time_code))
@@ -92,7 +92,7 @@ async fn test_global_login() {
 	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
 
 	let resp = call_service(
-		&mut app,
+		&app,
 		TestRequest::get()
 			.uri("/auth-url/status")
 			.cookie(parsed_cookie)
