@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use futures::TryStreamExt;
 use k8s_openapi::api::networking::v1::Ingress;
-use kube::runtime::watcher::Event;
 use kube::runtime::watcher;
+use kube::runtime::watcher::Event;
 use kube::{Api, Client};
 use serde::{Deserialize, Serialize};
 
@@ -27,16 +27,26 @@ impl IngressConfig {
 		let filtered_map = map
 			.iter()
 			.filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
-			.map(|(k, v)| (
-				k.replace(ANNOTATION_PREFIX, "").replace("-", "_"),
-				v.as_str()
-			))
+			.map(|(k, v)| {
+				(
+					k.replace(ANNOTATION_PREFIX, "").replace("-", "_"),
+					v.as_str(),
+				)
+			})
 			.collect::<HashMap<String, &str>>();
 
 		Some(Self {
-			auth_url: filtered_map.get("auth_url").map(|v| *v == "true").unwrap_or_default(),
-			realms: filtered_map.get("realms").map(|v| v.split(",").map(|v| v.to_string()).collect())?,
-			manage_ingress_nginx: filtered_map.get("manage_ingress_nginx").map(|v| *v == "true").unwrap_or_default(),
+			auth_url: filtered_map
+				.get("auth_url")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
+			realms: filtered_map
+				.get("realms")
+				.map(|v| v.split(",").map(|v| v.to_string()).collect())?,
+			manage_ingress_nginx: filtered_map
+				.get("manage_ingress_nginx")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
 		})
 	}
 
@@ -44,7 +54,10 @@ impl IngressConfig {
 		let mut map = BTreeMap::new();
 		map.insert("auth_url".to_string(), self.auth_url.to_string());
 		map.insert("realms".to_string(), self.realms.join(",").to_string());
-		map.insert("manage_ingress_nginx".to_string(), self.manage_ingress_nginx.to_string());
+		map.insert(
+			"manage_ingress_nginx".to_string(),
+			self.manage_ingress_nginx.to_string(),
+		);
 		map
 	}
 
@@ -67,16 +80,14 @@ impl IngressConfig {
 					continue;
 				};
 
-				let has_tls = hosts.tls
-					.as_ref()
-					.is_some_and(|tls|
-						tls
-						.iter()
-						.any(|tls|
-							tls.hosts
+				let has_tls = hosts.tls.as_ref().is_some_and(|tls| {
+					tls.iter().any(|tls| {
+						tls.hosts
 							.as_ref()
 							.unwrap_or(&Vec::new())
-							.contains(&host_str)));
+							.contains(&host_str)
+					})
+				});
 
 				let origin = if has_tls {
 					format!("https://{}", host_str)
@@ -105,7 +116,9 @@ impl IngressConfig {
 }
 
 async fn get_ingress_annotations(ingress: &Ingress) -> BTreeMap<String, String> {
-	ingress.metadata.annotations
+	ingress
+		.metadata
+		.annotations
 		.as_ref()
 		.unwrap_or(&BTreeMap::new())
 		.iter()
@@ -119,7 +132,7 @@ async fn process_ingress(ingress: &Ingress) {
 
 	log::debug!("Inspecting ingress resource {}", name);
 	let Some(ingress_config) = IngressConfig::from_ingress(&ingress).await else {
-		return
+		return;
 	};
 
 	log::info!("Discovered ingress {}", name);
@@ -138,19 +151,13 @@ pub async fn watch() -> Result<()> {
 		watcher::watcher(ingresses.clone(), Default::default())
 			.try_for_each(|event| async move {
 				match event {
-					Event::Applied(ingress) => {
-						process_ingress(&ingress).await;
-					}
-					Event::Restarted(ingresses) => {
-						let handles = ingresses.iter().map(|ingress| {
-							process_ingress(&ingress)
-						});
-						futures::future::join_all(handles).await;
-					}
-					Event::Deleted(ingress) => {
+					Event::Apply(ingress) => process_ingress(&ingress).await,
+					Event::InitApply(ingress) => process_ingress(&ingress).await,
+					Event::Delete(ingress) => {
 						// TODO: Take care of deleted events too
 						log::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.clone().unwrap_or_default());
 					}
+					_ => {}
 				}
 
 				Ok(())
