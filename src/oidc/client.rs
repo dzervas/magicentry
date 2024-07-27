@@ -14,6 +14,8 @@ pub struct OIDCClient {
 	pub secret: String,
 	pub redirect_uris: Vec<String>,
 	pub realms: Vec<String>,
+	#[serde(default)]
+	pub origins: Vec<String>,
 }
 
 impl OIDCClient {

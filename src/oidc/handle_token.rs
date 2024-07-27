@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use crate::error::{AppErrorKind, Response};
 use crate::oidc::handle_authorize::AuthorizeRequest;
 use crate::token::{OIDCBearerToken, OIDCCodeToken};
-use crate::CONFIG;
+use crate::{generate_cors_preflight, CONFIG};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TokenRequest {
@@ -55,6 +55,14 @@ impl JWTData {
 		}
 	}
 }
+
+// While the preflight allows only the allowed origins,
+// the actual request is not checked.
+// So a browser from a not whitelisted origin shouldn't be able to send
+// a request to this endpoint (failed CORS preflight)
+// But any other client (a backend from an app) can send a request to this endpoint
+// from any origin
+generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 
 #[post("/oidc/token")]
 pub async fn token(

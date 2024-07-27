@@ -131,6 +131,7 @@ pub async fn main() -> std::io::Result<()> {
 				.service(oidc::handle_authorize::authorize_get)
 				.service(oidc::handle_authorize::authorize_post)
 				.service(oidc::handle_token::token)
+				.service(oidc::handle_token::token_preflight)
 				.service(oidc::handle_jwks::jwks)
 				.service(oidc::handle_userinfo::userinfo);
 		}

@@ -10,6 +10,35 @@ pub mod handle_jwks;
 pub mod handle_token;
 pub mod handle_userinfo;
 
+#[macro_export]
+macro_rules! generate_cors_preflight {
+	($func_name:ident, $path:expr, $methods:expr) => {
+		#[actix_web::options($path)]
+		pub async fn $func_name(req: actix_web::HttpRequest) -> impl actix_web::Responder {
+			use actix_web::HttpResponse;
+
+			let allowed_origins = crate::CONFIG.read().await.allowed_origins();
+			let Some(origin_val) = req.headers().get("Origin") else {
+				return HttpResponse::BadRequest().finish();
+			};
+
+			let Ok(origin) = origin_val.to_str() else {
+				return HttpResponse::BadRequest().finish();
+			};
+
+			if !allowed_origins.contains(&origin.to_string()) {
+				return HttpResponse::Forbidden().finish();
+			}
+
+			HttpResponse::NoContent()
+				.append_header(("Access-Control-Allow-Origin", allowed_origins.join(", ")))
+				.append_header(("Access-Control-Allow-Methods", $methods))
+				.append_header(("Access-Control-Allow-Headers", "Content-Type"))
+				.finish()
+		}
+	};
+}
+
 pub async fn init(db: &Db) -> RS256KeyPair {
 	if let Ok(Some(keypair)) = ConfigKV::get(&ConfigKeys::JWTKeyPair, db) {
 		let pem = keypair
