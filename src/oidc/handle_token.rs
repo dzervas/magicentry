@@ -79,8 +79,8 @@ pub async fn token(
 	let auth_req =
 		AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
 	let config = CONFIG.read().await;
+	let allowed_origins;
 
-	// TODO: Check the request origin
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
 		// Client secret is not required and only the request origin should be checked
@@ -93,6 +93,13 @@ pub async fn token(
 		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(AppErrorKind::InvalidCodeVerifier.into());
 		}
+
+		let config_client = config
+			.oidc_clients
+			.iter()
+			.find(|c| c.id == auth_req.client_id)
+			.ok_or(AppErrorKind::InvalidClientID)?;
+		allowed_origins = config_client.origins.clone();
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
 		let req_client_id = token_req
@@ -113,6 +120,8 @@ pub async fn token(
 		if config_client.id != req_client_id || config_client.secret != req_client_secret {
 			return Err(AppErrorKind::InvalidClientSecret.into());
 		}
+
+		allowed_origins = config_client.origins.clone();
 	} else {
 		return Err(AppErrorKind::NoClientCredentialsProvided.into());
 	}
@@ -125,13 +134,35 @@ pub async fn token(
 		.await?
 		.code;
 
-	Ok(HttpResponse::Ok().json(TokenResponse {
+	let response = TokenResponse {
 		access_token,
 		token_type: "Bearer".to_string(),
 		expires_in: config.session_duration.num_seconds(),
 		id_token,
 		refresh_token: None,
-	}))
+	};
+
+	if allowed_origins.is_empty() {
+		return Ok(HttpResponse::Ok().json(response));
+	}
+
+	let Some(origin_val) = req.headers().get("Origin") else {
+		return Ok(HttpResponse::BadRequest().finish());
+	};
+
+	let Ok(origin) = origin_val.to_str() else {
+		return Ok(HttpResponse::BadRequest().finish());
+	};
+
+	if !allowed_origins.contains(&origin.to_string()) {
+		return Ok(HttpResponse::Forbidden().finish());
+	}
+
+	Ok(HttpResponse::Ok()
+		.append_header(("Access-Control-Allow-Origin", origin))
+		.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
+		.json(response))
 	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
 	// TODO: Send error response
 	// Or error=<error>&error_description=<error_description>

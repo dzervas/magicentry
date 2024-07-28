@@ -34,7 +34,6 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	} else {
 		let config = CONFIG.read().await;
 		Ok(HttpResponse::Ok()
-			// TODO: Add realm
 			.append_header((
 				config.auth_url_email_header.as_str(),
 				token.user.email.clone(),

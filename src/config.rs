@@ -144,11 +144,7 @@ impl ConfigFile {
 	}
 
 	pub fn allowed_origins(&self) -> Vec<String> {
-		let mut allowed_origins = vec![self.external_url.clone()];
-
-		if self.external_url.starts_with("http://") {
-			allowed_origins.push(self.external_url.replace("http://", "https://"));
-		}
+		let mut allowed_origins = vec![];
 
 		for client in &self.oidc_clients {
 			allowed_origins.extend(client.origins.clone());

@@ -83,9 +83,6 @@ pub async fn main() -> std::io::Result<()> {
 	drop(config);
 
 	let server = HttpServer::new(move || {
-		let webauthn = webauthn::init(title.clone(), external_url.clone())
-			.expect("Failed to create webauthn object");
-
 		let mut app = App::new()
 			// Data
 			.app_data(web::Data::new(db.clone()))
@@ -137,6 +134,9 @@ pub async fn main() -> std::io::Result<()> {
 		}
 
 		if webauthn_enable {
+			let webauthn = webauthn::init(title.clone(), external_url.clone())
+				.expect("Failed to create webauthn object");
+
 			app = app
 				.app_data(web::Data::new(webauthn))
 				.service(webauthn::handle_reg_start::reg_start)
