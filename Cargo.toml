@@ -58,4 +58,4 @@ kube = { version = "0.93.1", features = ["runtime", "derive"], optional = true }
 k8s-openapi = { version = "0.22.0", features = ["v1_28"], optional = true }
 
 [dev-dependencies]
-scraper = "0.19.1"
+scraper = "0.20.0"
