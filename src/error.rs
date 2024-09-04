@@ -27,53 +27,49 @@ pub enum AppErrorKind {
 	MissingOriginHeader,
 	InvalidParentToken,
 
-	#[display(fmt = "What you're looking for ain't here")]
+	#[display("What you're looking for ain't here")]
 	NotFound,
-	#[display(fmt = "You are not logged in!")]
+	#[display("You are not logged in!")]
 	NotLoggedIn,
-	#[display(fmt = "Missing Authorization header")]
+	#[display("Missing Authorization header")]
 	MissingAuthorizationHeader,
-	#[display(fmt = "The provided Authorization header is invalid")]
+	#[display("The provided Authorization header is invalid")]
 	InvalidAuthorizationHeader,
-	#[display(fmt = "Could not parse Authorization header")]
+	#[display("Could not parse Authorization header")]
 	CouldNotParseAuthorizationHeader,
-	#[display(fmt = "The Duration provided is incorrect or too big (max i64)")]
+	#[display("The Duration provided is incorrect or too big (max i64)")]
 	InvalidDuration,
-	#[display(fmt = "Client sent a redirect_uri different from the one in the config")]
+	#[display("Client sent a redirect_uri different from the one in the config")]
 	InvalidRedirectUri,
-	#[display(
-		fmt = "The client_id shown during authorization does not match the client_id provided"
-	)]
+	#[display("The client_id shown during authorization does not match the client_id provided")]
 	NotMatchingClientID,
-	#[display(fmt = "Client sent a client_id that is not in the config")]
+	#[display("Client sent a client_id that is not in the config")]
 	InvalidClientID,
-	#[display(
-		fmt = "Client sent a client_secret that does not correspond to the client_id it sent"
-	)]
+	#[display("Client sent a client_secret that does not correspond to the client_id it sent")]
 	InvalidClientSecret,
-	#[display(fmt = "Client did not send a client_id")]
+	#[display("Client did not send a client_id")]
 	NoClientID,
-	#[display(fmt = "Client did not send a client_secret")]
+	#[display("Client did not send a client_secret")]
 	NoClientSecret,
-	#[display(fmt = "Client did not send a client_secret or a code_challenge")]
+	#[display("Client did not send a client_secret or a code_challenge")]
 	NoClientSecretOrCodeChallenge,
-	#[display(fmt = "Client sent a code_challenge_method that is not S256")]
+	#[display("Client sent a code_challenge_method that is not S256")]
 	InvalidCodeChallengeMethod,
-	#[display(fmt = "Client sent a code_verifier but did not send a code_challenge")]
+	#[display("Client sent a code_verifier but did not send a code_challenge")]
 	NoCodeChallenge,
-	#[display(fmt = "Someone tried to get a token with an invalid invalid OIDC code")]
+	#[display("Someone tried to get a token with an invalid invalid OIDC code")]
 	InvalidOIDCCode,
-	#[display(fmt = "The code_verifier does not match the code_challenge")]
+	#[display("The code_verifier does not match the code_challenge")]
 	InvalidCodeVerifier,
 	#[display(
-		fmt = "The client tried to create a token without providing any credentials (client_verifier or client_secret)"
+		"The client tried to create a token without providing any credentials (client_verifier or client_secret)"
 	)]
 	NoClientCredentialsProvided,
 	PasskeyAlreadyRegistered,
 }
 
 #[derive(Debug, Display, DeriveError, Clone)]
-#[display(fmt = "Internal Server Error: {}", cause)]
+#[display("Internal Server Error: {}", cause)]
 pub struct Error {
 	cause: String,
 	app_error: Option<AppErrorKind>,
