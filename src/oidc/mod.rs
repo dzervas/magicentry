@@ -77,6 +77,7 @@ mod tests {
 	use actix_web::test as actix_test;
 	use actix_web::web;
 	use actix_web::App;
+	use actix_web_httpauth::extractors::basic;
 
 	use tests::handle_token::TokenRequest;
 	use tests::handle_token::TokenResponse;
@@ -95,6 +96,7 @@ mod tests {
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(keypair))
+				.app_data(basic::Config::default().realm("MagicEntry"))
 				.service(crate::handle_login_link::login_link)
 				.service(handle_authorize::authorize_get)
 				.service(handle_authorize::authorize_post)

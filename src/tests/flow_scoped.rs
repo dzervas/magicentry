@@ -7,6 +7,7 @@ use actix_web::test::{call_service, TestRequest};
 use actix_web::cookie::{Cookie, Key};
 use actix_web::http::StatusCode;
 use actix_web::{test as actix_test, web, App};
+use actix_web_httpauth::extractors::basic;
 
 #[actix_web::test]
 async fn test_global_login() {
@@ -18,6 +19,7 @@ async fn test_global_login() {
 			.app_data(web::Data::new(db))
 			.app_data(web::Data::new(Some(email_stub.clone())))
 			.app_data(web::Data::new(None::<reqwest::Client>))
+			.app_data(basic::Config::default().realm("MagicEntry"))
 			.service(handle_index::index)
 			.service(handle_login_page::login_page)
 			.service(handle_login_action::login_action)
