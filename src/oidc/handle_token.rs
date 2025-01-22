@@ -1,4 +1,5 @@
 use actix_web::{post, web, HttpRequest, HttpResponse};
+use actix_web_httpauth::extractors::basic::BasicAuth;
 use chrono::Utc;
 use jwt_simple::algorithms::RS256KeyPair;
 use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
@@ -70,6 +71,7 @@ pub async fn token(
 	db: web::Data<reindeer::Db>,
 	token_req: web::Form<TokenRequest>,
 	jwt_keypair: web::Data<RS256KeyPair>,
+	basic: Option<BasicAuth>,
 ) -> Response {
 	#[cfg(debug_assertions)]
 	log::info!("Token request: {:?}", token_req);
@@ -84,6 +86,7 @@ pub async fn token(
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
 		// Client secret is not required and only the request origin should be checked
+		println!("Responding to PCRE request");
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
@@ -102,6 +105,7 @@ pub async fn token(
 		allowed_origins = config_client.origins.clone();
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
+		println!("Responding to client_secret_post request");
 		let req_client_id = token_req
 			.client_id
 			.clone()
@@ -116,6 +120,24 @@ pub async fn token(
 		if req_client_id != session_client_id {
 			return Err(AppErrorKind::NotMatchingClientID.into());
 		}
+
+		if config_client.id != req_client_id || config_client.secret != req_client_secret {
+			return Err(AppErrorKind::InvalidClientSecret.into());
+		}
+
+		allowed_origins = config_client.origins.clone();
+	} else if let Some(basic_creds) = basic {
+		// We're using client_id - client_secret over basic auth
+		println!("Responding to client_secret_basic request");
+		let req_client_id = basic_creds.user_id().to_string();
+		let req_client_secret = basic_creds.password()
+			.ok_or(AppErrorKind::NoClientSecret)?
+			.to_string();
+		let config_client = config
+			.oidc_clients
+			.iter()
+			.find(|c| session.user.has_any_realm(&c.realms) && c.id == req_client_id)
+			.ok_or(AppErrorKind::InvalidClientID)?;
 
 		if config_client.id != req_client_id || config_client.secret != req_client_secret {
 			return Err(AppErrorKind::InvalidClientSecret.into());

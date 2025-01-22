@@ -6,6 +6,7 @@ use actix_session::SessionMiddleware;
 use actix_web::cookie::{Key, SameSite};
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
+use actix_web_httpauth::extractors::basic;
 use lettre::transport::smtp;
 use reindeer::Entity;
 #[cfg(feature = "kube")]
@@ -88,6 +89,7 @@ pub async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(db.clone()))
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
+			.app_data(basic::Config::default().realm("MagicEntry"))
 
 			.default_service(web::route().to(error::not_found))
 
