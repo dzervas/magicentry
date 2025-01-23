@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "concurrently": "9.x",
-    "tailwindcss": "3.4.x",
+    "tailwindcss": "4.0.x",
     "webpack": "5.x",
     "webpack-cli": "5.1.x"
   },
