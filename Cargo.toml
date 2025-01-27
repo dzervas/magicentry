@@ -59,4 +59,4 @@ k8s-openapi = { version = "0.22.0", features = ["v1_28"], optional = true }
 actix-web-httpauth = "0.8.2"
 
 [dev-dependencies]
-scraper = "0.20.0"
+scraper = "0.22.0"
