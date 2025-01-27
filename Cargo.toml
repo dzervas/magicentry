@@ -31,7 +31,7 @@ lettre = { version = "0.11", features = [
 	"smtp-transport",
 ], default-features = false }
 log = "0.4"
-notify = "6"
+notify = "8"
 rand = "0.8"
 reindeer = "0.3"
 reqwest = { version = "0.12", default-features = false, features = [
