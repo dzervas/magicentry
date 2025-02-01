@@ -1,6 +1,6 @@
 import { create, get, parseCreationOptionsFromJSON, parseRequestOptionsFromJSON, supported } from "@github/webauthn-json/browser-ponyfill";
 
-document.addEventListener('DOMContentLoaded', function() {{
+document.addEventListener('DOMContentLoaded', function() {
 	if (!supported())
 		return;
 
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {{
 		auth_btn.classList.remove('hidden');
 		auth_btn.addEventListener('click', authenticate);
 	}
-}});
+});
 
 async function register() {
 	const start_resp = await fetch('/webauthn/register/start', { method: 'POST' });
