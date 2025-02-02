@@ -6,16 +6,16 @@
     "start": "concurrently 'npm:tailwind-dev' 'npm:webpack-dev'",
     "tailwind-dev": "tailwindcss -i static/css/main.css -o static/main.build.css --watch",
     "webpack-dev": "webpack watch --mode development",
-
     "build": "webpack build --mode production && tailwindcss -i static/css/main.css -o static/main.build.css --minify"
   },
   "devDependencies": {
-    "concurrently": "9.x",
-    "tailwindcss": "4.0.x",
-    "webpack": "5.x",
-    "webpack-cli": "6.0.x"
+    "@tailwindcss/cli": "^4.0.3",
+    "concurrently": "~9.1.2",
+    "tailwindcss": "4.0.3",
+    "webpack": "~5.97.1",
+    "webpack-cli": "6.0.1"
   },
   "dependencies": {
-    "@github/webauthn-json": "2.1.x"
+    "@github/webauthn-json": "2.1.1"
   }
 }

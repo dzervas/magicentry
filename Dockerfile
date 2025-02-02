@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM node:alpine as frontend
+FROM --platform=$BUILDPLATFORM node:alpine AS frontend
 
 WORKDIR /usr/src/app
 
@@ -7,7 +7,7 @@ COPY *.js *.json ./
 RUN npm install --include=dev
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM rust as builder
+FROM --platform=$BUILDPLATFORM rust AS builder
 
 WORKDIR /usr/src/app
 

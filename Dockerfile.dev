@@ -1,4 +1,4 @@
-FROM node:alpine as frontend
+FROM node:alpine AS frontend
 
 WORKDIR /usr/src/app
 
@@ -8,7 +8,7 @@ RUN --mount=type=cache,target=node_modules,id=magicentry-node-modules \
 	npm install --include=dev
 RUN npm run build
 
-FROM rust as builder
+FROM rust AS builder
 
 WORKDIR /usr/src/app
 
