@@ -132,7 +132,9 @@ pub async fn main() -> std::io::Result<()> {
 				.service(oidc::handle_token::token)
 				.service(oidc::handle_token::token_preflight)
 				.service(oidc::handle_jwks::jwks)
-				.service(oidc::handle_userinfo::userinfo);
+				.service(oidc::handle_userinfo::userinfo)
+				// Handle oauth discovery too
+				.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent());
 		}
 
 		if webauthn_enable {
