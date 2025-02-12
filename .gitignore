@@ -29,3 +29,6 @@ node_modules
 
 # Documentation
 /docs/favicon.ico
+
+# cargo-chef recipe
+/recipe.json

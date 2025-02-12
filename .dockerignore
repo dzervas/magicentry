@@ -7,6 +7,10 @@
 /tests
 /chart
 /config.*
+/docs
+/shell.nix
+/.rustfmt.toml
+/recipe.json
 *.db
 *.db-*
 *.sqlite

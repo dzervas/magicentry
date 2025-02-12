@@ -3,8 +3,6 @@ use std::collections::BTreeMap;
 use actix_session::Session;
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
-use rand::rngs::StdRng;
-use rand::{RngCore, SeedableRng};
 use reindeer::Db;
 
 use crate::error::{AppErrorKind, Result};
@@ -64,9 +62,8 @@ pub fn get_request_origin(req: &HttpRequest) -> Result<String> {
 }
 
 pub fn random_string() -> String {
-	let mut rng = StdRng::from_entropy();
 	let mut buffer = [0u8; RANDOM_STRING_LEN];
-	rng.fill_bytes(&mut buffer);
+	rand::fill(&mut buffer);
 	hex::encode(buffer)
 }
 
