@@ -18,10 +18,10 @@ FROM --platform=$BUILDPLATFORM chef AS builder
 
 COPY --from=planner /app/recipe.json recipe.json
 
-RUN echo $(test "$TARGETPLATFORM" = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
+RUN echo $(test $TARGETPLATFORM = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
 RUN rustup target add $(cat /.target-triplet)
 
-RUN test "$TARGETPLATFORM" = "linux/arm64" || exit 0 && apt-get update && apt-get install -y gcc-aarch64-linux-gnu && apt-get clean
+RUN test $TARGETPLATFORM = "linux/arm64" || exit 0 && apt-get update && apt-get install -y gcc-aarch64-linux-gnu && apt-get clean
 
 ARG FEATURES="default"
 RUN cargo chef cook --release --features=$FEATURES --target $(cat /.target-triplet) --recipe-path recipe.json
