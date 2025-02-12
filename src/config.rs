@@ -1,5 +1,7 @@
+use std::path::Path;
+
 use chrono::Duration;
-use notify::{RecommendedWatcher, Watcher};
+use notify::{PollWatcher, Watcher};
 use reindeer::{AsBytes, Db, Entity};
 use serde::{Deserialize, Serialize};
 
@@ -126,19 +128,25 @@ impl ConfigFile {
 		Ok(())
 	}
 
-	pub fn watch() -> RecommendedWatcher {
-		let mut watcher = notify::recommended_watcher(move |_| {
+	pub fn watch() -> PollWatcher {
+		let watcher_config = notify::Config::default()
+			.with_compare_contents(true)
+			.with_poll_interval(std::time::Duration::from_secs(2))
+			.with_follow_symlinks(true);
+
+		let mut watcher = notify::PollWatcher::new(move |_| {
+			log::info!("Config file changed, reloading");
 			futures::executor::block_on(async {
 				if let Err(e) = ConfigFile::reload().await {
 					log::error!("Failed to reload config file: {}", e);
 				}
 			})
-		})
-		.expect("Failed to create watcher");
+		}, watcher_config)
+		.expect("Failed to create watcher for the config file");
 
 		watcher
-			.watch(CONFIG_FILE.as_ref(), notify::RecursiveMode::NonRecursive)
-			.expect("Failed to watch config file");
+			.watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
+			.expect("Failed to watch config file for changes");
 
 		watcher
 	}
