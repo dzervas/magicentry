@@ -7,10 +7,10 @@ COPY *.js *.json ./
 RUN npm install --include=dev
 RUN npm run build
 
-FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
+FROM --platform=$BUILDPLATFORM lukemathwalker/cargo-chef:latest-rust-1 AS chef
 WORKDIR /app
 
-FROM chef AS planner
+FROM --platform=$BUILDPLATFORM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
