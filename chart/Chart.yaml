@@ -3,5 +3,5 @@ name: magicentry
 description: Authentication service for self hosted services
 
 type: application
-version: 0.4.14
-appVersion: 0.4.14
+version: 0.4.15
+appVersion: 0.4.15
