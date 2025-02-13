@@ -7,24 +7,19 @@ COPY *.js *.json ./
 RUN npm install --include=dev
 RUN npm run build
 
-FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
-WORKDIR /app
-
-FROM chef AS planner
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
-
-FROM --platform=$BUILDPLATFORM chef AS builder
-
-COPY --from=planner /app/recipe.json recipe.json
+FROM --platform=$BUILDPLATFORM rust AS builder
 
 RUN echo $(test $TARGETPLATFORM = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
 RUN rustup target add $(cat /.target-triplet)
 
 RUN test $TARGETPLATFORM = "linux/arm64" || exit 0 && apt-get update && apt-get install -y gcc-aarch64-linux-gnu && apt-get clean
 
+RUN cargo init --vcs none --bin
+COPY Cargo.toml Cargo.lock .
+COPY .cargo .cargo
+
 ARG FEATURES="default"
-RUN cargo chef cook --release --features=$FEATURES --target $(cat /.target-triplet) --recipe-path recipe.json
+RUN cargo build --release --features=$FEATURES --target $(cat /.target-triplet) && rm target/$(cat /.target-triplet)/release/deps/magicentry*
 
 # Enable mount-type caching and dependency caching to be compatible with github actions
 COPY . .
