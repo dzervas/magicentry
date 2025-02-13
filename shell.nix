@@ -5,5 +5,6 @@ mkShell {
     openssl.dev
     pkg-config
     gcc
+    cargo-chef
   ];
 }
