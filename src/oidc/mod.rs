@@ -140,7 +140,7 @@ mod tests {
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
-		println!("Headers: {:?}", resp.headers());
+		debug!("Headers: {:?}", resp.headers());
 		assert!(resp
 			.headers()
 			.get("Location")
@@ -182,7 +182,7 @@ mod tests {
 			.unwrap()
 			.1
 			.to_string();
-		println!("New Code: {}", code);
+		debug!("New Code: {}", code);
 
 		let req = actix_test::TestRequest::post()
 			.uri("/oidc/token")
@@ -198,7 +198,7 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
-		println!("Body: {:?}", body);
+		debug!("Body: {:?}", body);
 		let resp_token = serde_json::from_slice::<TokenResponse>(&body).unwrap();
 
 		let req = actix_test::TestRequest::get()

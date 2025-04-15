@@ -338,7 +338,7 @@ mod tests {
 
 		// Make sure that the expired record is removed
 		let record = MagicLinkToken::get(&expired_target, db).unwrap();
-		println!("{:?}", record);
+		debug!("{:?}", record);
 		assert!(record.is_none());
 
 		let expired_user = MagicLinkToken::from_code(db, &"nonexistent_magic".to_string()).await;

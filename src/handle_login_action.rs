@@ -7,7 +7,7 @@ use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
 use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
-use log::info;
+use log::{debug, info};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
@@ -90,8 +90,7 @@ async fn login_action(
 	let name = &user.name.clone();
 	let username = &user.username.clone();
 
-	#[cfg(debug_assertions)]
-	println!("Link: {} {:?}", &magic_link, link);
+	debug!("Link: {} {:?}", &magic_link, link);
 
 	if let Some(mailer) = mailer.as_ref() {
 		let email = Message::builder()
@@ -152,7 +151,7 @@ async fn login_action(
 	}
 
 	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-		println!("Setting scoped login for link: {:?}", &scoped);
+		debug!("Setting scoped login for link: {:?}", &scoped);
 		session.insert(SCOPED_LOGIN, scoped)?;
 	}
 

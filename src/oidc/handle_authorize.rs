@@ -6,7 +6,7 @@ use actix_web::http::Uri;
 use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use jwt_simple::prelude::*;
-use log::info;
+use log::{debug, info};
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
@@ -80,7 +80,7 @@ impl AuthorizeRequest {
 			client_id: self.client_id.clone(),
 			..JWTData::new(url).await
 		};
-		println!("JWT Data: {:?}", jwt_data);
+		debug!("JWT Data: {:?}", jwt_data);
 
 		let config = CONFIG.read().await;
 		let claims = Claims::with_custom_claims(
@@ -146,7 +146,6 @@ async fn authorize(
 	let oidc_session = auth_req
 		.generate_session_code(&db, token.user.clone(), token.code)
 		.await?;
-	println!("OIDC Session: {:?}", oidc_session);
 
 	// TODO: Check the state with the cookie for CSRF
 	let redirect_url = auth_req

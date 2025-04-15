@@ -3,6 +3,7 @@ use actix_web_httpauth::extractors::basic::BasicAuth;
 use chrono::Utc;
 use jwt_simple::algorithms::RS256KeyPair;
 use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
+use log::debug;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -73,11 +74,10 @@ pub async fn token(
 	jwt_keypair: web::Data<RS256KeyPair>,
 	basic: Option<BasicAuth>,
 ) -> Response {
-	#[cfg(debug_assertions)]
-	log::info!("Token request: {:?}", token_req);
+	debug!("Token request: {:?}", token_req);
 
 	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
-	println!("Session: {:?}", session);
+	debug!("Session: {:?}", session);
 	let auth_req =
 		AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
 	let config = CONFIG.read().await;
@@ -86,7 +86,7 @@ pub async fn token(
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
 		// Client secret is not required and only the request origin should be checked
-		println!("Responding to PCRE request");
+		debug!("Responding to PCRE request");
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
@@ -105,7 +105,7 @@ pub async fn token(
 		allowed_origins = config_client.origins.clone();
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
-		println!("Responding to client_secret_post request");
+		debug!("Responding to client_secret_post request");
 		let req_client_id = token_req
 			.client_id
 			.clone()
@@ -128,7 +128,7 @@ pub async fn token(
 		allowed_origins = config_client.origins.clone();
 	} else if let Some(basic_creds) = basic {
 		// We're using client_id - client_secret over basic auth
-		println!("Responding to client_secret_basic request");
+		debug!("Responding to client_secret_basic request");
 		let req_client_id = basic_creds.user_id().to_string();
 		let req_client_secret = basic_creds.password()
 			.ok_or(AppErrorKind::NoClientSecret)?

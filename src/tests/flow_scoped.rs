@@ -50,8 +50,8 @@ async fn test_global_login() {
 	let headers = resp.headers().clone();
 	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
-	println!("CookieHeader: {:?}", &cookie_header);
-	println!("Cookie: {:?}", &parsed_cookie);
+	debug!("CookieHeader: {:?}", &cookie_header);
+	debug!("Cookie: {:?}", &parsed_cookie);
 
 	let messages = email_stub.messages().await;
 	let login_message = &messages.first().unwrap().1;
@@ -62,7 +62,7 @@ async fn test_global_login() {
 		.unwrap()
 		.replace("=\r\n", "");
 
-	println!("Login link: {}", &login_link);
+	debug!("Login link: {}", &login_link);
 
 	let resp = call_service(
 		&app,
@@ -74,7 +74,7 @@ async fn test_global_login() {
 	.await;
 	assert_eq!(resp.status(), StatusCode::FOUND);
 	let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
-	println!("Location header: {}", &location_header);
+	debug!("Location header: {}", &location_header);
 	assert!(location_header.starts_with("http://localhost:8080/__magicentry_auth_code?code="));
 
 	let one_time_code = location_header.split("=").nth(1).unwrap();
