@@ -1106,9 +1106,9 @@ dependencies = [
 
 [[package]]
 name = "duration-str"
-version = "0.12.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64ad6b66883f70e2f38f1ee99e3797b9d7e7b7fb051ed2e23e027c81753056c8"
+checksum = "9add086174f60bcbcfde7175e71dcfd99da24dfd12f611d0faf74f4f26e15a06"
 dependencies = [
  "chrono",
  "rust_decimal",
@@ -2232,6 +2232,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "k8s-openapi"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c75b990324f09bef15e791606b7b7a296d02fc88a344f6eba9390970a870ad5"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "serde",
+ "serde-value",
+ "serde_json",
+]
+
+[[package]]
 name = "kqueue"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2253,11 +2266,11 @@ dependencies = [
 
 [[package]]
 name = "kube"
-version = "0.93.1"
+version = "0.94.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0365920075af1a2d23619c1ca801c492f2400157de42627f041a061716e76416"
+checksum = "52ace78a62b361077505f2950bd48aa3e46596fb15350c9c993de15ddfa3cac5"
 dependencies = [
- "k8s-openapi",
+ "k8s-openapi 0.22.0",
  "kube-client",
  "kube-core",
  "kube-derive",
@@ -2266,9 +2279,9 @@ dependencies = [
 
 [[package]]
 name = "kube-client"
-version = "0.93.1"
+version = "0.94.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d81336eb3a5b10a40c97a5a97ad66622e92bad942ce05ee789edd730aa4f8603"
+checksum = "18ec0fcafd3add30b413b096a61d69b0a37f94d3f95b6f505a57ea3d27cec2a7"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -2285,7 +2298,7 @@ dependencies = [
  "hyper-timeout",
  "hyper-util",
  "jsonpath-rust",
- "k8s-openapi",
+ "k8s-openapi 0.22.0",
  "kube-core",
  "pem",
  "rustls",
@@ -2304,26 +2317,27 @@ dependencies = [
 
 [[package]]
 name = "kube-core"
-version = "0.93.1"
+version = "0.94.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cce373a74d787d439063cdefab0f3672860bd7bac01a38e39019177e764a0fe6"
+checksum = "a50c095f051dada37740d883b6d47ad0430e95082140718073b773c8a70f231c"
 dependencies = [
  "chrono",
  "form_urlencoded",
  "http 1.3.1",
  "json-patch",
- "k8s-openapi",
+ "k8s-openapi 0.22.0",
  "schemars",
  "serde",
+ "serde-value",
  "serde_json",
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "kube-derive"
-version = "0.93.1"
+version = "0.94.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04a26c9844791e127329be5dce9298b03f9e2ff5939076d5438c92dea5eb78f2"
+checksum = "7871f02c3c848b63fee3d2f2645bb4a3c0b68ee147badcddf1b0cf8fb5db87ad"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -2334,9 +2348,9 @@ dependencies = [
 
 [[package]]
 name = "kube-runtime"
-version = "0.93.1"
+version = "0.94.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b84733c0fed6085c9210b43ffb96248676c1e800d0ba38d15043275a792ffa4"
+checksum = "12d844a274127dfe8fad766db5bc53aa783fb3f9dd48b20f955ec65d454ec9b1"
 dependencies = [
  "ahash",
  "async-broadcast",
@@ -2348,7 +2362,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "json-patch",
  "jsonptr",
- "k8s-openapi",
+ "k8s-openapi 0.22.0",
  "kube-client",
  "parking_lot 0.12.3",
  "pin-project",
@@ -2479,7 +2493,7 @@ dependencies = [
  "actix-web",
  "actix-web-httpauth",
  "chrono",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "duration-str",
  "env_logger",
  "formatx",
@@ -2487,7 +2501,7 @@ dependencies = [
  "handlebars",
  "hex",
  "jwt-simple",
- "k8s-openapi",
+ "k8s-openapi 0.24.0",
  "kube",
  "lazy_static",
  "lettre",
@@ -3608,9 +3622,9 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scraper"
-version = "0.22.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc3d051b884f40e309de6c149734eab57aa8cc1347992710dc80bcc1c2194c15"
+checksum = "527e65d9d888567588db4c12da1087598d0f6f8b346cc2c5abc91f05fc2dffe2"
 dependencies = [
  "cssparser",
  "ego-tree",
@@ -3765,14 +3779,14 @@ dependencies = [
 
 [[package]]
 name = "serde_qs"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd34f36fe4c5ba9654417139a9b3a20d2e1de6012ee678ad14d240c22c78d8d6"
+checksum = "8b417bedc008acbdf6d6b4bc482d29859924114bbe2650b7921fb68a261d0aa6"
 dependencies = [
  "actix-web",
  "percent-encoding",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -4875,9 +4889,9 @@ checksum = "271414315aff87387382ec3d271b52d7ae78726f5d44ac98b4f4030c91880486"
 
 [[package]]
 name = "winnow"
-version = "0.6.26"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e90edd2ac1aa278a5c4599b1d89cf03074b610800f866d4026dc199d7929a28"
+checksum = "63d3fcd9bba44b03821e7d699eeee959f3126dcc4aa8e4ae18ec617c2a5cea10"
 dependencies = [
  "memchr",
 ]

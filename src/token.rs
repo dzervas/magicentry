@@ -299,6 +299,7 @@ mod tests {
 	use crate::RANDOM_STRING_LEN;
 	use chrono::Utc;
 	use tests::MagicLinkToken;
+	use log::debug;
 
 	#[actix_web::test]
 	async fn test_token() {

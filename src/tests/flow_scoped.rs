@@ -9,6 +9,8 @@ use actix_web::http::StatusCode;
 use actix_web::{test as actix_test, web, App};
 use actix_web_httpauth::extractors::basic;
 
+use log::debug;
+
 #[actix_web::test]
 async fn test_global_login() {
 	let db = db_connect().await;

@@ -68,6 +68,7 @@ mod tests {
 	use super::*;
 	use crate::token::MagicLinkToken;
 	use crate::utils::tests::*;
+	use log::debug;
 
 	use actix_session::storage::CookieSessionStore;
 	use actix_session::SessionMiddleware;
