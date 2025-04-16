@@ -18,6 +18,7 @@ on:
       - Cargo.*
       - src/**
       - .github/workflows/test.yaml
+  workflow_call:
 
 jobs:
   test:
