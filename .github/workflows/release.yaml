@@ -79,14 +79,10 @@ jobs:
         if: matrix.target.triplet == 'aarch64-unknown-linux-gnu'
 
       - name: Install Rust toolchain
-        id: rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: ${{ matrix.target.triplet }}
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          prefix-key: ${{ steps.rust.outputs.cachekey }}-${{ matrix.target.triplet }}-${{ matrix.feature }}
+          toolchain: ${{ matrix.target.triplet }}
+          cache: true # Sets up rust cache automatically
 
       - name: Compile
         run: |
@@ -175,6 +171,27 @@ jobs:
 
             type=raw,value=${{ matrix.feature }}-latest,enable=${{ matrix.feature != 'default' }}
             type=raw,value=${{ matrix.feature }}-v${{ needs.bump.outputs.app }},enable=${{ matrix.feature != 'default' }}
+
+      - name: Cache
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: |
+            app-target
+            usr-local-cargo-git-db
+            usr-local-cargo-registry
+          key: magicentry-docker-cache-${{ hashFiles('Dockerfile') }}
+
+      - name: Inject cache into docker
+        uses: reproducible-containers/buildkit-cache-dance@v3.1.0
+        with:
+          cache-map: |
+            {
+              "app-target": "/app/target",
+              "usr-local-cargo-git-db": "/usr/local/cargo/git/db",
+              "usr-local-cargo-registry": "/usr/local/cargo/registry"
+            }
+          skip-extraction: ${{ steps.cache.outputs.cache-hit }}
 
       - name: Docker Build
         uses: docker/build-push-action@v6
