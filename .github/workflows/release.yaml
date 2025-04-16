@@ -180,7 +180,7 @@ jobs:
             app-target
             usr-local-cargo-git-db
             usr-local-cargo-registry
-          key: magicentry-docker-cache-${{ hashFiles('Dockerfile') }}
+          key: magicentry-docker-cache-${{ hashFiles('Dockerfile') }}-${{ matrix.feature }}
 
       - name: Inject cache into docker
         uses: reproducible-containers/buildkit-cache-dance@v3.1.0
