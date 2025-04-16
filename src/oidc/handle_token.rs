@@ -161,7 +161,7 @@ pub async fn token(
 		token_type: "Bearer".to_string(),
 		expires_in: config.session_duration.num_seconds(),
 		id_token,
-		refresh_token: None,
+		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty
 	};
 
 	if allowed_origins.is_empty() {
