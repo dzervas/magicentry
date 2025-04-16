@@ -4,10 +4,10 @@ WORKDIR /usr/src/app
 
 COPY static static
 COPY *.js *.json ./
-RUN npm install --include=dev
+RUN npm ci
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM rust:1-slim AS builder
+FROM --platform=$BUILDPLATFORM rust:1 AS builder
 WORKDIR /app
 
 ARG TARGETPLATFORM
