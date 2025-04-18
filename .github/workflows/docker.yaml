@@ -76,8 +76,8 @@ jobs:
           tags: |
             type=sha
 
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref_type == 'tag' }}
-            type=raw,value=v${{ inputs.app }},enable=${{ github.event_name == 'push' && github.ref_type == 'tag' }}
+            type=raw,value=latest,enable=${{ (github.event_name == 'push' && github.ref_type == 'tag') || github.event_name == 'workflow_call' }}
+            type=raw,value=v${{ inputs.app }},enable=${{ (github.event_name == 'push' && github.ref_type == 'tag') || github.event_name == 'workflow_call' }}
             type=ref,event=branch,enable=${{ (github.event_name == 'push' && github.ref_type == 'branch') || github.event_name == 'pull_request' }}
 
       - name: Cache
