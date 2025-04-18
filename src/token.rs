@@ -263,6 +263,16 @@ impl ScopedSessionToken {
 			cookie.value().to_string()
 		} else if let Ok(query) = serde_qs::from_str::<ProxiedLoginCodeQuery>(req.query_string()) {
 			query.code
+		} else if let Some(original_uri_header) = req.headers().get("X-Original-URI") {
+			let original_uri_str = original_uri_header
+				.to_str()
+				.map_err(|_| AppErrorKind::CouldNotParseXOrginalURIHeader)?;
+			let original_uri_parsed = original_uri_str
+				.parse::<Uri>()
+				.map_err(|_| AppErrorKind::CouldNotParseXOrginalURIHeader)?;
+
+			let query = serde_qs::from_str::<ProxiedLoginCodeQuery>(original_uri_parsed.query().unwrap_or(""))?;
+			query.code
 		} else {
 			return Err(AppErrorKind::MissingAuthURLCode.into());
 		};

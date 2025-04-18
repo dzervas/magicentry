@@ -28,6 +28,8 @@ pub enum AppErrorKind {
 
 	#[display("Missing auth_url code in (query string or cookie)")]
 	MissingAuthURLCode,
+	#[display("Could not parse X-Original-URI header (it is set but not valid)")]
+	CouldNotParseXOrginalURIHeader,
 
 	#[display("What you're looking for ain't here")]
 	NotFound,
