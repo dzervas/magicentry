@@ -76,9 +76,9 @@ jobs:
           tags: |
             type=sha
 
-            type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref_type == 'tag' }}
-            type=raw,value=v${{ inputs.app }},enable=${{ github.event_name == 'push' && github.ref_type == 'tag' }}
-            type=ref,event=branch,enable=${{ (github.event_name == 'push' && github.ref_type == 'branch') || github.event_name == 'pull_request' }}
+            type=raw,value=latest,enable=${{ (github.event_name == 'push' && github.ref_type == 'tag') || inputs.app != '' }}
+            type=raw,value=v${{ inputs.app }},enable=${{ inputs.app != '' }}
+            type=ref,event=branch,enable=${{ (github.event_name == 'push' && github.ref_type == 'branch') || inputs.app != '' }}
 
       - name: Cache
         uses: actions/cache@v4
