@@ -4,7 +4,7 @@ use actix_session::Session;
 use actix_web::http::Uri;
 use actix_web::HttpRequest;
 use chrono::{NaiveDateTime, Utc};
-use log::{info, warn};
+use log::{debug, info, warn};
 use reindeer::{Db, Entity};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -260,10 +260,13 @@ impl ScopedSessionToken {
 
 	pub async fn from_proxied_req(db: &Db, req: &actix_web::HttpRequest) -> Result<Option<Self>> {
 		let code = if let Some(cookie) = req.cookie(PROXIED_COOKIE) {
+			debug!("Found proxied cookie: {:?}", &cookie);
 			cookie.value().to_string()
 		} else if let Ok(query) = serde_qs::from_str::<ProxiedLoginCodeQuery>(req.query_string()) {
+			debug!("Found proxied query string: {:?}", &query);
 			query.code
-		} else if let Some(original_uri_header) = req.headers().get("X-Original-URI") {
+		} else if let Some(original_uri_header) = req.headers().get("X-Original-URL") {
+			debug!("Found proxied X-Original-URL header: {:?}", &original_uri_header);
 			let original_uri_str = original_uri_header
 				.to_str()
 				.map_err(|_| AppErrorKind::CouldNotParseXOrginalURIHeader)?;
@@ -274,6 +277,7 @@ impl ScopedSessionToken {
 			let query = serde_qs::from_str::<ProxiedLoginCodeQuery>(original_uri_parsed.query().unwrap_or(""))?;
 			query.code
 		} else {
+			debug!("No proxied cookie or query string found during proxied auth-url handling");
 			return Err(AppErrorKind::MissingAuthURLCode.into());
 		};
 

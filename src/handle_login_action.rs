@@ -9,6 +9,7 @@ use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
 use log::{debug, info};
 use reqwest::header::CONTENT_TYPE;
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
@@ -32,10 +33,10 @@ impl ScopedLogin {
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = urlencoding::decode(&self.scope_app_url).ok()?.to_string();
 		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
-		let redirect_uri = redirect_url_clean.parse::<Uri>().ok()?;
+		let redirect_url_parsed = redirect_url_clean.parse::<Uri>().ok()?;
 
-		let origin_authority = redirect_uri.authority()?;
-		let origin_scheme = redirect_uri.scheme()?;
+		let origin_authority = redirect_url_parsed.authority()?;
+		let origin_scheme = redirect_url_parsed.scheme()?;
 		let origin = format!("{}://{}", origin_scheme, origin_authority);
 
 		let config = CONFIG.read().await;
@@ -54,7 +55,11 @@ impl ScopedLogin {
 			return None;
 		}
 
-		Some(format!("{}/magicentry/auth-url/login-code?code={}", origin, code))
+		let new_redirect_url = Url::parse_with_params(&redirect_url, &[("code", code)])
+			.ok()?
+			.to_string();
+
+		Some(new_redirect_url)
 	}
 }
 

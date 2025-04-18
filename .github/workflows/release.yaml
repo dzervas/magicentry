@@ -122,8 +122,11 @@ jobs:
   docker:
     needs: bump
     uses: ./.github/workflows/docker.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
-      bump: ${{ needs.bump.outputs.new_ref }}
+      new_ref: ${{ needs.bump.outputs.new_ref }}
       app: ${{ needs.bump.outputs.app }}
 
   chart:
