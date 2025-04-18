@@ -27,7 +27,7 @@ async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::
 				.ok_or(AppErrorKind::InvalidRedirectUri)?;
 			info!(
 				"Redirecting pre-authenticated user to scope {}",
-				&scoped_login.scope
+				&scoped_login.scope_app_url
 			);
 			return Ok(HttpResponse::Found()
 				.append_header(("Location", redirect_url.as_str()))

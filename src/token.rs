@@ -222,6 +222,11 @@ impl SessionToken {
 	}
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+struct ProxiedLoginCodeQuery {
+	pub(crate) code: String,
+}
+
 impl ScopedSessionToken {
 	pub async fn from_session(db: &Db, req: &HttpRequest) -> Result<Option<Self>> {
 		let origin = get_request_origin(req)?;
@@ -252,17 +257,18 @@ impl ScopedSessionToken {
 
 		Ok(None)
 	}
-}
 
-impl ScopedSessionToken {
-	pub async fn from_proxy_cookie(db: &Db, req: &actix_web::HttpRequest) -> Result<Option<Self>> {
-		let cookie = req
-			.cookie(PROXIED_COOKIE)
-			.ok_or(AppErrorKind::MissingCookieHeader)?;
+	pub async fn from_proxied_req(db: &Db, req: &actix_web::HttpRequest) -> Result<Option<Self>> {
+		let code = if let Some(cookie) = req.cookie(PROXIED_COOKIE) {
+			cookie.value().to_string()
+		} else if let Ok(query) = serde_qs::from_str::<ProxiedLoginCodeQuery>(req.query_string()) {
+			query.code
+		} else {
+			return Err(AppErrorKind::MissingAuthURLCode.into());
+		};
 
-		let code = cookie.value().to_string();
-		let token = ProxyCookieToken::from_code(db, &code).await?;
-		let metadata = token.metadata.clone().unwrap_or_default();
+		let proxy_token = ProxyCookieToken::from_code(db, &code).await?;
+		let metadata = proxy_token.metadata.clone().unwrap_or_default();
 		let scope_parsed = metadata
 			.parse::<Uri>()
 			.map_err(|_| AppErrorKind::InvalidRedirectUri)?;
@@ -283,12 +289,12 @@ impl ScopedSessionToken {
 			return Ok(None);
 		}
 
-		let scoped_session =
-			ScopedSessionToken::new(db, token.user, token.bound_to.clone(), Some(scope_origin))
+		let scoped_token =
+			ScopedSessionToken::new(db, proxy_token.user, proxy_token.bound_to.clone(), Some(scope_origin))
 				.await?;
 		info!("New scoped session for: {}", &origin);
 
-		Ok(Some(scoped_session))
+		Ok(Some(scoped_token))
 	}
 }
 

@@ -103,7 +103,6 @@ pub async fn main() -> std::io::Result<()> {
 			.service(handle_static::favicon)
 
 			.service(auth_url::handle_status::status)
-			.service(auth_url::handle_response::response)
 
 			// Middleware
 			.wrap(Logger::default())

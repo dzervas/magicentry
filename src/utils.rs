@@ -100,7 +100,7 @@ pub async fn get_post_login_location(
 			.get_redirect_url(&scoped_code, &user_session.user)
 			.await
 			.ok_or(AppErrorKind::InvalidRedirectUri)?;
-		log::info!("Redirecting to scope {}", &scoped_login.scope);
+		log::info!("Redirecting to scope {}", &scoped_login.scope_app_url);
 		Ok(redirect_url)
 	} else {
 		Ok("/".to_string())

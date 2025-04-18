@@ -6,15 +6,26 @@ use crate::error::Response;
 use crate::token::ScopedSessionToken;
 use crate::{CONFIG, SCOPED_SESSION_COOKIE};
 
+/// This endpoint is used to check weather a user is logged in from a proxy
+/// running in a different domain.
+/// It will return 200 only if the user is logged in and has a valid session.
+/// It also returns some headers with user information, which can be used to
+/// identify the user in the application.
+/// It also handles the one-time-code passed from the login process and turns it
+/// into a "scoped session", a session that is valid only for the given domain
+/// so that the cookie can't be used to access other applications.
+///
+/// In order to use the one-time-code functionality, some setup is required,
+/// documented in https://magicentry.rs/#/installation?id=example-valuesyaml
 #[get("/auth-url/status")]
 async fn status(req: HttpRequest, db: web::Data<reindeer::Db>) -> Response {
 	let (token, cookie): (ScopedSessionToken, Option<Cookie<'_>>) =
 		if let Ok(Some(token)) = ScopedSessionToken::from_session(&db, &req).await {
 			debug!("Found scoped session from proxy cookie: {:?}", &token.code);
 			(token, None)
-		} else if let Ok(Some(token)) = ScopedSessionToken::from_proxy_cookie(&db, &req).await {
+		} else if let Ok(Some(token)) = ScopedSessionToken::from_proxied_req(&db, &req).await {
 			let code = token.code.clone();
-			debug!("Setting proxied cookie: {:?}", &code);
+			debug!("Found ephemeral proxy cookie: {:?}, turning it into a scoped session", &code);
 			(
 				token,
 				Some(

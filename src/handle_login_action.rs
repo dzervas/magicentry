@@ -25,12 +25,12 @@ pub struct LoginInfo {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ScopedLogin {
 	#[serde(rename = "rd")]
-	pub(crate) scope: String,
+	pub(crate) scope_app_url: String,
 }
 
 impl ScopedLogin {
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
-		let redirect_url = urlencoding::decode(&self.scope).ok()?.to_string();
+		let redirect_url = urlencoding::decode(&self.scope_app_url).ok()?.to_string();
 		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
 		let redirect_uri = redirect_url_clean.parse::<Uri>().ok()?;
 
@@ -49,19 +49,19 @@ impl ScopedLogin {
 			return None;
 		}
 
-		Some(format!("{}/__magicentry_auth_code?code={}", origin, code))
+		Some(format!("{}/magicentry/auth-url/login-code?code={}", origin, code))
 	}
 }
 
 impl From<String> for ScopedLogin {
 	fn from(scope: String) -> Self {
-		ScopedLogin { scope }
+		ScopedLogin { scope_app_url: scope }
 	}
 }
 
 impl From<ScopedLogin> for String {
 	fn from(scoped: ScopedLogin) -> Self {
-		scoped.scope
+		scoped.scope_app_url
 	}
 }
 
@@ -83,6 +83,7 @@ async fn login_action(
 		return result;
 	};
 
+	// Generate the magic link
 	let link = MagicLinkToken::new(&db, user.clone(), None, None).await?;
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
@@ -92,6 +93,7 @@ async fn login_action(
 
 	debug!("Link: {} {:?}", &magic_link, link);
 
+	// Send it via email
 	if let Some(mailer) = mailer.as_ref() {
 		let email = Message::builder()
 			.from(config.smtp_from.parse()?)
@@ -110,6 +112,7 @@ async fn login_action(
 		mailer.send(email).await?;
 	}
 
+	// And/or via HTTP
 	if let Some(client) = http_client.as_ref() {
 		let method = reqwest::Method::from_bytes(config.request_method.as_bytes())
 			.expect("Invalid request_method provided in the config");
@@ -150,6 +153,7 @@ async fn login_action(
 		}
 	}
 
+	// If this is a scoped login, save the scope in the server session storage
 	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
 		debug!("Setting scoped login for link: {:?}", &scoped);
 		session.insert(SCOPED_LOGIN, scoped)?;

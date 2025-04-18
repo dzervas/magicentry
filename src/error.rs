@@ -23,9 +23,11 @@ pub enum AppErrorKind {
 	MissingMetadata,
 	IncorrectMetadata,
 	InvalidTargetUser,
-	MissingCookieHeader,
 	MissingOriginHeader,
 	InvalidParentToken,
+
+	#[display("Missing auth_url code in (query string or cookie)")]
+	MissingAuthURLCode,
 
 	#[display("What you're looking for ain't here")]
 	NotFound,
