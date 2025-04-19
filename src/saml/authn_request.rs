@@ -1,4 +1,9 @@
+use base64::{engine::general_purpose, Engine};
+use flate2::read::DeflateDecoder;
 use serde::{Deserialize, Serialize};
+use std::io::Read;
+
+use crate::error::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthnRequest {
@@ -55,4 +60,22 @@ pub struct RequestedAuthnContext {
 
 	#[serde(rename = "AuthnContextClassRef")]
 	pub authn_context_class_ref: Vec<String>,
+}
+
+impl AuthnRequest {
+	pub fn from_encoded_string(encoded_request: &str) -> Result<Self> {
+		let base64_decoded = general_purpose::STANDARD.decode(encoded_request)?;
+
+		let mut decoder = DeflateDecoder::new(&base64_decoded[..]);
+		let mut inflated_data = String::new();
+
+		// Attempt to decompress
+		let xml_str = if let Ok(_) = decoder.read_to_string(&mut inflated_data) {
+			inflated_data
+		} else {
+			String::from_utf8(base64_decoded)?
+		};
+
+		Ok(quick_xml::de::from_str::<Self>(&xml_str)?)
+	}
 }

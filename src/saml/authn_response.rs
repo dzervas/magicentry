@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use chrono::Utc;
 use uuid::Uuid;
 
+use super::authn_request::AuthnRequest;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SAMLResponse {
 	#[serde(rename = "@ID")]
@@ -258,42 +260,36 @@ pub struct AttributeValue {
 	pub value: String,
 }
 
-impl SAMLResponse {
-	// Helper function to create a new SAML response
-	pub fn create_saml_response(
-		request_id: &str,
-		acs_url: &str,
-		sp_entity_id: &str,
-		user_id: &str,
-		user_attributes: Vec<(String, Vec<String>)>,
-	) -> SAMLResponse {
+impl AuthnRequest {
+	pub fn to_response(&self, idp_metadata: &str, user_id: &str) -> SAMLResponse {
 		let now = Utc::now();
 		let expiry = now + chrono::Duration::hours(1);
 		let response_id = format!("_resp-{}", Uuid::new_v4());
 		let assertion_id = format!("_assert-{}", Uuid::new_v4());
 		let session_id = format!("_session-{}", Uuid::new_v4());
-		let issuer = "http://localhost:8181/saml/metadata";
 
-		let attributes: Vec<Attribute> = user_attributes.into_iter()
-		.map(|(name, values)| {
-			Attribute {
-				name,
-				name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
-				attribute_values: values
-				.into_iter()
-				.map(|v| AttributeValue { value: v })
-				.collect(),
-			}
-		})
-		.collect();
+		// let attributes: Vec<Attribute> = user_attributes.into_iter()
+		// .map(|(name, values)| {
+		// 	Attribute {
+		// 		name,
+		// 		name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
+		// 		attribute_values: values
+		// 		.into_iter()
+		// 		.map(|v| AttributeValue { value: v })
+		// 		.collect(),
+		// 	}
+		// })
+		// .collect();
+		let attributes = vec![]; // Placeholder for attributes
+
 
 		SAMLResponse {
 			id: response_id,
 			version: "2.0".to_string(),
 			issue_instant: now.to_rfc3339(),
-			destination: Some(acs_url.to_string()),
-			in_response_to: request_id.to_string(),
-			issuer: issuer.to_string(),
+			destination: self.acs_url.clone(),
+			in_response_to: self.id.clone(),
+			issuer: idp_metadata.to_string(),
 			status: Status {
 				status_code: StatusCode { value: "urn:oasis:names:tc:SAML:2.0:status:Success".to_string() },
 				status_message: None,
@@ -302,7 +298,7 @@ impl SAMLResponse {
 				id: assertion_id,
 				version: "2.0".to_string(),
 				issue_instant: now.to_rfc3339(),
-				issuer: issuer.to_string(),
+				issuer: idp_metadata.to_string(),
 				signature: None, // Will be added later during XML signing
 				subject: Subject {
 					name_id: NameID {
@@ -313,8 +309,8 @@ impl SAMLResponse {
 						method: "urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string(),
 						subject_confirmation_data: SubjectConfirmationData {
 							not_on_or_after: expiry.to_rfc3339(),
-							recipient: acs_url.to_string(),
-							in_response_to: request_id.to_string(),
+							recipient: self.acs_url.clone().unwrap(),
+							in_response_to: self.id.clone(),
 						},
 					},
 				},
@@ -322,7 +318,7 @@ impl SAMLResponse {
 					not_before: now.to_rfc3339(),
 					not_on_or_after: expiry.to_rfc3339(),
 					audience_restriction: AudienceRestriction {
-						audience: sp_entity_id.to_string(),
+						audience: self.issuer.clone(),
 					},
 				},
 				authn_statement: AuthnStatement {
@@ -339,16 +335,5 @@ impl SAMLResponse {
 				},
 			},
 		}
-	}
-
-	// Note: You'll need to implement XML signing separately
-	pub fn serialize_and_sign_response(response: &SAMLResponse, _private_key: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
-		// 1. Convert to XML string
-		let config = quick_xml::se::to_string_with_root("samlp:Response", &response)?;
-
-		// 2. The XML signing part would go here
-		// This is complex and typically handled by dedicated libraries
-
-		Ok(config)
 	}
 }

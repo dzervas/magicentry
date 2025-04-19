@@ -3,7 +3,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
-use crate::saml::{authn_request, authn_response, utils};
+use crate::saml::authn_request::AuthnRequest;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SAMLRequest {
@@ -23,17 +23,10 @@ pub struct SAMLResponse {
 
 #[get("/saml/sso")]
 pub async fn sso(data: web::Query<SAMLRequest>) -> Response {
-	let authn_request = utils::decode_saml_request(&data.request).unwrap();
-	debug!("SAML SSO request: {:?}", authn_request);
-	let authn_data = quick_xml::de::from_str::<authn_request::AuthnRequest>(&authn_request).unwrap();
-	debug!("Parsed SAML AuthnRequest: {:?}", authn_data);
+	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
+	debug!("Parsed SAML AuthnRequest: {:?}", authn_request);
 
-	let response = authn_response::SAMLResponse::create_saml_response(
-		&authn_data.id,
-		&authn_data.acs_url.unwrap(),
-		&authn_data.issuer,
-		"dzervas@dzervas.gr",
-		Vec::new());
+	let response = authn_request.to_response("http://localhost:8181/saml/metadata", "dzervas@dzervas.gr");
 
 	debug!("SAML Response: {:?}", response);
 	let response_str = quick_xml::se::to_string_with_root("samlp:Response", &response).unwrap();
@@ -41,7 +34,7 @@ pub async fn sso(data: web::Query<SAMLRequest>) -> Response {
 	debug!("SAML Response string: {:?}", response_str);
 
 	Ok(HttpResponse::Ok().json(SAMLRequest {
-		request: authn_request,
+		request: response_str,
 		relay_state: data.relay_state.clone(),
 	}))
 }

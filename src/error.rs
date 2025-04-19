@@ -294,6 +294,18 @@ impl From<tokio::sync::TryLockError> for Error {
 	}
 }
 
+impl From<base64::DecodeError> for Error {
+	fn from(error: base64::DecodeError) -> Self {
+		format!("Base64 decoding error: {}", error).into()
+	}
+}
+
+impl From<quick_xml::DeError> for Error {
+	fn from(error: quick_xml::DeError) -> Self {
+		format!("XML decoding error: {}", error).into()
+	}
+}
+
 #[cfg(feature = "kube")]
 impl From<kube::Error> for Error {
 	fn from(error: kube::Error) -> Self {
