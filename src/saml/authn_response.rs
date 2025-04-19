@@ -1,8 +1,15 @@
+use std::io::Cursor;
+use quick_xml::events::Event;
+use quick_xml::{Reader, Writer};
+
+use base64::engine::general_purpose;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
 use uuid::Uuid;
 
 use super::authn_request::AuthnRequest;
+use crate::error::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnResponse {
@@ -260,6 +267,50 @@ pub struct AttributeValue {
 	pub value: String,
 }
 
+impl AuthnResponse {
+	pub fn to_encoded_string(&self) -> Result<String> {
+		let response_str = quick_xml::se::to_string_with_root("samlp:Response", self)?;
+		let response_str = Self::add_namespace_declarations(&response_str)?;
+
+		let encoded_response = general_purpose::STANDARD.encode(response_str);
+
+		Ok(encoded_response)
+	}
+
+	fn add_namespace_declarations(xml: &str) -> Result<String> {
+		let mut reader = Reader::from_str(xml);
+		reader.config_mut().trim_text(true);
+
+		let mut writer = Writer::new(Cursor::new(Vec::new()));
+		let mut buf = Vec::new();
+		let mut namespaces_added = false;
+
+		loop {
+			match reader.read_event_into(&mut buf) {
+				Ok(Event::Start(ref e)) if !namespaces_added &&
+				(e.name().as_ref() == b"samlp:Response" || e.name().as_ref() == b"Response") => {
+					// Create new start element with namespaces
+					let mut elem = e.to_owned();
+					// Add necessary namespaces
+					elem.push_attribute(("xmlns:samlp", "urn:oasis:names:tc:SAML:2.0:protocol"));
+					elem.push_attribute(("xmlns:saml", "urn:oasis:names:tc:SAML:2.0:assertion"));
+					elem.push_attribute(("xmlns:ds", "http://www.w3.org/2000/09/xmldsig#"));
+
+					writer.write_event(Event::Start(elem))?;
+					namespaces_added = true;
+				},
+				Ok(Event::Eof) => break,
+				Ok(event) => writer.write_event(event)?,
+				Err(e) => return Err(format!("Error at position {}: {:?}", reader.buffer_position(), e).into()),
+			}
+			buf.clear();
+		}
+
+		let result = writer.into_inner().into_inner();
+		Ok(String::from_utf8(result)?)
+	}
+}
+
 impl AuthnRequest {
 	pub fn to_response(&self, idp_metadata: &str, user_id: &str) -> AuthnResponse {
 		let now = Utc::now();
@@ -286,7 +337,7 @@ impl AuthnRequest {
 		AuthnResponse {
 			id: response_id,
 			version: "2.0".to_string(),
-			issue_instant: now.to_rfc3339(),
+			issue_instant: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 			destination: self.acs_url.clone(),
 			in_response_to: self.id.clone(),
 			issuer: idp_metadata.to_string(),
@@ -297,7 +348,7 @@ impl AuthnRequest {
 			assertion: Assertion {
 				id: assertion_id,
 				version: "2.0".to_string(),
-				issue_instant: now.to_rfc3339(),
+				issue_instant: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 				issuer: idp_metadata.to_string(),
 				signature: None, // Will be added later during XML signing
 				subject: Subject {
@@ -308,21 +359,21 @@ impl AuthnRequest {
 					subject_confirmation: SubjectConfirmation {
 						method: "urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string(),
 						subject_confirmation_data: SubjectConfirmationData {
-							not_on_or_after: expiry.to_rfc3339(),
-							recipient: self.destination.clone().unwrap(),
+							not_on_or_after: expiry.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+							recipient: self.acs_url.clone().unwrap(),
 							in_response_to: self.id.clone(),
 						},
 					},
 				},
 				conditions: Conditions {
-					not_before: now.to_rfc3339(),
-					not_on_or_after: expiry.to_rfc3339(),
+					not_before: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+					not_on_or_after: expiry.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 					audience_restriction: AudienceRestriction {
 						audience: self.issuer.clone(),
 					},
 				},
 				authn_statement: AuthnStatement {
-					authn_instant: now.to_rfc3339(),
+					authn_instant: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 					session_index: session_id,
 					authn_context: AuthnContext {
 						authn_context_class_ref: "urn:oasis:names:tc:SAML:2.0:ac:classes:Password".to_string(),

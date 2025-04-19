@@ -302,7 +302,13 @@ impl From<base64::DecodeError> for Error {
 
 impl From<quick_xml::DeError> for Error {
 	fn from(error: quick_xml::DeError) -> Self {
-		format!("XML decoding error: {}", error).into()
+		format!("XML deserialization error: {}", error).into()
+	}
+}
+
+impl From<quick_xml::SeError> for Error {
+	fn from(error: quick_xml::SeError) -> Self {
+		format!("XML serialization error: {}", error).into()
 	}
 }
 

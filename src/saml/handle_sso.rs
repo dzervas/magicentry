@@ -29,20 +29,20 @@ pub async fn sso(data: web::Query<SAMLRequest>) -> Response {
 	let mut response = authn_request.to_response("http://localhost:8181/saml/metadata", "dzervas@dzervas.gr");
 
 	debug!("SAML Response: {:?}", response);
-	let response_str = quick_xml::se::to_string_with_root("samlp:Response", &response).unwrap();
 
-	debug!("SAML Response string: {:?}", response_str);
+	// let response_str = quick_xml::se::to_string_with_root("samlp:Response", &response).unwrap();
+	// debug!("SAML Response string: {:?}", response_str);
 
-	let signed_response = response.sign_saml_response(
+	response.sign_saml_response(
 		&std::fs::read_to_string("saml_key.pem").unwrap(),
 		&std::fs::read_to_string("saml_cert.pem").unwrap()
 	).unwrap();
-	debug!("Signed SAML Response: {:?}", signed_response);
+	debug!("Signed SAML Response: {:?}", response);
 
-	println!("\n\n{}\n\n", signed_response);
+	// println!("\n\n{}\n\n", signed_response);
 
-	Ok(HttpResponse::Ok().json(SAMLRequest {
-		request: response_str,
+	Ok(HttpResponse::Ok().json(SAMLResponse {
+		response: response.to_encoded_string().unwrap(),
 		relay_state: data.relay_state.clone(),
 	}))
 }
