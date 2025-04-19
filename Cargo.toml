@@ -57,6 +57,10 @@ openssl = { version = "0.10", features = ["vendored"] }
 kube = { version = "0.99", features = ["runtime", "derive"], optional = true }
 k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
 actix-web-httpauth = "0.8"
+flate2 = "1.1.1"
+base64 = "0.22.1"
+url = "2.5.4"
+quick-xml = { version = "0.37.4", features = ["async-tokio", "serialize"] }
 
 [dev-dependencies]
 scraper = "0.23"

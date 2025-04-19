@@ -2516,10 +2516,12 @@ dependencies = [
  "actix-session",
  "actix-web",
  "actix-web-httpauth",
+ "base64 0.22.1",
  "chrono",
  "derive_more 2.0.1",
  "duration-str",
  "env_logger",
+ "flate2",
  "formatx",
  "futures",
  "handlebars",
@@ -2533,6 +2535,7 @@ dependencies = [
  "md5",
  "notify",
  "openssl",
+ "quick-xml",
  "rand 0.9.0",
  "reindeer",
  "reqwest",
@@ -2543,6 +2546,7 @@ dependencies = [
  "serde_yaml",
  "sha2",
  "tokio",
+ "url",
  "urlencoding",
  "uuid",
  "webauthn-rs",
@@ -3177,6 +3181,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f58e5423e24c18cc840e1c98370b3993c6649cd1678b4d24318bcf0a083cbe88"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.37.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4ce8c88de324ff838700f36fb6ab86c96df0e3c4ab6ef3a9b2044465cce1369"
+dependencies = [
+ "memchr",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

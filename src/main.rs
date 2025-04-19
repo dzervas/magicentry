@@ -120,7 +120,12 @@ pub async fn main() -> std::io::Result<()> {
 				)
 				.build());
 
-		// OIDC routes
+		// TODO: Config enable SAML
+		if true {
+			app = app
+				.service(saml::handle_sso::sso);
+		}
+
 		if oidc_enable {
 			app = app
 				.app_data(web::Data::new(oidc_key.clone()))
