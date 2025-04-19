@@ -35,7 +35,11 @@ impl AuthnResponse {
 		assertion_without_sig.signature = None; // Ensure no signature for digest calculation
 
 		// Serialize to calculate digest
-		let assertion_xml = to_string_with_root("saml:Assertion", &assertion_without_sig)?;
+		let mut assertion_xml = to_string_with_root("saml:Assertion", &assertion_without_sig)?;
+		assertion_xml = assertion_xml
+			// Super ugly hack to get around the lack of canonicalization in rust
+			// Using a quick_xml::Serializer::with_empty_elements() would fix this
+			.replace("/></saml:SubjectConfirmation>", "></saml:SubjectConfirmationData></saml:SubjectConfirmation>");
 		debug!("Assertion XML: {}", assertion_xml);
 
 		// Calculate digest
@@ -45,7 +49,7 @@ impl AuthnResponse {
 		let reference_uri = format!("#{}", assertion_without_sig.id);
 		let signed_info = SignedInfo {
 			canonicalization_method: CanonicalizationMethod {
-				algorithm: "http://www.w3.org/TR/2001/REC-xml-c14n-20010315".to_string(),
+				algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
 			},
 			signature_method: SignatureMethod {
 				algorithm: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256".to_string(),

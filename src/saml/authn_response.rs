@@ -51,21 +51,21 @@ pub struct StatusCode {
 pub struct Assertion {
 	#[serde(rename = "@ID")]
 	pub id: String,
-	#[serde(rename = "@Version")]
-	pub version: String,
 	#[serde(rename = "@IssueInstant")]
 	pub issue_instant: String,
+	#[serde(rename = "@Version")]
+	pub version: String,
 	#[serde(rename = "saml:Issuer")]
 	pub issuer: String,
-	#[serde(rename = "ds:Signature")]
-	#[serde(skip_serializing_if = "Option::is_none")]
-	pub signature: Option<Signature>,
 	#[serde(rename = "saml:Subject")]
 	pub subject: Subject,
 	#[serde(rename = "saml:Conditions")]
 	pub conditions: Conditions,
 	#[serde(rename = "saml:AuthnStatement")]
 	pub authn_statement: AuthnStatement,
+	#[serde(rename = "ds:Signature")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub signature: Option<Signature>,
 	#[serde(rename = "saml:AttributeStatement")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub attribute_statement: Option<AttributeStatement>,
@@ -172,12 +172,12 @@ pub struct SubjectConfirmation {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SubjectConfirmationData {
+	#[serde(rename = "@InResponseTo")]
+	pub in_response_to: String,
 	#[serde(rename = "@NotOnOrAfter")]
 	pub not_on_or_after: String,
 	#[serde(rename = "@Recipient")]
 	pub recipient: String,
-	#[serde(rename = "@InResponseTo")]
-	pub in_response_to: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
