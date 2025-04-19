@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use super::authn_request::AuthnRequest;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct SAMLResponse {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct AuthnResponse {
 	#[serde(rename = "@ID")]
 	pub id: String,
 
@@ -21,33 +21,33 @@ pub struct SAMLResponse {
 	#[serde(rename = "@InResponseTo")]
 	pub in_response_to: String,
 
-	#[serde(rename = "Issuer", alias = "saml:Issuer", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Issuer")]
+	#[serde(rename = "saml:Issuer")]
 	pub issuer: String,
 
-	#[serde(rename = "Status", alias = "samlp:Status", alias = "{urn:oasis:names:tc:SAML:2.0:protocol}Status")]
+	#[serde(rename = "samlp:Status")]
 	pub status: Status,
 
-	#[serde(rename = "Assertion", alias = "saml:Assertion", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Assertion")]
+	#[serde(rename = "saml:Assertion")]
 	pub assertion: Assertion,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Status {
-	#[serde(rename = "StatusCode", alias = "samlp:StatusCode", alias = "{urn:oasis:names:tc:SAML:2.0:protocol}StatusCode")]
+	#[serde(rename = "samlp:StatusCode")]
 	pub status_code: StatusCode,
 
-	#[serde(rename = "StatusMessage", alias = "samlp:StatusMessage", alias = "{urn:oasis:names:tc:SAML:2.0:protocol}StatusMessage")]
+	#[serde(rename = "samlp:StatusMessage")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub status_message: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct StatusCode {
 	#[serde(rename = "@Value")]
 	pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Assertion {
 	#[serde(rename = "@ID")]
 	pub id: String,
@@ -58,119 +58,119 @@ pub struct Assertion {
 	#[serde(rename = "@IssueInstant")]
 	pub issue_instant: String,
 
-	#[serde(rename = "Issuer", alias = "saml:Issuer", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Issuer")]
+	#[serde(rename = "saml:Issuer")]
 	pub issuer: String,
 
-	#[serde(rename = "Signature", alias = "ds:Signature", alias = "{http://www.w3.org/2000/09/xmldsig#}Signature")]
+	#[serde(rename = "ds:Signature")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub signature: Option<Signature>,
 
-	#[serde(rename = "Subject", alias = "saml:Subject", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Subject")]
+	#[serde(rename = "saml:Subject")]
 	pub subject: Subject,
 
-	#[serde(rename = "Conditions", alias = "saml:Conditions", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Conditions")]
+	#[serde(rename = "saml:Conditions")]
 	pub conditions: Conditions,
 
-	#[serde(rename = "AuthnStatement", alias = "saml:AuthnStatement", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}AuthnStatement")]
+	#[serde(rename = "saml:AuthnStatement")]
 	pub authn_statement: AuthnStatement,
 
-	#[serde(rename = "AttributeStatement", alias = "saml:AttributeStatement", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}AttributeStatement")]
+	#[serde(rename = "saml:AttributeStatement")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub attribute_statement: Option<AttributeStatement>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Signature {
 	// Basic structure for XML signature
-	#[serde(rename = "SignedInfo", alias = "ds:SignedInfo", alias = "{http://www.w3.org/2000/09/xmldsig#}SignedInfo")]
+	#[serde(rename = "ds:SignedInfo")]
 	pub signed_info: SignedInfo,
 
-	#[serde(rename = "SignatureValue", alias = "ds:SignatureValue", alias = "{http://www.w3.org/2000/09/xmldsig#}SignatureValue")]
+	#[serde(rename = "ds:SignatureValue")]
 	pub signature_value: String,
 
-	#[serde(rename = "KeyInfo", alias = "ds:KeyInfo", alias = "{http://www.w3.org/2000/09/xmldsig#}KeyInfo")]
+	#[serde(rename = "ds:KeyInfo")]
 	pub key_info: KeyInfo,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SignedInfo {
-	#[serde(rename = "CanonicalizationMethod", alias = "ds:CanonicalizationMethod", alias = "{http://www.w3.org/2000/09/xmldsig#}CanonicalizationMethod")]
+	#[serde(rename = "ds:CanonicalizationMethod")]
 	pub canonicalization_method: CanonicalizationMethod,
 
-	#[serde(rename = "SignatureMethod", alias = "ds:SignatureMethod", alias = "{http://www.w3.org/2000/09/xmldsig#}SignatureMethod")]
+	#[serde(rename = "ds:SignatureMethod")]
 	pub signature_method: SignatureMethod,
 
-	#[serde(rename = "Reference", alias = "ds:Reference", alias = "{http://www.w3.org/2000/09/xmldsig#}Reference")]
+	#[serde(rename = "ds:Reference")]
 	pub reference: Reference,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct CanonicalizationMethod {
 	#[serde(rename = "@Algorithm")]
 	pub algorithm: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SignatureMethod {
 	#[serde(rename = "@Algorithm")]
 	pub algorithm: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Reference {
 	#[serde(rename = "@URI")]
 	pub uri: String,
 
-	#[serde(rename = "Transforms", alias = "ds:Transforms", alias = "{http://www.w3.org/2000/09/xmldsig#}Transforms")]
+	#[serde(rename = "ds:Transforms")]
 	pub transforms: Transforms,
 
-	#[serde(rename = "DigestMethod", alias = "ds:DigestMethod", alias = "{http://www.w3.org/2000/09/xmldsig#}DigestMethod")]
+	#[serde(rename = "ds:DigestMethod")]
 	pub digest_method: DigestMethod,
 
-	#[serde(rename = "DigestValue", alias = "ds:DigestValue", alias = "{http://www.w3.org/2000/09/xmldsig#}DigestValue")]
+	#[serde(rename = "ds:DigestValue")]
 	pub digest_value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Transforms {
-	#[serde(rename = "Transform", alias = "ds:Transform", alias = "{http://www.w3.org/2000/09/xmldsig#}Transform")]
+	#[serde(rename = "ds:Transform")]
 	pub transform: Vec<Transform>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Transform {
 	#[serde(rename = "@Algorithm")]
 	pub algorithm: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct DigestMethod {
 	#[serde(rename = "@Algorithm")]
 	pub algorithm: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct KeyInfo {
-	#[serde(rename = "X509Data", alias = "ds:X509Data", alias = "{http://www.w3.org/2000/09/xmldsig#}X509Data")]
+	#[serde(rename = "ds:X509Data")]
 	pub x509_data: X509Data,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct X509Data {
-	#[serde(rename = "X509Certificate", alias = "ds:X509Certificate", alias = "{http://www.w3.org/2000/09/xmldsig#}X509Certificate")]
+	#[serde(rename = "ds:X509Certificate")]
 	pub x509_certificate: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Subject {
-	#[serde(rename = "NameID", alias = "saml:NameID", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}NameID")]
+	#[serde(rename = "saml:NameID")]
 	pub name_id: NameID,
 
-	#[serde(rename = "SubjectConfirmation", alias = "saml:SubjectConfirmation", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}SubjectConfirmation")]
+	#[serde(rename = "saml:SubjectConfirmation")]
 	pub subject_confirmation: SubjectConfirmation,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NameID {
 	#[serde(rename = "@Format")]
 	pub format: String,
@@ -179,16 +179,16 @@ pub struct NameID {
 	pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SubjectConfirmation {
 	#[serde(rename = "@Method")]
 	pub method: String,
 
-	#[serde(rename = "SubjectConfirmationData", alias = "saml:SubjectConfirmationData", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}SubjectConfirmationData")]
+	#[serde(rename = "saml:SubjectConfirmationData")]
 	pub subject_confirmation_data: SubjectConfirmationData,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SubjectConfirmationData {
 	#[serde(rename = "@NotOnOrAfter")]
 	pub not_on_or_after: String,
@@ -200,7 +200,7 @@ pub struct SubjectConfirmationData {
 	pub in_response_to: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Conditions {
 	#[serde(rename = "@NotBefore")]
 	pub not_before: String,
@@ -208,17 +208,17 @@ pub struct Conditions {
 	#[serde(rename = "@NotOnOrAfter")]
 	pub not_on_or_after: String,
 
-	#[serde(rename = "AudienceRestriction", alias = "saml:AudienceRestriction", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}AudienceRestriction")]
+	#[serde(rename = "saml:AudienceRestriction")]
 	pub audience_restriction: AudienceRestriction,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AudienceRestriction {
-	#[serde(rename = "Audience", alias = "saml:Audience", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Audience")]
+	#[serde(rename = "saml:Audience")]
 	pub audience: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnStatement {
 	#[serde(rename = "@AuthnInstant")]
 	pub authn_instant: String,
@@ -226,23 +226,23 @@ pub struct AuthnStatement {
 	#[serde(rename = "@SessionIndex")]
 	pub session_index: String,
 
-	#[serde(rename = "AuthnContext", alias = "saml:AuthnContext", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}AuthnContext")]
+	#[serde(rename = "saml:AuthnContext")]
 	pub authn_context: AuthnContext,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnContext {
-	#[serde(rename = "AuthnContextClassRef", alias = "saml:AuthnContextClassRef", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}AuthnContextClassRef")]
+	#[serde(rename = "saml:AuthnContextClassRef")]
 	pub authn_context_class_ref: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AttributeStatement {
-	#[serde(rename = "Attribute", alias = "saml:Attribute", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}Attribute")]
+	#[serde(rename = "saml:Attribute")]
 	pub attributes: Vec<Attribute>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Attribute {
 	#[serde(rename = "@Name")]
 	pub name: String,
@@ -250,18 +250,18 @@ pub struct Attribute {
 	#[serde(rename = "@NameFormat")]
 	pub name_format: Option<String>,
 
-	#[serde(rename = "AttributeValue", alias = "saml:AttributeValue", alias = "{urn:oasis:names:tc:SAML:2.0:assertion}AttributeValue")]
+	#[serde(rename = "saml:AttributeValue")]
 	pub attribute_values: Vec<AttributeValue>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AttributeValue {
 	#[serde(rename = "$value")]
 	pub value: String,
 }
 
 impl AuthnRequest {
-	pub fn to_response(&self, idp_metadata: &str, user_id: &str) -> SAMLResponse {
+	pub fn to_response(&self, idp_metadata: &str, user_id: &str) -> AuthnResponse {
 		let now = Utc::now();
 		let expiry = now + chrono::Duration::hours(1);
 		let response_id = format!("_resp-{}", Uuid::new_v4());
@@ -283,7 +283,7 @@ impl AuthnRequest {
 		let attributes = vec![]; // Placeholder for attributes
 
 
-		SAMLResponse {
+		AuthnResponse {
 			id: response_id,
 			version: "2.0".to_string(),
 			issue_instant: now.to_rfc3339(),
@@ -309,7 +309,7 @@ impl AuthnRequest {
 						method: "urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string(),
 						subject_confirmation_data: SubjectConfirmationData {
 							not_on_or_after: expiry.to_rfc3339(),
-							recipient: self.acs_url.clone().unwrap(),
+							recipient: self.destination.clone().unwrap(),
 							in_response_to: self.id.clone(),
 						},
 					},

@@ -2539,6 +2539,7 @@ dependencies = [
  "rand 0.9.0",
  "reindeer",
  "reqwest",
+ "rsa",
  "scraper",
  "serde",
  "serde_json",

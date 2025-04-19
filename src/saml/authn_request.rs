@@ -5,7 +5,7 @@ use std::io::Read;
 
 use crate::error::Result;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnRequest {
 	#[serde(rename = "@ID")]
 	pub id: String,
@@ -41,7 +41,7 @@ pub struct AuthnRequest {
 	pub requested_authn_context: Option<RequestedAuthnContext>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NameIDPolicy {
 	#[serde(rename = "@Format")]
 	pub format: Option<String>,
@@ -53,7 +53,7 @@ pub struct NameIDPolicy {
 	pub sp_name_qualifier: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct RequestedAuthnContext {
 	#[serde(rename = "@Comparison")]
 	pub comparison: Option<String>,
