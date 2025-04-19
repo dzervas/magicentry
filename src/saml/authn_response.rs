@@ -1,4 +1,5 @@
 use std::io::Cursor;
+use log::debug;
 use quick_xml::events::Event;
 use quick_xml::{Reader, Writer};
 
@@ -15,25 +16,18 @@ use crate::error::Result;
 pub struct AuthnResponse {
 	#[serde(rename = "@ID")]
 	pub id: String,
-
 	#[serde(rename = "@Version")]
 	pub version: String,
-
 	#[serde(rename = "@IssueInstant")]
 	pub issue_instant: String,
-
 	#[serde(rename = "@Destination")]
 	pub destination: Option<String>,
-
 	#[serde(rename = "@InResponseTo")]
 	pub in_response_to: String,
-
 	#[serde(rename = "saml:Issuer")]
 	pub issuer: String,
-
 	#[serde(rename = "samlp:Status")]
 	pub status: Status,
-
 	#[serde(rename = "saml:Assertion")]
 	pub assertion: Assertion,
 }
@@ -42,7 +36,6 @@ pub struct AuthnResponse {
 pub struct Status {
 	#[serde(rename = "samlp:StatusCode")]
 	pub status_code: StatusCode,
-
 	#[serde(rename = "samlp:StatusMessage")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub status_message: Option<String>,
@@ -58,29 +51,21 @@ pub struct StatusCode {
 pub struct Assertion {
 	#[serde(rename = "@ID")]
 	pub id: String,
-
 	#[serde(rename = "@Version")]
 	pub version: String,
-
 	#[serde(rename = "@IssueInstant")]
 	pub issue_instant: String,
-
 	#[serde(rename = "saml:Issuer")]
 	pub issuer: String,
-
 	#[serde(rename = "ds:Signature")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub signature: Option<Signature>,
-
 	#[serde(rename = "saml:Subject")]
 	pub subject: Subject,
-
 	#[serde(rename = "saml:Conditions")]
 	pub conditions: Conditions,
-
 	#[serde(rename = "saml:AuthnStatement")]
 	pub authn_statement: AuthnStatement,
-
 	#[serde(rename = "saml:AttributeStatement")]
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub attribute_statement: Option<AttributeStatement>,
@@ -91,10 +76,8 @@ pub struct Signature {
 	// Basic structure for XML signature
 	#[serde(rename = "ds:SignedInfo")]
 	pub signed_info: SignedInfo,
-
 	#[serde(rename = "ds:SignatureValue")]
 	pub signature_value: String,
-
 	#[serde(rename = "ds:KeyInfo")]
 	pub key_info: KeyInfo,
 }
@@ -103,10 +86,8 @@ pub struct Signature {
 pub struct SignedInfo {
 	#[serde(rename = "ds:CanonicalizationMethod")]
 	pub canonicalization_method: CanonicalizationMethod,
-
 	#[serde(rename = "ds:SignatureMethod")]
 	pub signature_method: SignatureMethod,
-
 	#[serde(rename = "ds:Reference")]
 	pub reference: Reference,
 }
@@ -127,13 +108,10 @@ pub struct SignatureMethod {
 pub struct Reference {
 	#[serde(rename = "@URI")]
 	pub uri: String,
-
 	#[serde(rename = "ds:Transforms")]
 	pub transforms: Transforms,
-
 	#[serde(rename = "ds:DigestMethod")]
 	pub digest_method: DigestMethod,
-
 	#[serde(rename = "ds:DigestValue")]
 	pub digest_value: String,
 }
@@ -172,7 +150,6 @@ pub struct X509Data {
 pub struct Subject {
 	#[serde(rename = "saml:NameID")]
 	pub name_id: NameID,
-
 	#[serde(rename = "saml:SubjectConfirmation")]
 	pub subject_confirmation: SubjectConfirmation,
 }
@@ -181,7 +158,6 @@ pub struct Subject {
 pub struct NameID {
 	#[serde(rename = "@Format")]
 	pub format: String,
-
 	#[serde(rename = "$value")]
 	pub value: String,
 }
@@ -190,7 +166,6 @@ pub struct NameID {
 pub struct SubjectConfirmation {
 	#[serde(rename = "@Method")]
 	pub method: String,
-
 	#[serde(rename = "saml:SubjectConfirmationData")]
 	pub subject_confirmation_data: SubjectConfirmationData,
 }
@@ -199,10 +174,8 @@ pub struct SubjectConfirmation {
 pub struct SubjectConfirmationData {
 	#[serde(rename = "@NotOnOrAfter")]
 	pub not_on_or_after: String,
-
 	#[serde(rename = "@Recipient")]
 	pub recipient: String,
-
 	#[serde(rename = "@InResponseTo")]
 	pub in_response_to: String,
 }
@@ -211,10 +184,8 @@ pub struct SubjectConfirmationData {
 pub struct Conditions {
 	#[serde(rename = "@NotBefore")]
 	pub not_before: String,
-
 	#[serde(rename = "@NotOnOrAfter")]
 	pub not_on_or_after: String,
-
 	#[serde(rename = "saml:AudienceRestriction")]
 	pub audience_restriction: AudienceRestriction,
 }
@@ -229,10 +200,8 @@ pub struct AudienceRestriction {
 pub struct AuthnStatement {
 	#[serde(rename = "@AuthnInstant")]
 	pub authn_instant: String,
-
 	#[serde(rename = "@SessionIndex")]
 	pub session_index: String,
-
 	#[serde(rename = "saml:AuthnContext")]
 	pub authn_context: AuthnContext,
 }
@@ -272,9 +241,11 @@ impl AuthnResponse {
 		let response_str = quick_xml::se::to_string_with_root("samlp:Response", self)?;
 		let response_str = Self::add_namespace_declarations(&response_str)?;
 
+		debug!("SAML Response XML: {}", response_str);
+
 		let encoded_response = general_purpose::STANDARD.encode(response_str);
 
-		Ok(encoded_response)
+		Ok(encoded_response.trim().to_string())
 	}
 
 	fn add_namespace_declarations(xml: &str) -> Result<String> {

@@ -1,6 +1,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose;
+use log::debug;
 use quick_xml::se::to_string_with_root;
 use rsa::RsaPrivateKey;
 use rsa::pkcs1::DecodeRsaPrivateKey;
@@ -35,6 +36,7 @@ impl AuthnResponse {
 
 		// Serialize to calculate digest
 		let assertion_xml = to_string_with_root("saml:Assertion", &assertion_without_sig)?;
+		debug!("Assertion XML: {}", assertion_xml);
 
 		// Calculate digest
 		let digest_value = Self::compute_digest(&assertion_xml)?;
@@ -43,7 +45,7 @@ impl AuthnResponse {
 		let reference_uri = format!("#{}", assertion_without_sig.id);
 		let signed_info = SignedInfo {
 			canonicalization_method: CanonicalizationMethod {
-				algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
+				algorithm: "http://www.w3.org/TR/2001/REC-xml-c14n-20010315".to_string(),
 			},
 			signature_method: SignatureMethod {
 				algorithm: "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256".to_string(),
@@ -65,6 +67,7 @@ impl AuthnResponse {
 
 		// Serialize SignedInfo to XML for signing
 		let signed_info_xml = to_string_with_root("ds:SignedInfo", &signed_info)?;
+		debug!("SignedInfo XML: {}", signed_info_xml);
 
 		// Sign the SignedInfo
 		let signature_value = Self::sign_data(&private_key, &signed_info_xml)?;
@@ -87,9 +90,9 @@ impl AuthnResponse {
 	}
 
 	// Compute SHA-256 digest of the data and Base64 encode it
-	fn compute_digest(data: &str) -> Result<String> {
+	fn compute_digest(xml: &str) -> Result<String> {
 		let mut hasher = Sha256Hasher::new();
-		hasher.update(data.as_bytes());
+		hasher.update(xml.as_bytes());
 		let result = hasher.finalize();
 		Ok(general_purpose::STANDARD.encode(result))
 	}
