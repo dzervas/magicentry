@@ -1,11 +1,20 @@
 with import <nixpkgs> {};
-mkShell {
+let
+  # Required until this is fixed: https://github.com/KWARC/rust-libxml/issues/147
+  libxml2_older = libxml2.overrideAttrs (old: rec {
+    version = "2.10.4";
+    src = fetchurl {
+      url = "mirror://gnome/sources/libxml2/2.10/${old.pname}-${version}.tar.xz";
+      sha256 = "sha256-7QyRxYRQCPGTZznk7uIDVTHByUdCxlQfRO5m2IWUjUU=";
+    };
+  });
+in mkShell {
   nativeBuildInputs = [
     rustup
     openssl.dev
     pkg-config
 
-    libxml2
+    libxml2_older
 
     llvmPackages_latest.lldb
     llvmPackages_latest.libllvm
