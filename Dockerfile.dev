@@ -1,35 +1,16 @@
-FROM node:alpine AS frontend
+FROM rust:1 AS builder
+WORKDIR /app
 
-WORKDIR /usr/src/app
+RUN chown -R 1000:1000 /app
+RUN apt-get update && apt-get install -y \
+	gcc-aarch64-linux-gnu \
+	make \
+	pkg-config \
+	libclang-dev \
+	libssl-dev \
+	libxml2-dev \
+	libfindbin-libs-perl
 
-COPY static static
-COPY *.js *.json ./
-RUN --mount=type=cache,target=node_modules,id=magicentry-node-modules \
-	npm install --include=dev
-RUN npm run build
+USER 1000:1000
 
-FROM rust AS builder
-
-WORKDIR /usr/src/app
-
-RUN cargo init --vcs none --bin
-COPY Cargo.toml Cargo.lock ./
-COPY .cargo .cargo
-RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
-	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
-	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \
-	cargo build && \
-	rm target/debug/deps/magicentry*
-
-COPY . .
-RUN --mount=type=cache,target=/usr/local/cargo/git,id=magicentry-cargo-git-cache \
-	--mount=type=cache,target=/usr/local/cargo/registry,id=magicentry-cargo-registry-cache \
-	--mount=type=cache,target=/usr/src/app/target,id=magicentry-cargo-target-cache \
-	cargo build && \
-	cp target/debug/magicentry /usr/local/bin/
-
-ENV CONFIG_FILE=/config.yaml
-ENV RUST_LOG=info
-
-EXPOSE 8080/tcp
-CMD ["/usr/local/bin/magicentry"]
+CMD ["cargo", "run"]

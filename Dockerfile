@@ -18,6 +18,9 @@ RUN --mount=type=cache,target=/app/target/ \
 	rustup target add $(cat /.target-triplet)
 
 RUN test "$TARGETPLATFORM" = "linux/arm64" || exit 0 && apt-get update && apt-get install -y gcc-aarch64-linux-gnu && apt-get clean
+# For libxml2 install: make pkg-config libclang-dev libssl-dev libxml2-dev libfindbin-libs-perl
+# For arm64 also do: dpkg --add-architecture arm64 && apt-get update && apt-get install -y libxml2-dev:arm64
+#     during cargo build the following env is also required: PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:$PKG_CONFIG_PATH PKG_CONFIG_SYSROOT_DIR=/
 
 COPY . .
 
