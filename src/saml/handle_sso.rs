@@ -16,7 +16,7 @@ pub struct SAMLRequest {
 	#[serde(rename = "SAMLRequest")]
 	pub request: String,
 	#[serde(rename = "RelayState")]
-	pub relay_state: String,
+	pub relay_state: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -56,7 +56,7 @@ pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<
 	authorize_data.insert("client", "test client".to_string());
 	authorize_data.insert("samlACS", authn_request.acs_url.clone().unwrap());
 	authorize_data.insert("samlResponseData", response.to_encoded_string().unwrap());
-	authorize_data.insert("samlRelayState", data.relay_state.clone());
+	authorize_data.insert("samlRelayState", data.relay_state.clone().unwrap_or_default());
 	debug!("\n\n{}\n\n", authorize_data.get_key_value("samlResponseData").unwrap().1);
 	let authorize_page = get_partial("authorize", authorize_data)?;
 

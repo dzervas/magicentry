@@ -26,6 +26,9 @@ pub struct AuthnResponse {
 	pub in_response_to: String,
 	#[serde(rename = "saml:Issuer")]
 	pub issuer: String,
+	#[serde(rename = "ds:Signature")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub signature: Option<Signature>,
 	#[serde(rename = "samlp:Status")]
 	pub status: Status,
 	#[serde(rename = "saml:Assertion")]
@@ -74,6 +77,8 @@ pub struct Assertion {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Signature {
 	// Basic structure for XML signature
+	#[serde(rename = "@xmlns:ds")]
+	pub ds_ns: String,
 	#[serde(rename = "ds:SignedInfo")]
 	pub signed_info: SignedInfo,
 	#[serde(rename = "ds:SignatureValue")]
@@ -265,7 +270,6 @@ impl AuthnResponse {
 					// Add necessary namespaces
 					elem.push_attribute(("xmlns:samlp", "urn:oasis:names:tc:SAML:2.0:protocol"));
 					elem.push_attribute(("xmlns:saml", "urn:oasis:names:tc:SAML:2.0:assertion"));
-					elem.push_attribute(("xmlns:ds", "http://www.w3.org/2000/09/xmldsig#"));
 
 					writer.write_event(Event::Start(elem))?;
 					namespaces_added = true;
@@ -312,6 +316,7 @@ impl AuthnRequest {
 			destination: self.acs_url.clone(),
 			in_response_to: self.id.clone(),
 			issuer: idp_metadata.to_string(),
+			signature: None, // Will be added later during XML signing
 			status: Status {
 				status_code: StatusCode { value: "urn:oasis:names:tc:SAML:2.0:status:Success".to_string() },
 				status_message: None,
@@ -324,7 +329,7 @@ impl AuthnRequest {
 				signature: None, // Will be added later during XML signing
 				subject: Subject {
 					name_id: NameID {
-						format: "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified".to_string(),
+						format: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress".to_string(),
 						value: user_id.to_string(),
 					},
 					subject_confirmation: SubjectConfirmation {

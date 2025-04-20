@@ -78,6 +78,7 @@ impl AuthnResponse {
 
 		// Create full signature structure
 		let signature = Signature {
+			ds_ns: "http://www.w3.org/2000/09/xmldsig#".to_string(),
 			signed_info,
 			signature_value,
 			key_info: KeyInfo {
