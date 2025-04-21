@@ -2,13 +2,13 @@
 use base64::Engine;
 use base64::engine::general_purpose;
 use log::debug;
-use quick_xml::se::to_string_with_root;
 use rsa::RsaPrivateKey;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::signature::{SignatureEncoding, Signer};
 use rsa::sha2::Sha256;
 use sha2::{Digest, Sha256 as Sha256Hasher};
+use serde::Serialize;
 
 use super::authn_response::*;
 use crate::error::Result;
@@ -30,23 +30,17 @@ impl AuthnResponse {
 		let private_key = RsaPrivateKey::from_pkcs8_pem(private_key_pem)
 		.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_pem)).unwrap();
 
-		// First, serialize the assertion without signature to calculate its digest
-		let mut assertion_without_sig = self.assertion.clone();
-		assertion_without_sig.signature = None; // Ensure no signature for digest calculation
-
 		// Serialize to calculate digest
-		let mut assertion_xml = to_string_with_root("saml:Assertion", &assertion_without_sig)?;
-		assertion_xml = assertion_xml
-			// Super ugly hack to get around the lack of canonicalization in rust
-			// Using a quick_xml::Serializer::with_empty_elements() would fix this
-			.replace("/></saml:SubjectConfirmation>", "></saml:SubjectConfirmationData></saml:SubjectConfirmation>");
-		debug!("Assertion XML: {}", assertion_xml);
+		let mut xml = String::new();
+		let mut ser = quick_xml::se::Serializer::with_root(&mut xml, Some("samlp:Response")).unwrap();
+		ser.expand_empty_elements(true);
+		self.serialize(ser)?;
 
 		// Calculate digest
-		let digest_value = Self::compute_digest(&assertion_xml)?;
+		let digest_value = Self::compute_digest(&xml)?;
 
 		// Create the SignedInfo element
-		let reference_uri = format!("#{}", assertion_without_sig.id);
+		let reference_uri = format!("#{}", self.id);
 		let signed_info = SignedInfo {
 			canonicalization_method: CanonicalizationMethod {
 				algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
@@ -70,7 +64,10 @@ impl AuthnResponse {
 		};
 
 		// Serialize SignedInfo to XML for signing
-		let signed_info_xml = to_string_with_root("ds:SignedInfo", &signed_info)?;
+		let mut signed_info_xml = String::new();
+		let mut ser = quick_xml::se::Serializer::with_root(&mut signed_info_xml, Some("ds:SignedInfo")).unwrap();
+		ser.expand_empty_elements(true);
+		signed_info.serialize(ser)?;
 		debug!("SignedInfo XML: {}", signed_info_xml);
 
 		// Sign the SignedInfo
@@ -89,7 +86,7 @@ impl AuthnResponse {
 		};
 
 		// Add signature to assertion
-		self.assertion.signature = Some(signature);
+		self.signature = Some(signature);
 
 		Ok(())
 	}
