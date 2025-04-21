@@ -39,7 +39,7 @@ pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
 	debug!("Parsed SAML AuthnRequest: {:?}", authn_request);
 
-	let mut response = authn_request.to_response("http://localhost:8181/saml/metadata", "dzervas@dzervas.gr");
+	let mut response = authn_request.to_response("http://localhost:8181/saml/metadata", &token.user);
 
 	debug!("SAML Response: {:?}", response);
 

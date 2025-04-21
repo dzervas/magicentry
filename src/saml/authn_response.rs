@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use super::authn_request::AuthnRequest;
 use crate::error::Result;
+use crate::user::User;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnResponse {
@@ -269,18 +270,22 @@ impl AuthnResponse {
 }
 
 impl AuthnRequest {
-	pub fn to_response(&self, idp_metadata: &str, user_id: &str) -> AuthnResponse {
+	pub fn to_response(&self, idp_metadata: &str, user: &User) -> AuthnResponse {
 		let now = Utc::now();
 		let expiry = now + chrono::Duration::hours(1);
 		let response_id = format!("_resp-{}", Uuid::new_v4());
 		let assertion_id = format!("_assert-{}", Uuid::new_v4());
 		let session_id = format!("_session-{}", Uuid::new_v4());
 
+		let split_name = user.name.split_whitespace().collect::<Vec<&str>>();
+		let first_name = split_name.get(0).unwrap_or(&"").to_string();
+		let last_name = split_name.get(1).unwrap_or(&"").to_string();
+
 		let attributes: Vec<Attribute> = [
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", vec![user_id]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn", vec![user_id]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname", vec![user_id]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname", vec![user_id])
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", vec![user.email.clone()]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn", vec![user.username.clone()]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname", vec![first_name]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname", vec![last_name])
 		].into_iter()
 		.map(|(name, values)| {
 			Attribute {
@@ -320,7 +325,7 @@ impl AuthnRequest {
 				subject: Subject {
 					name_id: NameID {
 						format: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress".to_string(),
-						value: user_id.to_string(),
+						value: user.email.to_string(),
 					},
 					subject_confirmation: SubjectConfirmation {
 						method: "urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string(),
