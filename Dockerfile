@@ -14,7 +14,7 @@ ARG TARGETPLATFORM
 RUN echo $(test "$TARGETPLATFORM" = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
 RUN --mount=type=cache,target=/app/target/ \
 	--mount=type=cache,target=/usr/local/cargo/git/db/ \
-	--mount=type=cache,target=/usr/local/cargo/registry/ \
+	--mount=type=cache,target=/usr/local/cargo/registry/cache/ \
 	rustup target add $(cat /.target-triplet)
 
 RUN test "$TARGETPLATFORM" = "linux/arm64" || exit 0 && apt-get update && apt-get install -y gcc-aarch64-linux-gnu && apt-get clean
@@ -27,7 +27,7 @@ COPY . .
 ARG FEATURES="default"
 RUN --mount=type=cache,target=/app/target/ \
 	--mount=type=cache,target=/usr/local/cargo/git/db/ \
-	--mount=type=cache,target=/usr/local/cargo/registry/ \
+	--mount=type=cache,target=/usr/local/cargo/registry/cache/ \
 	cargo build --release --features=$FEATURES --target $(cat /.target-triplet) && cp target/$(cat /.target-triplet)/release/magicentry .
 
 FROM gcr.io/distroless/cc-debian12
