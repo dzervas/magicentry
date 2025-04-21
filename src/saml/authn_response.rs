@@ -276,20 +276,23 @@ impl AuthnRequest {
 		let assertion_id = format!("_assert-{}", Uuid::new_v4());
 		let session_id = format!("_session-{}", Uuid::new_v4());
 
-		// let attributes: Vec<Attribute> = user_attributes.into_iter()
-		// .map(|(name, values)| {
-		// 	Attribute {
-		// 		name,
-		// 		name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
-		// 		attribute_values: values
-		// 		.into_iter()
-		// 		.map(|v| AttributeValue { value: v })
-		// 		.collect(),
-		// 	}
-		// })
-		// .collect();
-		let attributes = vec![]; // Placeholder for attributes
-
+		let attributes: Vec<Attribute> = [
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", vec![user_id]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn", vec![user_id]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname", vec![user_id]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname", vec![user_id])
+		].into_iter()
+		.map(|(name, values)| {
+			Attribute {
+				name: name.to_string(),
+				name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
+				attribute_values: values
+				.into_iter()
+				.map(|v| AttributeValue { value: v.to_string() })
+				.collect(),
+			}
+		})
+		.collect();
 
 		AuthnResponse {
 			samlp_ns: "urn:oasis:names:tc:SAML:2.0:protocol".to_string(),
