@@ -98,6 +98,9 @@ pub struct Signature {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SignedInfo {
+	#[serde(rename = "@xmlns:ds")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub ds_ns: Option<String>,
 	#[serde(rename = "ds:CanonicalizationMethod")]
 	pub canonicalization_method: CanonicalizationMethod,
 	#[serde(rename = "ds:SignatureMethod")]

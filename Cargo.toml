@@ -61,8 +61,7 @@ flate2 = "1.1.1"
 base64 = "0.22.1"
 url = "2.5.4"
 quick-xml = { version = "0.37.4", features = ["async-tokio", "serialize"] }
-rsa = "0.9.8"
-libxml = "0.3.4"
+rsa = { version = "0.9.8", features = ["sha2"] }
 
 [dev-dependencies]
 scraper = "0.23"

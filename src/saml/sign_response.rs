@@ -41,7 +41,8 @@ impl AuthnResponse {
 
 		// Create the SignedInfo element
 		let reference_uri = format!("#{}", self.id);
-		let signed_info = SignedInfo {
+		let mut signed_info = SignedInfo {
+			ds_ns: Some("http://www.w3.org/2000/09/xmldsig#".to_string()),
 			canonicalization_method: CanonicalizationMethod {
 				algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
 			},
@@ -69,6 +70,8 @@ impl AuthnResponse {
 		ser.expand_empty_elements(true);
 		signed_info.serialize(ser)?;
 		debug!("SignedInfo XML: {}", signed_info_xml);
+
+		signed_info.ds_ns = None; // Remove the namespace after signing - Signature has it already
 
 		// Sign the SignedInfo
 		let signature_value = Self::sign_data(&private_key, &signed_info_xml)?;
