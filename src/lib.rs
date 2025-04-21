@@ -12,6 +12,7 @@ pub mod config_kube;
 pub mod error;
 pub mod oidc;
 pub mod saml;
+pub mod service;
 pub mod token;
 pub mod user;
 pub mod utils;

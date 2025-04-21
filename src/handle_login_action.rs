@@ -40,20 +40,8 @@ impl ScopedLogin {
 		let origin = format!("{}://{}", origin_scheme, origin_authority);
 
 		let config = CONFIG.read().await;
-		let auth_url_scopes = config
-			.auth_url_scopes
-			.iter()
-			.find(|c| user.has_any_realm(&c.realms) && c.origin == origin);
-
-		let oidc_scopes = config
-			.oidc_clients
-			.iter()
-			.find(|c| user.has_any_realm(&c.realms) && c.origins.contains(&origin));
-
-		if auth_url_scopes.is_none() && oidc_scopes.is_none() {
-			log::warn!("Return URL has an origin that doesn't exist in the config: {}", origin);
-			return None;
-		}
+		// Check that the redirect URL is allowed and that the user has access to it
+		config.services.from_origin_with_realms(&origin, user)?;
 
 		let new_redirect_url = Url::parse_with_params(&redirect_url, &[("code", code)])
 			.ok()?

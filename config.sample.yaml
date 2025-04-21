@@ -2,53 +2,67 @@
 # To create a new config, just set the `users` and any other settings you want to change
 database_url: database.db
 
+# Host that the server will listen on
 listen_host: 0.0.0.0
+# Port that the server will listen on
 listen_port: 8080
+# Path prefix to prepend to the returned URLs (for weird proxied setups)
 path_prefix: /
+# URL that the server will be accessible at from the users
 external_url: http://localhost:8080
 
+# How long will the magic link be valid for (account for email delivery time too)
 link_duration: 1h
+# How long will a global session be valid for
 session_duration: 1mon
 
+# Title of the authentication service, will be shown in the web UI and emails
 title: MagicEntry
 
+# Enable the auth-url functionality, which allows you to use MagicEntry
+# as an additional authentication layer for your existing services
+# You can use it as the only authentication layer if the application supports
+# Header-based authentication, OIDC or SAML
 auth_url_enable: true
+# The username header of the authenticated user
 auth_url_user_header: X-Auth-User
+# The full name header of the authenticated user
 auth_url_name_header: X-Auth-Name
+# The email header of the authenticated user
 auth_url_email_header: X-Auth-Email
+# The realms that this user has access to
 auth_url_realms_header: X-Auth-Realms
-auth_url_scopes:
-  - origin: http://localhost:8080
-    realms:
-      - example
 
-oidc_enable: true
+# How long does an OIDC code last
 oidc_code_duration: 1m
-oidc_clients:
-  - id: my_client
-    secret: my_secret
-    redirect_uris:
-      - https://openidconnect.net/callback
-      - http://127.0.0.1:8081/auth/openid/callback
-      - http://localhost:8081/auth/openid/callback
-    realms:
-      - example
 
+# Use SMTP to send the magic link to the user
 smtp_enable: false
+# SMTP server to use
 # For the URL scheme options see https://docs.rs/lettre/latest/lettre/transport/smtp/struct.AsyncSmtpTransport.html#method.from_url
 smtp_url: smtp://user@pass:localhost:25/?tls=required
+# SMTP "From" header
 smtp_from: "{title} <magicentry@example.com>"
+# SMTP subject
 smtp_subject: "{title} Login"
+# SMTP body
 smtp_body: "Click the link to login: {magic_link}"
 
+# Use a web request to send the magic link to the user
 request_enable: false
+# URL to send the request to
 request_url: https://www.cinotify.cc/api/notify
-request_data: "to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html"
+# GET/POST data to send
+request_data: 'to={email}&subject={title} Login&body=Click the link to login: <a href="{magic_link}">Login</a>&type=text/html'
+# Request method to use
 request_method: POST
+# Request content type
 request_content_type: application/x-www-form-urlencoded
 
+# Enable the ability for the users to authenticate using passkeys
 webauthn_enable: true
 
+# List of the users that can authenticate using the service
 users:
   - username: valid
     name: Valid User
@@ -61,3 +75,33 @@ users:
     realms:
       - example
       - public
+  - username: admin
+    email: admin@example.com
+    name: Admin User
+    realms:
+      - all # `all` is a special realm that gives access to all services
+
+# Services that can use magicentry
+services:
+  # Service name (for cataloging)
+  - name: example
+    # URL of the service (for cataloging)
+    url: http://localhost:8181
+    # Valid service origins (for CORS, OIDC and auth-url)
+    valid_origins:
+      - http://localhost:8181
+    # Realms of which users have access to
+    realms:
+      - example
+    # OIDC configuration (optional)
+    # All of the settings below are tightly coupled with the service config
+    oidc:
+      # OIDC client ID
+      client_id: my_client
+      # OIDC client secret
+      client_secret: my_secret
+      # OIDC redirect URLs
+      redirect_urls:
+        - https://openidconnect.net/callback
+        - http://127.0.0.1:8081/auth/openid/callback
+        - http://localhost:8081/auth/openid/callback

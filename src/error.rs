@@ -51,6 +51,8 @@ pub enum AppErrorKind {
 	InvalidClientID,
 	#[display("Client sent a client_secret that does not correspond to the client_id it sent")]
 	InvalidClientSecret,
+	#[display("OIDC not configured for this client")]
+	OIDCNotConfigured,
 	#[display("Client did not send a client_id")]
 	NoClientID,
 	#[display("Client did not send a client_secret")]

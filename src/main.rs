@@ -30,7 +30,6 @@ pub async fn main() -> std::io::Result<()> {
 		.clone()
 		.to_std()
 		.expect("Couldn't parse session_duration");
-	let oidc_enable = config.oidc_enable;
 	let webauthn_enable = config.webauthn_enable;
 	let listen_host = config.listen_host.clone();
 	let listen_port = config.listen_port;
@@ -102,7 +101,25 @@ pub async fn main() -> std::io::Result<()> {
 			.service(handle_static::static_files)
 			.service(handle_static::favicon)
 
+			// Auth URL routes
 			.service(auth_url::handle_status::status)
+
+			// SAML routes
+			.service(saml::handle_metadata::metadata)
+			.service(saml::handle_sso::sso)
+
+			// OIDC routes
+			.app_data(web::Data::new(oidc_key.clone()))
+			.service(oidc::handle_discover::discover)
+			.service(oidc::handle_discover::discover_preflight)
+			.service(oidc::handle_authorize::authorize_get)
+			.service(oidc::handle_authorize::authorize_post)
+			.service(oidc::handle_token::token)
+			.service(oidc::handle_token::token_preflight)
+			.service(oidc::handle_jwks::jwks)
+			.service(oidc::handle_userinfo::userinfo)
+			// Handle oauth discovery too
+			.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent())
 
 			// Middleware
 			.wrap(Logger::default())
@@ -119,28 +136,6 @@ pub async fn main() -> std::io::Result<()> {
 							.expect("Couldn't set session_ttl - something is wrong with session_duration"))
 				)
 				.build());
-
-		// TODO: Config enable SAML
-		if true {
-			app = app
-				.service(saml::handle_metadata::metadata)
-				.service(saml::handle_sso::sso);
-		}
-
-		if oidc_enable {
-			app = app
-				.app_data(web::Data::new(oidc_key.clone()))
-				.service(oidc::handle_discover::discover)
-				.service(oidc::handle_discover::discover_preflight)
-				.service(oidc::handle_authorize::authorize_get)
-				.service(oidc::handle_authorize::authorize_post)
-				.service(oidc::handle_token::token)
-				.service(oidc::handle_token::token_preflight)
-				.service(oidc::handle_jwks::jwks)
-				.service(oidc::handle_userinfo::userinfo)
-				// Handle oauth discovery too
-				.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent());
-		}
 
 		if webauthn_enable {
 			let webauthn = webauthn::init(title.clone(), external_url.clone())

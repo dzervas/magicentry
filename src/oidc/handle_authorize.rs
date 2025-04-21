@@ -46,13 +46,10 @@ impl AuthorizeRequest {
 		};
 
 		let config = CONFIG.read().await;
-		let config_client = config.oidc_clients.iter().find(|c| {
-			user.has_any_realm(&c.realms)
-				&& c.id == self.client_id
-				&& c.redirect_uris.contains(&redirect_url)
-		});
 
-		if config_client.is_none() {
+		let service = config.services.from_oidc_redirect_url_with_realms(&redirect_url, user);
+
+		if service.is_none() {
 			log::warn!(
 				"Invalid redirect_uri: {} for client_id: {}",
 				redirect_url,

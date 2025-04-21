@@ -3,7 +3,7 @@ use actix_web_httpauth::extractors::basic::BasicAuth;
 use chrono::Utc;
 use jwt_simple::algorithms::RS256KeyPair;
 use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
-use log::debug;
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -79,53 +79,56 @@ pub async fn token(
 	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
 	debug!("Session: {:?}", session);
 	let auth_req =
-		AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
+	AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
 	let config = CONFIG.read().await;
-	let allowed_origins;
+
+	let client_id = if let Some(basic_creds) = basic.clone() {
+		basic_creds.user_id().to_string()
+	} else {
+		auth_req.client_id.clone()
+	};
+
+	let mut service = config
+		.services
+		.from_oidc_client_id(&client_id)
+		.ok_or(AppErrorKind::InvalidClientID)?;
+
+	let mut oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
 
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
 		// Client secret is not required and only the request origin should be checked
-		debug!("Responding to PCRE request");
+		info!("Responding to PCRE request for client {}", service.name);
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
 		let generated_code_challenge =
-			Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+		Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+
+		if oidc.client_id != token_req.client_id.clone().unwrap_or_default() {
+			return Err(AppErrorKind::InvalidClientID.into());
+		}
+
+		// TODO: We require a client_secret, does that cause any issues?
+		if oidc.client_secret != token_req.client_secret.clone().unwrap_or_default() {
+			return Err(AppErrorKind::InvalidClientSecret.into());
+		}
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(AppErrorKind::InvalidCodeVerifier.into());
 		}
-
-		let config_client = config
-			.oidc_clients
-			.iter()
-			.find(|c| c.id == auth_req.client_id)
-			.ok_or(AppErrorKind::InvalidClientID)?;
-		allowed_origins = config_client.origins.clone();
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
-		debug!("Responding to client_secret_post request");
-		let req_client_id = token_req
-			.client_id
-			.clone()
-			.ok_or(AppErrorKind::NoClientID)?;
-		let session_client_id = auth_req.client_id.clone();
-		let config_client = config
-			.oidc_clients
-			.iter()
-			.find(|c| session.user.has_any_realm(&c.realms) && c.id == session_client_id)
-			.ok_or(AppErrorKind::InvalidClientID)?;
+		info!("Responding to client_secret_post request for client {}", service.name);
+		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
 
-		if req_client_id != session_client_id {
-			return Err(AppErrorKind::NotMatchingClientID.into());
-		}
-
-		if config_client.id != req_client_id || config_client.secret != req_client_secret {
+		if oidc.client_secret != req_client_secret {
 			return Err(AppErrorKind::InvalidClientSecret.into());
 		}
 
-		allowed_origins = config_client.origins.clone();
+		if oidc.client_id != req_client_id {
+			return Err(AppErrorKind::InvalidClientID.into());
+		}
 	} else if let Some(basic_creds) = basic {
 		// We're using client_id - client_secret over basic auth
 		debug!("Responding to client_secret_basic request");
@@ -133,17 +136,15 @@ pub async fn token(
 		let req_client_secret = basic_creds.password()
 			.ok_or(AppErrorKind::NoClientSecret)?
 			.to_string();
-		let config_client = config
-			.oidc_clients
-			.iter()
-			.find(|c| session.user.has_any_realm(&c.realms) && c.id == req_client_id)
+		service = config
+			.services
+			.from_oidc_client_id_with_realms(&req_client_id, &session.user)
 			.ok_or(AppErrorKind::InvalidClientID)?;
+		oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
 
-		if config_client.id != req_client_id || config_client.secret != req_client_secret {
+		if oidc.client_id != req_client_id || oidc.client_secret != req_client_secret {
 			return Err(AppErrorKind::InvalidClientSecret.into());
 		}
-
-		allowed_origins = config_client.origins.clone();
 	} else {
 		return Err(AppErrorKind::NoClientCredentialsProvided.into());
 	}
@@ -164,7 +165,7 @@ pub async fn token(
 		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty
 	};
 
-	if allowed_origins.is_empty() {
+	if service.valid_origins.is_empty() {
 		return Ok(HttpResponse::Ok().json(response));
 	}
 
@@ -176,15 +177,15 @@ pub async fn token(
 		return Ok(HttpResponse::BadRequest().finish());
 	};
 
-	if !allowed_origins.contains(&origin.to_string()) {
+	if !service.valid_origins.contains(&origin.to_string()) {
 		return Ok(HttpResponse::Forbidden().finish());
 	}
 
 	Ok(HttpResponse::Ok()
-		.append_header(("Access-Control-Allow-Origin", origin))
-		.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
-		.json(response))
+	.append_header(("Access-Control-Allow-Origin", origin))
+	.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+	.append_header(("Access-Control-Allow-Headers", "Content-Type"))
+	.json(response))
 	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
 	// TODO: Send error response
 	// Or error=<error>&error_description=<error_description>

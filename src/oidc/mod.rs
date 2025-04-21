@@ -3,7 +3,6 @@ use reindeer::{Db, Entity};
 
 use crate::config::{ConfigKV, ConfigKeys};
 
-pub mod client;
 pub mod handle_authorize;
 pub mod handle_discover;
 pub mod handle_jwks;

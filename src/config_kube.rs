@@ -7,7 +7,6 @@ use kube::runtime::watcher::Event;
 use kube::{Api, Client};
 use serde::{Deserialize, Serialize};
 
-use crate::auth_url::AuthUrlScope;
 use crate::error::Result;
 use crate::CONFIG;
 
@@ -15,6 +14,7 @@ const ANNOTATION_PREFIX: &str = "magicentry.rs/";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct IngressConfig {
+	pub name: String,
 	pub auth_url: bool,
 	pub realms: Vec<String>,
 	pub manage_ingress_nginx: bool,
@@ -35,7 +35,12 @@ impl IngressConfig {
 			})
 			.collect::<HashMap<String, &str>>();
 
+		// TODO: Use the whole service struct
 		Some(Self {
+			name: filtered_map
+				.get("name")
+				.map(|v| v.to_string())
+				.unwrap_or_default(),
 			auth_url: filtered_map
 				.get("auth_url")
 				.map(|v| *v == "true")
@@ -97,10 +102,10 @@ impl IngressConfig {
 
 				log::info!("Adding auth_url scope for host {:?}", &origin);
 
-				config.auth_url_scopes.push(AuthUrlScope {
-					realms: self.realms.clone(),
-					origin,
-				});
+				// config.auth_url_scopes.push(AuthUrlScope {
+				// 	realms: self.realms.clone(),
+				// 	origin,
+				// });
 			}
 		}
 
