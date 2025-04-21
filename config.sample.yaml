@@ -86,10 +86,12 @@ services:
   # Service name (for cataloging)
   - name: example
     # URL of the service (for cataloging)
-    url: http://localhost:8181
+    url: https://openidconnect.net
     # Valid service origins (for CORS, OIDC and auth-url)
+    # Omit the paths, only the scheme, host and port
     valid_origins:
-      - http://localhost:8181
+      - https://openidconnect.net
+      - http://localhost:8080 # Used in the flow_scoped.rs test
     # Realms of which users have access to
     realms:
       - example
@@ -103,5 +105,3 @@ services:
       # OIDC redirect URLs
       redirect_urls:
         - https://openidconnect.net/callback
-        - http://127.0.0.1:8081/auth/openid/callback
-        - http://localhost:8081/auth/openid/callback

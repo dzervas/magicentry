@@ -67,7 +67,6 @@ mod tests {
 	use super::*;
 	use crate::token::MagicLinkToken;
 	use crate::utils::tests::*;
-	use log::debug;
 
 	use actix_session::storage::CookieSessionStore;
 	use actix_session::SessionMiddleware;
@@ -140,7 +139,7 @@ mod tests {
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
-		debug!("Headers: {:?}", resp.headers());
+		println!("Headers: {:?}", resp.headers());
 		assert!(resp
 			.headers()
 			.get("Location")
@@ -182,7 +181,7 @@ mod tests {
 			.unwrap()
 			.1
 			.to_string();
-		debug!("New Code: {}", code);
+		println!("New Code: {}", code);
 
 		let req = actix_test::TestRequest::post()
 			.uri("/oidc/token")
@@ -194,11 +193,13 @@ mod tests {
 				code_verifier: None,
 				redirect_uri: Some(redirect.to_string()),
 			})
+			.insert_header(("Origin", "https://openidconnect.net"))
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
-		assert_eq!(resp.status(), StatusCode::OK);
+		let resp_status = resp.status();
 		let body = actix_test::read_body(resp).await;
-		debug!("Body: {:?}", body);
+		println!("Body: {:?}", body);
+		assert_eq!(resp_status, StatusCode::OK);
 		let resp_token = serde_json::from_slice::<TokenResponse>(&body).unwrap();
 
 		let req = actix_test::TestRequest::get()

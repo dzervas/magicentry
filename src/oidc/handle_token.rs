@@ -74,14 +74,17 @@ pub async fn token(
 	jwt_keypair: web::Data<RS256KeyPair>,
 	basic: Option<BasicAuth>,
 ) -> Response {
+	// This is a too long function.
+	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
 	debug!("Token request: {:?}", token_req);
 
 	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
 	debug!("Session: {:?}", session);
-	let auth_req =
-	AuthorizeRequest::try_from(session.metadata.ok_or(AppErrorKind::MissingMetadata)?)?;
-	let config = CONFIG.read().await;
+	let auth_req = AuthorizeRequest::try_from(
+		session.metadata.ok_or(AppErrorKind::MissingMetadata)?
+	)?;
 
+	let config = CONFIG.read().await;
 	let client_id = if let Some(basic_creds) = basic.clone() {
 		basic_creds.user_id().to_string()
 	} else {
@@ -102,8 +105,7 @@ pub async fn token(
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
-		let generated_code_challenge =
-		Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
 
 		if oidc.client_id != token_req.client_id.clone().unwrap_or_default() {
 			return Err(AppErrorKind::InvalidClientID.into());
@@ -162,6 +164,7 @@ pub async fn token(
 		token_type: "Bearer".to_string(),
 		expires_in: config.session_duration.num_seconds(),
 		id_token,
+		// TODO: Actually have a refresh token
 		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty
 	};
 
@@ -182,10 +185,10 @@ pub async fn token(
 	}
 
 	Ok(HttpResponse::Ok()
-	.append_header(("Access-Control-Allow-Origin", origin))
-	.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-	.append_header(("Access-Control-Allow-Headers", "Content-Type"))
-	.json(response))
+		.append_header(("Access-Control-Allow-Origin", origin))
+		.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
+		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
+		.json(response))
 	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
 	// TODO: Send error response
 	// Or error=<error>&error_description=<error_description>

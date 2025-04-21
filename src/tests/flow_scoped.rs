@@ -9,8 +9,6 @@ use actix_web::http::StatusCode;
 use actix_web::{test as actix_test, web, App};
 use actix_web_httpauth::extractors::basic;
 
-use log::debug;
-
 #[actix_web::test]
 async fn test_global_login() {
 	let db = db_connect().await;
@@ -52,8 +50,8 @@ async fn test_global_login() {
 	let headers = resp.headers().clone();
 	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
-	debug!("CookieHeader: {:?}", &cookie_header);
-	debug!("Cookie: {:?}", &parsed_cookie);
+	println!("CookieHeader: {:?}", &cookie_header);
+	println!("Cookie: {:?}", &parsed_cookie);
 
 	let messages = email_stub.messages().await;
 	let login_message = &messages.first().unwrap().1;
@@ -64,7 +62,7 @@ async fn test_global_login() {
 		.unwrap()
 		.replace("=\r\n", "");
 
-	debug!("Login link: {}", &login_link);
+	println!("Login link: {}", &login_link);
 
 	let resp = call_service(
 		&app,
@@ -74,9 +72,10 @@ async fn test_global_login() {
 			.to_request(),
 	)
 	.await;
+	println!("Response: {:?}", &resp);
 	assert_eq!(resp.status(), StatusCode::FOUND);
 	let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
-	debug!("Location header: {}", &location_header);
+	println!("Location header: {}", &location_header);
 	assert!(location_header.starts_with("http://localhost:8080/?code="));
 
 	let one_time_code = location_header.split("=").nth(1).unwrap();
