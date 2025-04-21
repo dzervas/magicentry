@@ -3,13 +3,13 @@ use std::collections::BTreeMap;
 use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
-use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
 use crate::saml::authn_request::AuthnRequest;
 use crate::token::SessionToken;
 use crate::utils::get_partial;
+use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SAMLRequest {
@@ -30,34 +30,35 @@ pub struct SAMLResponse {
 #[get("/saml/sso")]
 pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let Ok(token) = SessionToken::from_session(&db, &session).await else {
-		// TODO: SAML data are lost during redirect
+		let query = serde_qs::to_string(&data.into_inner())?;
 		return Ok(HttpResponse::Found()
-			.append_header(("Location", "/login"))
+			.append_header(("Location", format!("/saml/sso?{}", query)))
 			.finish());
 	};
 
+	let config = CONFIG.read().await;
+
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
-	debug!("Parsed SAML AuthnRequest: {:?}", authn_request);
+	let mut response = authn_request.to_response(
+		&format!("{}/saml/metadata", &config.external_url),
+		&token.user
+	);
 
-	let mut response = authn_request.to_response("http://localhost:8181/saml/metadata", &token.user);
-
-	debug!("SAML Response: {:?}", response);
+	log::info!("Starting SAML flow for user: {}", token.user.email);
 
 	response.sign_saml_response(
-		&std::fs::read_to_string("saml_key.pem").unwrap(),
-		&std::fs::read_to_string("saml_cert.pem").unwrap()
-	).unwrap();
-	debug!("Signed SAML Response: {:?}", response);
+		&config.get_saml_key()?,
+		&config.get_saml_cert()?
+	)?;
 
 	let mut authorize_data = BTreeMap::new();
 	authorize_data.insert("name", token.user.name.clone());
 	authorize_data.insert("username", token.user.username.clone());
 	authorize_data.insert("email", token.user.email.clone());
 	authorize_data.insert("client", "test client".to_string());
-	authorize_data.insert("samlACS", authn_request.acs_url.clone().unwrap());
-	authorize_data.insert("samlResponseData", response.to_encoded_string().unwrap());
+	authorize_data.insert("samlACS", authn_request.acs_url.clone());
+	authorize_data.insert("samlResponseData", response.to_encoded_string()?);
 	authorize_data.insert("samlRelayState", data.relay_state.clone().unwrap_or_default());
-	debug!("\n\n{}\n\n", authorize_data.get_key_value("samlResponseData").unwrap().1);
 	let authorize_page = get_partial("authorize", authorize_data)?;
 
 	Ok(HttpResponse::Ok()

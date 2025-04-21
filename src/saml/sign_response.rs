@@ -17,18 +17,11 @@ impl AuthnResponse {
 	// This function inserts the XML Signature into a SAML Response XML string
 	pub fn sign_saml_response(
 		&mut self,
-		private_key_pem: &str,
-		certificate_pem: &str,
+		private_key_x509: &str,
+		certificate_x509: &str,
 	) -> Result<()> {
-		let cert_data = certificate_pem
-		.lines()
-		.filter(|line| !line.contains("BEGIN CERTIFICATE") && !line.contains("END CERTIFICATE"))
-		.collect::<String>()
-		.replace("\n", "");
-
-		// Load private key
-		let private_key = RsaPrivateKey::from_pkcs8_pem(private_key_pem)
-		.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_pem)).unwrap();
+		let private_key = RsaPrivateKey::from_pkcs8_pem(private_key_x509)
+		.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_x509)).unwrap();
 
 		// Serialize to calculate digest
 		let mut xml = String::new();
@@ -84,7 +77,7 @@ impl AuthnResponse {
 			key_info: KeyInfo {
 				ds_ns: None,
 				x509_data: X509Data {
-					x509_certificate: cert_data,
+					x509_certificate: certificate_x509.to_string(),
 				},
 			},
 		};

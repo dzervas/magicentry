@@ -38,6 +38,9 @@ pub struct ConfigFile {
 	pub oidc_code_duration: Duration,
 	pub oidc_clients: Vec<crate::oidc::client::OIDCClient>,
 
+	pub saml_cert_pem_path: String,
+	pub saml_key_pem_path: String,
+
 	pub smtp_enable: bool,
 	pub smtp_url: String,
 	pub smtp_from: String,
@@ -60,9 +63,9 @@ impl Default for ConfigFile {
 		Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
 
-			listen_host: std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
-			listen_port: std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
-			path_prefix: "/".to_string(),
+			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
+			listen_port : std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
+			path_prefix : "/".to_string(),
 			external_url: "http://localhost:8080".to_string(),
 
 			link_duration   : Duration::try_hours(12).unwrap(),
@@ -71,16 +74,19 @@ impl Default for ConfigFile {
 			title: "MagicEntry".to_string(),
 			static_path: "static".to_string(),
 
-			auth_url_enable      : true,
-			auth_url_user_header : "X-Auth-User".to_string(),
-			auth_url_email_header: "X-Auth-Email".to_string(),
-			auth_url_name_header : "X-Auth-Name".to_string(),
+			auth_url_enable       : true,
+			auth_url_user_header  : "X-Auth-User".to_string(),
+			auth_url_email_header : "X-Auth-Email".to_string(),
+			auth_url_name_header  : "X-Auth-Name".to_string(),
 			auth_url_realms_header: "X-Auth-Realms".to_string(),
-			auth_url_scopes      : vec![],
+			auth_url_scopes       : vec![],
 
 			oidc_enable       : true,
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),
 			oidc_clients      : vec![],
+
+			saml_cert_pem_path: "saml_cert.pem".to_string(),
+			saml_key_pem_path : "saml_key.pem".to_string(),
 
 			smtp_enable : false,
 			smtp_url    : "smtp://localhost:25".to_string(),
@@ -159,6 +165,24 @@ impl ConfigFile {
 		}
 
 		allowed_origins
+	}
+
+	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {
+		let data = std::fs::read_to_string(&self.saml_cert_pem_path)?;
+		Ok(data
+			.lines()
+			.filter(|line| !line.contains("BEGIN CERTIFICATE") && !line.contains("END CERTIFICATE"))
+			.collect::<String>()
+			.replace("\n", ""))
+	}
+
+	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
+		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
+		Ok(data
+			.lines()
+			.filter(|line| !line.contains("BEGIN CERTIFICATE") && !line.contains("END CERTIFICATE"))
+			.collect::<String>()
+			.replace("\n", ""))
 	}
 }
 

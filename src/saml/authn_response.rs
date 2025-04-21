@@ -307,7 +307,7 @@ impl AuthnRequest {
 			id: response_id,
 			version: "2.0".to_string(),
 			issue_instant: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-			destination: self.acs_url.clone(),
+			destination: Some(self.acs_url.clone()),
 			in_response_to: self.id.clone(),
 			issuer: Issuer {
 				saml_ns: "urn:oasis:names:tc:SAML:2.0:assertion".to_string(),
@@ -334,7 +334,7 @@ impl AuthnRequest {
 						method: "urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string(),
 						subject_confirmation_data: SubjectConfirmationData {
 							not_on_or_after: expiry.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-							recipient: self.acs_url.clone().unwrap(),
+							recipient: self.acs_url.clone(),
 							in_response_to: self.id.clone(),
 						},
 					},
