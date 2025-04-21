@@ -16,9 +16,9 @@ pub async fn metadata() -> Response {
 	let discovery = EntityDescriptor::new(&external_url, &cert_x509);
 
 	let mut discovery_xml = String::new();
-	let mut ser = quick_xml::se::Serializer::with_root(&mut discovery_xml, Some("md:EntityDescriptor")).unwrap();
+	let mut ser = quick_xml::se::Serializer::with_root(&mut discovery_xml, Some("md:EntityDescriptor"))?;
 	ser.expand_empty_elements(true);
-	discovery.serialize(ser).unwrap();
+	discovery.serialize(ser)?;
 
 	Ok(HttpResponse::Ok()
 		.append_header(("Content-Type", "application/xml"))

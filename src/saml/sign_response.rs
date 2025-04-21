@@ -21,11 +21,11 @@ impl AuthnResponse {
 		certificate_x509: &str,
 	) -> Result<()> {
 		let private_key = RsaPrivateKey::from_pkcs8_pem(private_key_x509)
-		.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_x509)).unwrap();
+		.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_x509))?;
 
 		// Serialize to calculate digest
 		let mut xml = String::new();
-		let mut ser = quick_xml::se::Serializer::with_root(&mut xml, Some("samlp:Response")).unwrap();
+		let mut ser = quick_xml::se::Serializer::with_root(&mut xml, Some("samlp:Response"))?;
 		ser.expand_empty_elements(true);
 		self.serialize(ser)?;
 
@@ -59,7 +59,7 @@ impl AuthnResponse {
 
 		// Serialize SignedInfo to XML for signing
 		let mut signed_info_xml = String::new();
-		let mut ser = quick_xml::se::Serializer::with_root(&mut signed_info_xml, Some("ds:SignedInfo")).unwrap();
+		let mut ser = quick_xml::se::Serializer::with_root(&mut signed_info_xml, Some("ds:SignedInfo"))?;
 		ser.expand_empty_elements(true);
 		signed_info.serialize(ser)?;
 		debug!("SignedInfo XML: {}", signed_info_xml);

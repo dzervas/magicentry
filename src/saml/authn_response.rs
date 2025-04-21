@@ -260,7 +260,7 @@ pub struct AttributeValue {
 impl AuthnResponse {
 	pub fn to_encoded_string(&self) -> Result<String> {
 		let mut xml = String::new();
-		let mut ser = quick_xml::se::Serializer::with_root(&mut xml, Some("samlp:Response")).unwrap();
+		let mut ser = quick_xml::se::Serializer::with_root(&mut xml, Some("samlp:Response"))?;
 		ser.expand_empty_elements(true);
 		self.serialize(ser)?;
 

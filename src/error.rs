@@ -162,166 +162,48 @@ impl From<AppErrorKind> for Error {
 	}
 }
 
-impl From<ToStrError> for Error {
-	fn from(error: ToStrError) -> Self {
-		format!("ToStr error: {}", error).into()
-	}
+macro_rules! from_error {
+	($struct:path, $format:literal) => {
+		impl From<$struct> for Error {
+			fn from(error: $struct) -> Self {
+				format!($format, error).into()
+			}
+		}
+	};
 }
 
-impl From<std::io::Error> for Error {
-	fn from(error: std::io::Error) -> Self {
-		format!("ToStr error: {}", error).into()
-	}
-}
+from_error!(FromUtf8Error, "UTF-8 Decoding error: {}");
+from_error!(ToStrError, "ToStr error: {}");
 
-impl From<actix_web::cookie::ParseError> for Error {
-	fn from(error: actix_web::cookie::ParseError) -> Self {
-		format!("Actix Cookie error: {}", error).into()
-	}
-}
+from_error!(actix_web::cookie::ParseError, "Actix Cookie error: {}");
+from_error!(actix_web::http::uri::InvalidUri, "Actix Invalid URI error: {}");
+from_error!(actix_session::SessionGetError, "Actix Session Get error: {}");
+from_error!(actix_session::SessionInsertError, "Actix Session Insert error: {}");
 
-impl From<actix_web::http::uri::InvalidUri> for Error {
-	fn from(error: actix_web::http::uri::InvalidUri) -> Self {
-		format!("Actix Invalid URI error: {}", error).into()
-	}
-}
+from_error!(base64::DecodeError, "Base64 decode error: {}");
+from_error!(formatx::Error, "Formatx formatting error: {}");
+from_error!(handlebars::RenderError, "Handlebars render error: {}");
+from_error!(jwt_simple::Error, "JWT Simple error: {}");
+from_error!(jwt_simple::reexports::ct_codecs::Error, "JWT Simple CT Codecs error: {}");
+from_error!(lettre::error::Error, "Lettre error: {}");
+from_error!(lettre::transport::stub::Error, "Lettre (Stub transport) error: {}");
+from_error!(lettre::transport::smtp::Error, "Lettre (SMTP transport) error: {}");
+from_error!(lettre::address::AddressError, "Lettre Address error: {}");
+from_error!(quick_xml::DeError, "Quick XML deserialization error: {}");
+from_error!(quick_xml::SeError, "Quick XML serialization error: {}");
+from_error!(reindeer::Error, "Reindeer database error: {}");
+from_error!(reqwest::Error, "Reqwest error: {}");
+from_error!(rsa::pkcs1::Error, "RSA PKCS1 error: {}");
+from_error!(webauthn_rs::prelude::WebauthnError, "WebAuthN error: {}");
 
-impl From<actix_session::SessionGetError> for Error {
-	fn from(error: actix_session::SessionGetError) -> Self {
-		format!("Session Get error: {}", error).into()
-	}
-}
+from_error!(std::io::Error, "IO error: {}");
+from_error!(tokio::sync::TryLockError, "Tokio Mutex lock error: {}");
 
-impl From<actix_session::SessionInsertError> for Error {
-	fn from(error: actix_session::SessionInsertError) -> Self {
-		format!("Session Insert error: {}", error).into()
-	}
-}
-
-impl From<reindeer::Error> for Error {
-	fn from(error: reindeer::Error) -> Self {
-		format!("Database error: {}", error).into()
-	}
-}
-
-impl From<FromUtf8Error> for Error {
-	fn from(error: FromUtf8Error) -> Self {
-		format!("Decoding error: {}", error).into()
-	}
-}
-
-impl From<formatx::Error> for Error {
-	fn from(error: formatx::Error) -> Self {
-		format!("Formatting error: {}", error).into()
-	}
-}
-
-impl From<lettre::error::Error> for Error {
-	fn from(error: lettre::error::Error) -> Self {
-		format!("Lettre error: {}", error).into()
-	}
-}
-
-impl From<lettre::transport::stub::Error> for Error {
-	fn from(error: lettre::transport::stub::Error) -> Self {
-		format!("Lettre (Stub transport) error: {}", error).into()
-	}
-}
-
-impl From<lettre::transport::smtp::Error> for Error {
-	fn from(error: lettre::transport::smtp::Error) -> Self {
-		format!("Lettre (SMTP transport) error: {}", error).into()
-	}
-}
-
-impl From<lettre::address::AddressError> for Error {
-	fn from(error: lettre::address::AddressError) -> Self {
-		format!("Lettre Address error: {}", error).into()
-	}
-}
-
-impl From<reqwest::Error> for Error {
-	fn from(error: reqwest::Error) -> Self {
-		format!("Reqwest error: {}", error).into()
-	}
-}
-
-impl From<serde_qs::Error> for Error {
-	fn from(error: serde_qs::Error) -> Self {
-		format!("Serde-qs error: {}", error).into()
-	}
-}
-
-impl From<serde_json::Error> for Error {
-	fn from(error: serde_json::Error) -> Self {
-		format!("Serde-JSON error: {}", error).into()
-	}
-}
-
-impl From<serde_yaml::Error> for Error {
-	fn from(error: serde_yaml::Error) -> Self {
-		format!("Serde-YAML error: {}", error).into()
-	}
-}
-
-impl From<jwt_simple::Error> for Error {
-	fn from(error: jwt_simple::Error) -> Self {
-		format!("JWT Simple error: {}", error).into()
-	}
-}
-
-impl From<jwt_simple::reexports::ct_codecs::Error> for Error {
-	fn from(error: jwt_simple::reexports::ct_codecs::Error) -> Self {
-		format!("CT Codecs error: {}", error).into()
-	}
-}
-
-impl From<webauthn_rs::prelude::WebauthnError> for Error {
-	fn from(error: webauthn_rs::prelude::WebauthnError) -> Self {
-		format!("WebAuthN error: {}", error).into()
-	}
-}
-
-impl From<handlebars::RenderError> for Error {
-	fn from(error: handlebars::RenderError) -> Self {
-		format!("Handlebars render error: {}", error).into()
-	}
-}
-
-impl From<tokio::sync::TryLockError> for Error {
-	fn from(error: tokio::sync::TryLockError) -> Self {
-		format!("Mutex lock error: {}", error).into()
-	}
-}
-
-impl From<base64::DecodeError> for Error {
-	fn from(error: base64::DecodeError) -> Self {
-		format!("Base64 decoding error: {}", error).into()
-	}
-}
-
-impl From<quick_xml::DeError> for Error {
-	fn from(error: quick_xml::DeError) -> Self {
-		format!("XML deserialization error: {}", error).into()
-	}
-}
-
-impl From<quick_xml::SeError> for Error {
-	fn from(error: quick_xml::SeError) -> Self {
-		format!("XML serialization error: {}", error).into()
-	}
-}
+from_error!(serde_json::Error, "Serde-JSON error: {}");
+from_error!(serde_qs::Error, "Serde-QS error: {}");
+from_error!(serde_yaml::Error, "Serde-YAML error: {}");
 
 #[cfg(feature = "kube")]
-impl From<kube::Error> for Error {
-	fn from(error: kube::Error) -> Self {
-		format!("Kube error: {}", error).into()
-	}
-}
-
+from_error!(kube::Error, "Kube error: {}");
 #[cfg(feature = "kube")]
-impl From<kube::runtime::watcher::Error> for Error {
-	fn from(error: kube::runtime::watcher::Error) -> Self {
-		format!("Kube error: {}", error).into()
-	}
-}
+from_error!(kube::runtime::watcher::Error, "Kube watcher error: {}");
