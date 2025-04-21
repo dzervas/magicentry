@@ -91,13 +91,13 @@ jobs:
           key: magicentry-docker-cache-${{ hashFiles('Dockerfile') }}-${{ matrix.feature }}
 
       - name: Inject cache into docker
-        uses: reproducible-containers/buildkit-cache-dance@v3.1.0
+        uses: reproducible-containers/buildkit-cache-dance@v3.1.2
         with:
           cache-map: |
             {
               "app-target": "/app/target",
               "usr-local-cargo-git-db": "/usr/local/cargo/git/db",
-              "usr-local-cargo-registry": "/usr/local/cargo/registry"
+              "usr-local-cargo-registry-cache": "/usr/local/cargo/registry/cache"
             }
           skip-extraction: ${{ steps.cache.outputs.cache-hit }}
 

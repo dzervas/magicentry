@@ -32,3 +32,5 @@ node_modules
 
 # cargo-chef recipe
 /recipe.json
+
+*.pem

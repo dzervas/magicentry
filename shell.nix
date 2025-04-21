@@ -4,7 +4,5 @@ mkShell {
     rustup
     openssl.dev
     pkg-config
-    gcc
-    cargo-chef
   ];
 }
