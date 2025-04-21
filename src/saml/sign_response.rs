@@ -82,6 +82,7 @@ impl AuthnResponse {
 			signed_info,
 			signature_value,
 			key_info: KeyInfo {
+				ds_ns: None,
 				x509_data: X509Data {
 					x509_certificate: cert_data,
 				},

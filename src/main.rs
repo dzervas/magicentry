@@ -123,6 +123,7 @@ pub async fn main() -> std::io::Result<()> {
 		// TODO: Config enable SAML
 		if true {
 			app = app
+				.service(saml::handle_metadata::metadata)
 				.service(saml::handle_sso::sso);
 		}
 

@@ -154,6 +154,9 @@ pub struct DigestMethod {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct KeyInfo {
+	#[serde(rename = "@xmlns:ds")]
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub ds_ns: Option<String>,
 	#[serde(rename = "ds:X509Data")]
 	pub x509_data: X509Data,
 }
