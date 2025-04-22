@@ -73,6 +73,8 @@ lazy_static! {
 		)
 		.expect("Failed to register partials directory");
 
+		handlebars.set_strict_mode(true);
+
 		#[cfg(debug_assertions)]
 		handlebars.set_dev_mode(true);
 

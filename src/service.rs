@@ -25,11 +25,11 @@ pub struct ServiceSAML {
 	pub redirect_url: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 pub struct Services(pub Vec<Service>);
 
 impl Services {
-	fn from_realms(&self, user: &User) -> Self {
+	pub fn from_user(&self, user: &User) -> Self {
 		let res = self.0.iter()
 			.filter(|s| user.has_any_realm(&s.realms))
 			.cloned()
@@ -54,12 +54,12 @@ impl Services {
 
 	/// Returns the service with the valid redirect URL and checks if the user has any of the realms
 	pub fn from_oidc_redirect_url_with_realms(&self, redirect_url: &str, user: &User) -> Option<Service> {
-		self.from_realms(user).from_oidc_redirect_url(redirect_url)
+		self.from_user(user).from_oidc_redirect_url(redirect_url)
 	}
 
 	/// Returns the service with the OIDC client ID and checks if the user has any of the realms
 	pub fn from_oidc_client_id_with_realms(&self, client_id: &str, user: &User) -> Option<Service> {
-		self.from_realms(user).from_oidc_client_id(client_id)
+		self.from_user(user).from_oidc_client_id(client_id)
 	}
 
 	/// Returns the service with the SAML entity ID
@@ -70,6 +70,6 @@ impl Services {
 	}
 
 	pub fn from_origin_with_realms(&self, origin: &str, user: &User) -> Option<Service> {
-		self.from_realms(user).from_origin(origin)
+		self.from_user(user).from_origin(origin)
 	}
 }

@@ -164,7 +164,7 @@ async fn authorize(
 	authorize_data.insert("email", token.user.email.clone());
 	authorize_data.insert("client", redirect_url_str.clone());
 	authorize_data.insert("link", redirect_url.clone());
-	let authorize_page = get_partial("authorize", authorize_data)?;
+	let authorize_page = get_partial::<()>("authorize", authorize_data, None)?;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())

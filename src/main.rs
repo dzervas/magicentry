@@ -128,6 +128,9 @@ pub async fn main() -> std::io::Result<()> {
 					CookieSessionStore::default(),
 					secret.clone()
 				)
+				// TODO: Handle secure & http only cookies (config)
+				// .cookie_http_only(true)
+				// .cookie_secure(false)
 				.cookie_same_site(SameSite::Lax)
 				.session_lifecycle(
 					actix_session::config::PersistentSession::default()

@@ -39,7 +39,7 @@ async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::
 			.finish());
 	}
 
-	let login_page = get_partial("login", BTreeMap::new())?;
+	let login_page = get_partial::<()>("login", BTreeMap::new(), None)?;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())

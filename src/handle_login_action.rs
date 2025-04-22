@@ -72,7 +72,7 @@ async fn login_action(
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
 ) -> Response {
-	let login_action_page = get_partial("login_action", BTreeMap::new())?;
+	let login_action_page = get_partial::<()>("login_action", BTreeMap::new(), None)?;
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
 		.body(login_action_page));

@@ -32,7 +32,7 @@ pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<
 	let Ok(token) = SessionToken::from_session(&db, &session).await else {
 		let query = serde_qs::to_string(&data.into_inner())?;
 		return Ok(HttpResponse::Found()
-			.append_header(("Location", format!("/saml/sso?{}", query)))
+			.append_header(("Location", format!("/login?rd=/saml/sso%3F{}", query)))
 			.finish());
 	};
 
@@ -59,7 +59,7 @@ pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<
 	authorize_data.insert("samlACS", authn_request.acs_url.clone());
 	authorize_data.insert("samlResponseData", response.to_encoded_string()?);
 	authorize_data.insert("samlRelayState", data.relay_state.clone().unwrap_or_default());
-	let authorize_page = get_partial("authorize", authorize_data)?;
+	let authorize_page = get_partial::<()>("authorize", authorize_data, None)?;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())

@@ -13,10 +13,6 @@ use crate::{CONFIG, SCOPED_LOGIN};
 async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 	let token = SessionToken::from_session(&db, &session).await?;
 
-	let mut index_data = BTreeMap::new();
-	index_data.insert("email", token.user.email.clone());
-	let index_page = get_partial("index", index_data)?;
-
 	if let Some(Ok(scope)) = session.remove_as::<String>(SCOPED_LOGIN) {
 		let proxy_cookie = ProxyCookieToken::new(
 			&db,
@@ -25,34 +21,39 @@ async fn index(session: Session, db: web::Data<reindeer::Db>) -> Response {
 			Some(scope.clone()),
 		)
 		.await?;
-		Ok(HttpResponse::Found()
+		return Ok(HttpResponse::Found()
 			.append_header((
 				header::LOCATION,
 				format!("{}?code={}", scope, proxy_cookie.code),
 			))
 			.finish())
-	} else {
-		let config = CONFIG.read().await;
-		Ok(HttpResponse::Ok()
-			.append_header((
-				config.auth_url_email_header.as_str(),
-				token.user.email.clone(),
-			))
-			.append_header((
-				config.auth_url_user_header.as_str(),
-				token.user.username.clone(),
-			))
-			.append_header((
-				config.auth_url_name_header.as_str(),
-				token.user.name.clone(),
-			))
-			.append_header((
-				config.auth_url_realms_header.as_str(),
-				token.user.realms.join(","),
-			))
-			.content_type(ContentType::html())
-			.body(index_page))
 	}
+
+	let config = CONFIG.read().await;
+	let mut index_data = BTreeMap::new();
+	index_data.insert("email", token.user.email.clone());
+	let realmed_services = config.services.from_user(&token.user);
+	let index_page = get_partial("index", index_data, Some(realmed_services))?;
+
+	Ok(HttpResponse::Ok()
+		.append_header((
+			config.auth_url_email_header.as_str(),
+			token.user.email.clone(),
+		))
+		.append_header((
+			config.auth_url_user_header.as_str(),
+			token.user.username.clone(),
+		))
+		.append_header((
+			config.auth_url_name_header.as_str(),
+			token.user.name.clone(),
+		))
+		.append_header((
+			config.auth_url_realms_header.as_str(),
+			token.user.realms.join(","),
+		))
+		.content_type(ContentType::html())
+		.body(index_page))
 }
 
 #[cfg(test)]

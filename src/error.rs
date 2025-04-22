@@ -134,7 +134,7 @@ impl ResponseError for Error {
 			page_data.insert("error", error_name.to_string());
 			page_data.insert("description", description.clone());
 
-			let page = get_partial("error", page_data).unwrap_or_else(|_| {
+			let page = get_partial::<()>("error", page_data, None).unwrap_or_else(|_| {
 				log::error!("Could not format error page");
 				"Internal server error".to_string()
 			});
