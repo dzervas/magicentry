@@ -5,7 +5,7 @@ use super::secret::{EmptyMetadata, UserSecret, UserSecretKind, UserSecretKindEph
 pub struct LinkLoginSecretKind;
 
 impl UserSecretKind for LinkLoginSecretKind {
-	const PREFIX: &'static str = "link_login";
+	const PREFIX: &'static str = "login";
 	type Metadata = EmptyMetadata;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.link_duration }

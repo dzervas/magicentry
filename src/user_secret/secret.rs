@@ -9,6 +9,9 @@ use crate::error::{AppErrorKind, Result};
 use crate::user::User;
 use crate::utils::random_string;
 
+#[derive(PartialEq, Serialize, Deserialize)]
+pub enum EmptyMetadata { Instance }
+
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SecretString(String);
 
@@ -17,12 +20,9 @@ impl AsBytes for SecretString {
 	fn as_bytes(&self) -> Vec<u8> { self.0.as_bytes().to_owned() }
 }
 
-#[derive(PartialEq, Serialize, Deserialize)]
-pub enum EmptyMetadata { Instance }
-
 impl SecretString {
-	pub fn new() -> Self {
-		Self(random_string())
+	pub fn new(prefix: &'static str) -> Self {
+		Self(format!("{}{}", get_prefix(prefix), random_string()))
 	}
 }
 
@@ -47,6 +47,10 @@ pub trait UserSecretKind: PartialEq {
 	type Metadata: Send + Sync + 'static;
 
 	async fn duration() -> chrono::Duration;
+}
+
+fn get_prefix(prefix: &str) -> String {
+	format!("me_{}_", prefix)
 }
 
 #[derive(PartialEq, Serialize, Deserialize)]
@@ -86,7 +90,7 @@ impl<K: UserSecretKind, M: Serialize + DeserializeOwned + PartialEq> UserSecret<
 			.expect(format!("Couldn't generate expiry for {}", K::PREFIX).as_str());
 
 		let internal_secret = InternalUserSecret {
-			code: SecretString::new(),
+			code: SecretString::new(K::PREFIX),
 			_kind: PhantomData,
 			user,
 			expires_at,
@@ -99,6 +103,10 @@ impl<K: UserSecretKind, M: Serialize + DeserializeOwned + PartialEq> UserSecret<
 	}
 
 	pub async fn validate(&self, db: &Db) -> Result<()> {
+		if !self.0.code.0.starts_with(get_prefix(K::PREFIX).as_str()) {
+			return Err(AppErrorKind::InvalidToken.into());
+		}
+
 		if !InternalUserSecret::<K, M>::exists(&self.0.code, db)? {
 			return Err(AppErrorKind::TokenNotFound.into());
 		}

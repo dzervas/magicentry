@@ -4,7 +4,7 @@ use super::secret::{EmptyMetadata, UserSecret, UserSecretKind};
 pub struct BrowserSessionSecretKind;
 
 impl UserSecretKind for BrowserSessionSecretKind {
-	const PREFIX: &'static str = "browser_session";
+	const PREFIX: &'static str = "session";
 	type Metadata = EmptyMetadata;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
