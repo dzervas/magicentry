@@ -25,6 +25,8 @@ pub enum AppErrorKind {
 	InvalidTargetUser,
 	MissingOriginHeader,
 	InvalidParentToken,
+	InvalidToken,
+	ExpiredToken,
 
 	#[display("Missing auth_url code in (query string or cookie)")]
 	MissingAuthURLCode,

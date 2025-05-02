@@ -18,7 +18,7 @@ impl AsBytes for SecretString {
 }
 
 #[derive(PartialEq, Serialize, Deserialize)]
-pub enum EmptyMetadata {}
+pub enum EmptyMetadata { Instance }
 
 impl SecretString {
 	pub fn new() -> Self {
@@ -51,21 +51,22 @@ pub trait UserSecretKind: PartialEq {
 
 #[derive(PartialEq, Serialize, Deserialize)]
 #[cfg_attr(debug_assertions, derive(Debug))]
-pub struct UserSecret<K: UserSecretKind, M> {
+struct InternalUserSecret<K: UserSecretKind, M> {
 	/// The primary key and value of the token. A random string filled by `crate::utils::random_string()`.
 	code: SecretString,
-	/// The type of token - used to determine how to handle the token (ephemeral, relation to parent token, etc.)
-	_kind: PhantomData<K>,
 	/// The user it authenticates
 	#[serde(with = "crate::user::as_string")]
 	user: User,
 	/// The time the token expires at
 	expires_at: NaiveDateTime,
 	/// Metadata related to the secret - could be anything to nothing
-	pub metadata: M,
+	metadata: M,
+
+	/// The type of token - used to determine how to handle the token (ephemeral, relation to parent token, etc.)
+	_kind: PhantomData<K>,
 }
 
-impl<K: UserSecretKind, M: Serialize + DeserializeOwned> Entity for UserSecret<K, M> {
+impl<K: UserSecretKind, M: Serialize + DeserializeOwned> Entity for InternalUserSecret<K, M> {
 	type Key=SecretString;
 
 	fn store_name() -> &'static str { K::PREFIX }
@@ -73,14 +74,18 @@ impl<K: UserSecretKind, M: Serialize + DeserializeOwned> Entity for UserSecret<K
 	fn set_key(&mut self, key: &Self::Key) { self.code = key.clone(); }
 }
 
+#[derive(PartialEq, Serialize, Deserialize)]
+#[cfg_attr(debug_assertions, derive(Debug))]
+pub struct UserSecret<K: UserSecretKind, M>(InternalUserSecret<K, M>);
+
 impl<K: UserSecretKind, M: Serialize + DeserializeOwned + PartialEq> UserSecret<K, M> {
-	pub async fn new(db: &Db, user: User, metadata: M) -> Result<Self> {
+	pub async fn new(user: User, metadata: M, db: &Db) -> Result<Self> {
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
 			.checked_add_signed(K::duration().await)
 			.expect(format!("Couldn't generate expiry for {}", K::PREFIX).as_str());
 
-		let token = Self {
+		let internal_secret = InternalUserSecret {
 			code: SecretString::new(),
 			_kind: PhantomData,
 			user,
@@ -88,44 +93,52 @@ impl<K: UserSecretKind, M: Serialize + DeserializeOwned + PartialEq> UserSecret<
 			metadata,
 		};
 
-		token.save(db)?;
+		internal_secret.save(db)?;
 
-		Ok(token)
+		Ok(Self(internal_secret))
 	}
 
-	pub async fn is_expired(&self, db: &Db) -> Result<bool> {
-		if self.expires_at <= Utc::now().naive_utc() {
-			Self::remove(&self.code, db)?;
-			Ok(true)
-		} else {
-			Ok(false)
+	pub async fn validate(&self, db: &Db) -> Result<()> {
+		if !InternalUserSecret::<K, M>::exists(&self.0.code, db)? {
+			return Err(AppErrorKind::TokenNotFound.into());
 		}
+
+		if self.0.expires_at <= Utc::now().naive_utc() {
+			InternalUserSecret::<K, M>::remove(&self.0.code, db)?;
+			return Err(AppErrorKind::ExpiredToken.into());
+		}
+
+		Ok(())
 	}
 
-	pub async fn is_valid(&self, db: &Db) -> Result<bool> {
-		// Make sure that the secret still exists in the database
-		if Self::exists(&self.code, db)? {
-			return Ok(false);
-		}
-
-		// Check if the secret is expired
-		if self.is_expired(db).await? {
-			return Ok(false);
-		}
-
-		Ok(true)
+	pub async fn try_from_string(db: &Db, code: String) -> Result<Self> {
+		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::TokenNotFound)?;
+		let user_secret = UserSecret(internal_secret);
+		user_secret.validate(db).await?;
+		Ok(user_secret)
 	}
 
-	pub async fn from_string(db: &Db, code: String) -> Result<Self> {
-		let token = Self::get(&code.into(), db)?.ok_or(AppErrorKind::TokenNotFound)?;
+	pub fn get_code(&self) -> &SecretString { &self.0.code }
+	pub fn get_user(&self) -> &User { &self.0.user }
+	pub fn get_expires_at(&self) -> NaiveDateTime { self.0.expires_at }
+	pub fn get_metadata(&self) -> &M { &self.0.metadata }
+}
 
-		// Can't call is_valid as async recursion is not allowed
-		let is_valid = token.is_valid(db).await?;
+pub trait UserSecretKindEphemeral: UserSecretKind {
+	type ExchangeTo: UserSecretKind;
+}
 
-		if !is_valid {
-			Err(AppErrorKind::TokenNotFound.into())
-		} else {
-			Ok(token)
-		}
+impl<K: UserSecretKindEphemeral, M: Serialize + DeserializeOwned + PartialEq> UserSecret<K, M> {
+	pub async fn exchange_with_metadata<NM: Serialize + DeserializeOwned + PartialEq>(self, db: &Db, metadata: NM) -> Result<UserSecret<K::ExchangeTo, NM>> {
+		self.validate(db).await?;
+
+		let new_secret = UserSecret::new(self.get_user().clone(), metadata, db).await?;
+		InternalUserSecret::<K, M>::remove(&self.0.code, db)?;
+
+		Ok(new_secret)
+	}
+
+	pub async fn exchange(self, db: &Db) -> Result<UserSecret<K::ExchangeTo, EmptyMetadata>> {
+		self.exchange_with_metadata(db, EmptyMetadata::Instance).await
 	}
 }
