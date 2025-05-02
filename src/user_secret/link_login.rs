@@ -1,7 +1,7 @@
 use super::browser_session::BrowserSessionSecretKind;
-use super::secret::{EmptyMetadata, UserSecret, UserSecretKind, UserSecretKindEphemeral};
+use super::secret::{UserSecret, UserSecretKind, UserSecretKindEphemeral};
+use super::metadata::EmptyMetadata;
 
-#[derive(PartialEq)]
 pub struct LinkLoginSecretKind;
 
 impl UserSecretKind for LinkLoginSecretKind {
@@ -15,4 +15,4 @@ impl UserSecretKindEphemeral for LinkLoginSecretKind {
 	type ExchangeTo = BrowserSessionSecretKind;
 }
 
-pub type LinkLoginSecret = UserSecret<LinkLoginSecretKind, EmptyMetadata>;
+pub type LinkLoginSecret = UserSecret<LinkLoginSecretKind>;
