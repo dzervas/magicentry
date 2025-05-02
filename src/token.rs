@@ -6,7 +6,6 @@ use actix_web::HttpRequest;
 use chrono::{NaiveDateTime, Utc};
 use log::{debug, info, warn};
 use reindeer::{Db, Entity};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Result};
@@ -15,19 +14,7 @@ use crate::utils::{get_request_origin, random_string};
 use crate::{PROXIED_COOKIE, SCOPED_SESSION_COOKIE, SESSION_COOKIE};
 
 #[allow(async_fn_in_trait)]
-pub trait TokenKindType:
-	std::fmt::Debug
-	+ Clone
-	+ PartialEq
-	+ Eq
-	+ PartialOrd
-	+ Ord
-	+ Serialize
-	+ DeserializeOwned
-	+ Send
-	+ Sync
-	+ Unpin
-{
+pub trait TokenKindType: PartialEq {
 	const NAME: &'static str;
 	const EPHEMERAL: bool;
 	type BoundType: TokenKindType;
@@ -75,7 +62,7 @@ macro_rules! token_kind {
 	};
 }
 
-#[derive(Entity, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Entity, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[entity(name = "token", id = "code", version = 1)]
 // #[siblings(("token", BreakLink))]
 #[non_exhaustive]
@@ -130,7 +117,6 @@ impl<K: TokenKindType> Token<K> {
 		Self::from_code(db, code).await
 	}
 
-	#[allow(clippy::ptr_arg)]
 	pub async fn from_code(db: &Db, code: &String) -> Result<Self> {
 		let token = Self::get(code, db)?.ok_or(AppErrorKind::TokenNotFound)?;
 

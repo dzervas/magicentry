@@ -1,7 +1,8 @@
 with import <nixpkgs> {};
 mkShell {
-  nativeBuildInputs = [
+  packages = [
     rustup
+    rust-analyzer
     openssl.dev
     pkg-config
   ];
