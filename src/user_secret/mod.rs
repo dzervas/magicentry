@@ -6,6 +6,7 @@ pub mod metadata;
 pub mod browser_session;
 pub mod link_login;
 pub mod proxy_code;
+pub mod proxy_session;
 
 pub use browser_session::BrowserSessionSecret;
 pub use link_login::LinkLoginSecret;

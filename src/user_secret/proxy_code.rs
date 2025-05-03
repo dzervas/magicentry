@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::browser_session::BrowserSessionSecretKind;
-use super::secret::{UserSecret, UserSecretKind};
+use super::proxy_session::ProxySessionSecretKind;
+use super::secret::{UserSecret, UserSecretKind, UserSecretKindEphemeral};
 use super::{ChildSecretMetadata};
 
 #[derive(PartialEq, Serialize, Deserialize)]
@@ -12,6 +13,10 @@ impl UserSecretKind for ProxyCodeSecretKind {
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, url::Url>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+}
+
+impl UserSecretKindEphemeral for ProxyCodeSecretKind {
+	type ExchangeTo = ProxySessionSecretKind;
 }
 
 pub type ProxyCodeSecret = UserSecret<ProxyCodeSecretKind>;
