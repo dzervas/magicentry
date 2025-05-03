@@ -25,7 +25,7 @@ pub enum AppErrorKind {
 	InvalidTargetUser,
 	MissingOriginHeader,
 	InvalidParentToken,
-	InvalidToken,
+	InvalidTokenType,
 	ExpiredToken,
 	InvalidTokenMetadata,
 

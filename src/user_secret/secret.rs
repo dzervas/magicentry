@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use chrono::{NaiveDateTime, Utc};
 use reindeer::{Db, Entity};
 use serde::{Deserialize, Serialize};
@@ -64,7 +66,12 @@ impl<K: UserSecretKind> UserSecret<K> {
 
 	pub async fn validate(&self, db: &Db) -> Result<()> {
 		if !self.0.code.0.starts_with(get_prefix(K::PREFIX).as_str()) {
-			return Err(AppErrorKind::InvalidToken.into());
+			return Err(AppErrorKind::InvalidTokenType.into());
+		}
+
+		if self.0.expires_at <= Utc::now().naive_utc() {
+			InternalUserSecret::<K>::remove(&self.0.code, db)?;
+			return Err(AppErrorKind::ExpiredToken.into());
 		}
 
 		if !InternalUserSecret::<K>::exists(&self.0.code, db)? {
@@ -74,11 +81,6 @@ impl<K: UserSecretKind> UserSecret<K> {
 		if self.0.metadata.validate(db).await.is_err() {
 			InternalUserSecret::<K>::remove(&self.0.code, db)?;
 			return Err(AppErrorKind::InvalidTokenMetadata.into());
-		}
-
-		if self.0.expires_at <= Utc::now().naive_utc() {
-			InternalUserSecret::<K>::remove(&self.0.code, db)?;
-			return Err(AppErrorKind::ExpiredToken.into());
 		}
 
 		Ok(())
@@ -105,25 +107,36 @@ impl<P, K, M> UserSecret<K> where
 	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
 }
 
-pub trait UserSecretKindEphemeral: UserSecretKind {
-	type ExchangeTo: UserSecretKind;
-}
+pub struct EphemeralUserSecret<K: UserSecretKind, ExchangeTo: UserSecretKind>(UserSecret<K>, PhantomData<ExchangeTo>);
 
-impl<K: UserSecretKindEphemeral> UserSecret<K> {
-	pub async fn exchange_with_metadata(self, db: &Db, metadata: <K::ExchangeTo as UserSecretKind>::Metadata) -> Result<UserSecret<K::ExchangeTo>> {
-		self.validate(db).await?;
+impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, ExchangeTo> {
+	pub async fn new(user: User, metadata: K::Metadata, db: &Db) -> Result<Self> {
+		Ok(Self(UserSecret::new(user, metadata, db).await?, PhantomData))
+	}
 
-		let new_secret = UserSecret::new(self.user().clone(), metadata, db).await?;
-		InternalUserSecret::<K>::remove(&self.0.code, db)?;
+	pub async fn exchange_with_metadata(self, db: &Db, metadata: <ExchangeTo as UserSecretKind>::Metadata) -> Result<UserSecret<ExchangeTo>> {
+		self.0.validate(db).await?;
+
+		let new_secret = UserSecret::new(self.0.user().clone(), metadata, db).await?;
+		InternalUserSecret::<K>::remove(&self.0.code(), db)?;
 
 		Ok(new_secret)
 	}
+
+	pub async fn try_from_string(db: &Db, code: String) -> Result<Self> {
+		Ok(Self(UserSecret::try_from_string(db, code).await?, PhantomData))
+	}
+	pub fn code(&self) -> &SecretString { &self.0.code() }
+	pub fn user(&self) -> &User { &self.0.user() }
+	pub fn expires_at(&self) -> NaiveDateTime { self.0.expires_at() }
+	pub fn metadata(&self) -> &K::Metadata { &self.0.metadata() }
 }
 
-impl<K> UserSecret<K> where
-	K : UserSecretKindEphemeral<ExchangeTo: UserSecretKind<Metadata=EmptyMetadata>>,
+impl<K, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, ExchangeTo> where
+	K : UserSecretKind,
+	ExchangeTo : UserSecretKind<Metadata=EmptyMetadata>,
 {
-	pub async fn exchange(self, db: &Db) -> Result<UserSecret<K::ExchangeTo>> {
+	pub async fn exchange(self, db: &Db) -> Result<UserSecret<ExchangeTo>> {
 		self.exchange_with_metadata(db, EmptyMetadata()).await
 	}
 }
