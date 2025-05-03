@@ -1,49 +1,60 @@
 use std::collections::BTreeMap;
 
-use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpRequest, HttpResponse};
 use log::info;
 
 use crate::error::{AppErrorKind, Response};
-use crate::handle_login_action::ScopedLogin;
-use crate::token::{ProxyCookieToken, SessionToken};
+use crate::handle_login_action::ProxyRedirectLink;
+use crate::token::ProxyCookieToken;
+use crate::user_secret::{browser_session, BrowserSessionSecret, ProxyCodeSecret};
 use crate::utils::get_partial;
 
 #[get("/login")]
-async fn login_page(req: HttpRequest, session: Session, db: web::Data<reindeer::Db>) -> Response {
-	if let Ok(user_session) = SessionToken::from_session(&db, &session).await {
-		if let Ok(scoped_login) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-			let scoped_token = ProxyCookieToken::new(
-				&db,
-				user_session.user,
-				Some(user_session.code),
-				Some(scoped_login.clone().into()),
-			)
-			.await?;
-			let redirect_url = scoped_login
-				.get_redirect_url(&scoped_token.code, &scoped_token.user)
-				.await
-				.ok_or(AppErrorKind::InvalidRedirectUri)?;
-			info!(
-				"Redirecting pre-authenticated user to scope {}",
-				&scoped_login.scope_app_url
-			);
-			return Ok(HttpResponse::Found()
-				.append_header(("Location", redirect_url.as_str()))
-				.finish());
-		}
+async fn login_page(
+	req: HttpRequest,
+	db: web::Data<reindeer::Db>,
+	browser_session_opt: Option<BrowserSessionSecret>,
+	proxy_redirect_opt: Option<web::Query<ProxyRedirectLink>>,
+) -> Response {
+	// Check if the user is already logged in
+	let browser_session = if let Some(session) = browser_session_opt {
+		session
+	} else {
+		let login_page = get_partial::<()>("login", BTreeMap::new(), None)?;
 
+		return Ok(HttpResponse::Ok()
+			.content_type(ContentType::html())
+			.body(login_page));
+	};
+
+	// Check if the request is a redirect from a proxy auth-url
+	let proxy_redirect = if let Some(proxy_redirect) = proxy_redirect_opt {
+		proxy_redirect.into_inner()
+	} else {
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/"))
 			.finish());
-	}
+	};
 
-	let login_page = get_partial::<()>("login", BTreeMap::new(), None)?;
+	// Redirect the user to the proxy but with an additional query secret
+	// so that we can identify them and hand them a proper partial session token.
+	// The partial session token does not have access to the whole session
+	// but only to the application that is being redirected to.
+	let proxy_code = ProxyCodeSecret::new_child(
+		browser_session,
+		url::Url::parse(&proxy_redirect.scope_app_url).map_err(|_| {
+			AppErrorKind::InvalidRedirectUri
+		})?,
+		&db,
+	)
+	.await?;
 
-	Ok(HttpResponse::Ok()
-		.content_type(ContentType::html())
-		.body(login_page))
+	info!("Redirecting pre-authenticated user to scope {}", &proxy_redirect.scope_app_url);
+
+	Ok(HttpResponse::Found()
+		.append_header(("Location", redirect_url.as_str()))
+		.finish())
 }
 
 #[cfg(test)]

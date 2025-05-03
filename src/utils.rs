@@ -6,7 +6,7 @@ use actix_web::HttpRequest;
 use reindeer::Db;
 
 use crate::error::{AppErrorKind, Result};
-use crate::handle_login_action::ScopedLogin;
+use crate::handle_login_action::ProxyRedirectLink;
 use crate::oidc::handle_authorize::AuthorizeRequest;
 use crate::token::{ProxyCookieToken, SessionToken};
 use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN, TEMPLATES};
@@ -78,7 +78,7 @@ pub async fn get_post_login_location(
 	user_session: &SessionToken,
 ) -> Result<String> {
 	let oidc_authorize_req_opt = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE);
-	let scoped_login_opt = session.remove_as::<ScopedLogin>(SCOPED_LOGIN);
+	let scoped_login_opt = session.remove_as::<ProxyRedirectLink>(SCOPED_LOGIN);
 
 	if let Some(Ok(oidc_auth_req)) = oidc_authorize_req_opt {
 		// let oidc_code = Token::new(&db, TokenKind::OIDCCode, &user, Some(user_session.code), Some(String::try_from(oidc_auth_req)?)).await?.code;

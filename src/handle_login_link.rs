@@ -49,7 +49,7 @@ mod tests {
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()
-			.uri("/login/" + token.code())
+			.uri(format!("/login/{}", token.code().to_str_that_i_wont_print()).as_str())
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;

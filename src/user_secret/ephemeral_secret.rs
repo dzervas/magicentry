@@ -7,7 +7,7 @@ use crate::user::User;
 use crate::error::Result;
 
 use super::secret::{InternalUserSecret, UserSecret, UserSecretKind};
-use super::{EmptyMetadata, SecretString};
+use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};
 
 pub struct EphemeralUserSecret<K: UserSecretKind, ExchangeTo: UserSecretKind>(UserSecret<K>, PhantomData<ExchangeTo>);
 
@@ -41,4 +41,17 @@ impl<K, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, ExchangeTo> where
 	pub async fn exchange(self, db: &Db) -> Result<UserSecret<ExchangeTo>> {
 		self.exchange_with_metadata(db, EmptyMetadata()).await
 	}
+}
+
+impl<P, K, M, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
+	P : UserSecretKind,
+	M : MetadataKind,
+	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
+	ExchangeTo : UserSecretKind
+{
+	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Db) -> Result<Self> {
+		Ok(Self(UserSecret::<K>::new_child(parent, metadata, db).await?, PhantomData))
+	}
+
+	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata().metadata() }
 }

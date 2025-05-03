@@ -34,7 +34,7 @@ pub struct ChildSecretMetadata<P: UserSecretKind, M> {
 }
 
 impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
-	pub fn new(parent: UserSecret<P>, metadata: M) -> Self {
+	pub(super) fn new(parent: UserSecret<P>, metadata: M) -> Self {
 		Self { parent, metadata }
 	}
 

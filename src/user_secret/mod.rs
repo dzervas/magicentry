@@ -26,6 +26,10 @@ pub fn get_prefix(prefix: &str) -> String {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SecretString(String);
 
+impl SecretString {
+	pub fn to_str_that_i_wont_print(&self) -> &str { &self.0 }
+}
+
 // Needed for reindeer
 impl AsBytes for SecretString {
 	fn as_bytes(&self) -> Vec<u8> { self.0.as_bytes().to_owned() }

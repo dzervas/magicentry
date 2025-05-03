@@ -5,5 +5,7 @@ mkShell {
     rust-analyzer
     openssl.dev
     pkg-config
+
+    cargo-audit
   ];
 }

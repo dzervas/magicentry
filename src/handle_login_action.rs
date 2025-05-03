@@ -23,13 +23,18 @@ pub struct LoginInfo {
 	pub email: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct ScopedLogin {
+/// This struct holds the `rd` query parameter, used by nginx at least
+/// during handling of unauthenticated requests while using the auth-url
+/// mechanism.
+/// It is used to redirect the user back to the original URL after
+/// authentication.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProxyRedirectLink {
 	#[serde(rename = "rd")]
 	pub(crate) scope_app_url: String,
 }
 
-impl ScopedLogin {
+impl ProxyRedirectLink {
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = urlencoding::decode(&self.scope_app_url).ok()?.to_string();
 		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
@@ -51,14 +56,14 @@ impl ScopedLogin {
 	}
 }
 
-impl From<String> for ScopedLogin {
+impl From<String> for ProxyRedirectLink {
 	fn from(scope: String) -> Self {
-		ScopedLogin { scope_app_url: scope }
+		ProxyRedirectLink { scope_app_url: scope }
 	}
 }
 
-impl From<ScopedLogin> for String {
-	fn from(scoped: ScopedLogin) -> Self {
+impl From<ProxyRedirectLink> for String {
+	fn from(scoped: ProxyRedirectLink) -> Self {
 		scoped.scope_app_url
 	}
 }
@@ -152,7 +157,7 @@ async fn login_action(
 	}
 
 	// If this is a scoped login, save the scope in the server session storage
-	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
+	if let Ok(scoped) = serde_qs::from_str::<ProxyRedirectLink>(req.query_string()) {
 		debug!("Setting scoped login for link: {:?}", &scoped);
 		session.insert(SCOPED_LOGIN, scoped)?;
 	}

@@ -43,7 +43,9 @@ impl<K: UserSecretKind> Entity for InternalUserSecret<K> {
 #[derive(PartialEq, Serialize, Deserialize)]
 pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 
+/// Basic user secret operations
 impl<K: UserSecretKind> UserSecret<K> {
+	/// Create a new user secret that is bound to a user and has some metadata
 	pub async fn new(user: User, metadata: K::Metadata, db: &Db) -> Result<Self> {
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
@@ -62,6 +64,11 @@ impl<K: UserSecretKind> UserSecret<K> {
 		Ok(Self(internal_secret))
 	}
 
+	/// Validate that the secret exists in the db and is not expired
+	/// It also validates the metadata, if any such logic is implemented in them
+	///
+	/// Any failure will remove the secret from the db and return an error
+	/// This is useful for cleaning up expired secrets
 	pub async fn validate(&self, db: &Db) -> Result<()> {
 		if !self.0.code.0.starts_with(get_prefix(K::PREFIX).as_str()) {
 			return Err(AppErrorKind::InvalidTokenType.into());
@@ -84,6 +91,12 @@ impl<K: UserSecretKind> UserSecret<K> {
 		Ok(())
 	}
 
+	/// Just delete the secret from the db
+	pub async fn delete(self, db: &Db) -> Result<()> {
+		Ok(InternalUserSecret::<K>::remove(&self.0.code, db)?)
+	}
+
+	/// Parse and validate a secret from a string - most probably from user controlled data
 	pub async fn try_from_string(db: &Db, code: String) -> Result<Self> {
 		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::TokenNotFound)?;
 		let user_secret = UserSecret(internal_secret);
@@ -97,10 +110,21 @@ impl<K: UserSecretKind> UserSecret<K> {
 	pub fn metadata(&self) -> &K::Metadata { &self.0.metadata }
 }
 
+/// Operations for user secrets that are bound to a parent secret
+///
+/// For example a [`ProxySessionSecret`](super::proxy_session::ProxySessionSecret) is bound to a [`BrowserSessionSecret`](super::browser_session::BrowserSessionSecret)
+/// since we only want the proxy session to be able to access its application data
+///
+/// As soon as the parent secret is deleted (or expired) the child secret will be invalidated
+/// and eventually deleted as well during metadata validation
 impl<P, K, M> UserSecret<K> where
 	P : UserSecretKind,
 	M : MetadataKind,
 	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 {
+	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Db) -> Result<Self> {
+		UserSecret::<K>::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await
+	}
+
 	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
 }
