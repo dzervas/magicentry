@@ -1,5 +1,6 @@
 #![allow(async_fn_in_trait)]
 pub mod secret;
+pub mod ephemeral_secret;
 pub mod metadata;
 
 // Secret types
@@ -44,6 +45,13 @@ impl From<String> for SecretString {
 
 #[cfg(debug_assertions)]
 impl std::fmt::Debug for SecretString {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		self.0.fmt(f)
+	}
+}
+
+#[cfg(debug_assertions)]
+impl std::fmt::Display for SecretString {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.0.fmt(f)
 	}

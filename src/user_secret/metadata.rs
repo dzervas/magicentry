@@ -15,6 +15,7 @@ pub trait MetadataKind: PartialEq + Serialize + DeserializeOwned {
 
 impl MetadataKind for String {}
 impl MetadataKind for url::Url {}
+impl<T: MetadataKind> MetadataKind for Option<T> {}
 
 /// Zero-sized struct for empty metadata.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

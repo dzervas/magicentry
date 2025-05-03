@@ -4,25 +4,25 @@ use actix_web::{get, web, HttpResponse};
 use log::info;
 
 use crate::error::Response;
-use crate::token::{MagicLinkToken, SessionToken};
-use crate::utils::get_post_login_location;
+use crate::user_secret::LinkLoginSecret;
 use crate::SESSION_COOKIE;
 
 #[get("/login/{magic}")]
 async fn login_link(
-	magic: web::Path<String>,
+	login_secret: LinkLoginSecret,
 	session: Session,
 	db: web::Data<reindeer::Db>,
 ) -> Response {
-	let token = MagicLinkToken::from_code(&db, &magic).await?;
+	info!("User {} logged in", &login_secret.user().email);
 
-	info!("User {} logged in", &token.user.email);
-	let user_session = SessionToken::new(&db, token.user.clone(), None, None).await?;
-	let redirect_url = get_post_login_location(&db, &session, &user_session).await?;
-	session.insert(SESSION_COOKIE, user_session.code.clone())?;
+	// TODO: Handle the redirect URL
+	// let redirect_url = get_post_login_location(&db, &session, &user_session).await?;
+	// let redirect_url = login_secret.metadata().unwrap_or_else(url::Url::from_directory_path("/"));
+	let user_session = login_secret.exchange(&db).await?;
+	session.insert(SESSION_COOKIE, user_session.code())?;
 
 	Ok(HttpResponse::Found()
-		.append_header((header::LOCATION, redirect_url))
+		.append_header((header::LOCATION, "/"))
 		.finish())
 }
 
@@ -45,11 +45,11 @@ mod tests {
 		)
 		.await;
 
-		let token = MagicLinkToken::new(db, user, None, None).await.unwrap();
+		let token = LinkLoginSecret::new(user, None, db).await.unwrap();
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()
-			.uri(format!("/login/{}", token.code).as_str())
+			.uri("/login/" + token.code())
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;

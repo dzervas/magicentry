@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::browser_session::BrowserSessionSecretKind;
+use super::ephemeral_secret::EphemeralUserSecret;
 use super::proxy_session::ProxySessionSecretKind;
-use super::secret::{EphemeralUserSecret, UserSecretKind};
+use super::secret::UserSecretKind;
 use super::{ChildSecretMetadata};
 
 #[derive(PartialEq, Serialize, Deserialize)]

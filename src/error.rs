@@ -28,6 +28,10 @@ pub enum AppErrorKind {
 	InvalidTokenType,
 	ExpiredToken,
 	InvalidTokenMetadata,
+	MissingLoginLinkCode,
+
+	#[display("Unable to access the database instance during request parsing")]
+	DatabaseInstanceError,
 
 	#[display("Missing auth_url code in (query string or cookie)")]
 	MissingAuthURLCode,
