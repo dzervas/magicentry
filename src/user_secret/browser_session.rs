@@ -1,6 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use super::secret::{UserSecret, UserSecretKind};
 use super::metadata::EmptyMetadata;
 
+#[derive(PartialEq, Serialize, Deserialize)]
 pub struct BrowserSessionSecretKind;
 
 impl UserSecretKind for BrowserSessionSecretKind {
