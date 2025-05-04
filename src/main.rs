@@ -38,6 +38,7 @@ pub async fn main() -> std::io::Result<()> {
 
 	let db = reindeer::open(config.database_url.clone().as_str())
 		.expect("Failed to open reindeer database.");
+	user_secret::register(&db).unwrap();
 	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 	token::register_token_kind(&db).expect("Failed to register token kinds");
 	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");

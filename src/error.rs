@@ -106,10 +106,10 @@ impl ResponseError for Error {
 	fn status_code(&self) -> StatusCode {
 		if let Some(app_error) = &self.app_error {
 			match app_error {
-				AppErrorKind::SecretNotFound => StatusCode::FOUND,
 				AppErrorKind::NotLoggedIn
 				| AppErrorKind::ExpiredSecret
-				| AppErrorKind::InvalidOIDCCode
+				| AppErrorKind::SecretNotFound => StatusCode::FOUND,
+				AppErrorKind::InvalidOIDCCode
 				| AppErrorKind::InvalidClientID
 				| AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
 				AppErrorKind::NotFound => StatusCode::NOT_FOUND,
@@ -137,6 +137,9 @@ impl ResponseError for Error {
 				description.clear();
 				description = "Something went very wrong from our end".to_string();
 			}
+
+			#[cfg(debug_assertions)]
+			println!("Error: {}", self);
 		} else if status != StatusCode::NOT_FOUND {
 			log::warn!("{}", self);
 		}

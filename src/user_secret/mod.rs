@@ -5,12 +5,12 @@ pub mod metadata;
 
 // Secret types
 pub mod browser_session;
-pub mod link_login;
+pub mod login_link;
 pub mod proxy_code;
 pub mod proxy_session;
 
 pub use browser_session::BrowserSessionSecret;
-pub use link_login::LinkLoginSecret;
+pub use login_link::LoginLinkSecret;
 pub use proxy_code::ProxyCodeSecret;
 pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
@@ -21,6 +21,18 @@ use crate::utils::random_string;
 
 pub fn get_prefix(prefix: &str) -> String {
 	format!("me_{}_", prefix)
+}
+
+pub fn register(db: &reindeer::Db) -> crate::error::Result<()> {
+	use reindeer::Entity;
+	use secret::InternalUserSecret;
+
+	// Initialize the database with the secret types
+	InternalUserSecret::<browser_session::BrowserSessionSecretKind>::register(db)?;
+	InternalUserSecret::<login_link::LoginLinkSecretKind>::register(db)?;
+	InternalUserSecret::<proxy_code::ProxyCodeSecretKind>::register(db)?;
+	InternalUserSecret::<proxy_session::ProxySessionSecretKind>::register(db)?;
+	Ok(())
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]

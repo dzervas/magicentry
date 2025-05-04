@@ -30,6 +30,7 @@ pub mod handle_static;
 pub mod tests;
 
 pub const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
+pub const PROXY_QUERY_CODE: &str = "magicentry_code";
 pub const PROXIED_COOKIE: &str = "code";
 pub const RANDOM_STRING_LEN: usize = 32;
 pub const SCOPED_LOGIN: &str = "scope";

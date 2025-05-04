@@ -53,7 +53,7 @@ pub struct ConfigFile {
 
 	pub webauthn_enable: bool,
 
-	pub force_https_redirects: bool,
+	// pub force_https_redirects: bool,
 
 	pub users: Vec<User>,
 	pub services: Services,
@@ -76,10 +76,10 @@ impl Default for ConfigFile {
 			static_path: "static".to_string(),
 
 			auth_url_enable       : true,
-			auth_url_user_header  : "X-Auth-User".to_string(),
-			auth_url_email_header : "X-Auth-Email".to_string(),
-			auth_url_name_header  : "X-Auth-Name".to_string(),
-			auth_url_realms_header: "X-Auth-Realms".to_string(),
+			auth_url_user_header  : "X-Remote-User".to_string(),
+			auth_url_email_header : "X-Remote-Email".to_string(),
+			auth_url_name_header  : "X-Remote-Name".to_string(),
+			auth_url_realms_header: "X-Remote-Realms".to_string(),
 
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),
 
@@ -100,7 +100,7 @@ impl Default for ConfigFile {
 
 			webauthn_enable: true,
 
-			force_https_redirects: true,
+			// force_https_redirects: true,
 
 			users: vec![],
 			services: Services(vec![]),

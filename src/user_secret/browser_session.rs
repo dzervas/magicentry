@@ -25,13 +25,20 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 	type Future = BoxFuture<'static, Result<Self>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let db = req.app_data::<actix_web::web::Data<Db>>().cloned().unwrap();
-		let session = req.app_data::<actix_session::Session>().cloned().unwrap();
-
+		let session = if let Some(session) = req.app_data::<actix_session::Session>() {
+			session
+		} else {
+			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
+		};
 		let code = if let Some(Ok(browser_session_secret)) = session.remove_as::<String>(SESSION_COOKIE) {
 			browser_session_secret
 		} else {
 			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
+		};
+		let db = if let Some(db) = req.app_data::<actix_web::web::Data<Db>>() {
+			db.clone()
+		} else {
+			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
 		};
 
 		Box::pin(async move {

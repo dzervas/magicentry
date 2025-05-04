@@ -4,12 +4,12 @@ use actix_web::{get, web, HttpResponse};
 use log::info;
 
 use crate::error::Response;
-use crate::user_secret::LinkLoginSecret;
+use crate::user_secret::LoginLinkSecret;
 use crate::SESSION_COOKIE;
 
 #[get("/login/{magic}")]
 async fn login_link(
-	login_secret: LinkLoginSecret,
+	login_secret: LoginLinkSecret,
 	session: Session,
 	db: web::Data<reindeer::Db>,
 ) -> Response {
@@ -45,7 +45,7 @@ mod tests {
 		)
 		.await;
 
-		let token = LinkLoginSecret::new(user, None, db).await.unwrap();
+		let token = LoginLinkSecret::new(user, None, db).await.unwrap();
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()

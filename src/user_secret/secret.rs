@@ -47,6 +47,8 @@ pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 impl<K: UserSecretKind> UserSecret<K> {
 	/// Create a new user secret that is bound to a user and has some metadata
 	pub async fn new(user: User, metadata: K::Metadata, db: &Db) -> Result<Self> {
+		metadata.validate(db).await?;
+
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
 			.checked_add_signed(K::duration().await)
