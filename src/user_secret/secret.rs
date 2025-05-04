@@ -130,3 +130,5 @@ impl<P, K, M> UserSecret<K> where
 
 	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
 }
+
+// TODO: Create a blanket implementation of FromRequest for UserSecret instances that implement a FromRequestAsync trait so that the async-related boilerplate can go away

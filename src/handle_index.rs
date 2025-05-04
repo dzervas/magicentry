@@ -9,21 +9,39 @@ use crate::error::Response;
 use crate::user_secret::proxy_code::ProxyRedirectUrl;
 use crate::user_secret::{BrowserSessionSecret, ProxyCodeSecret};
 use crate::utils::get_partial;
-use crate::{CONFIG, PROXY_QUERY_CODE};
+use crate::{CONFIG, PROXY_QUERY_CODE, SESSION_COOKIE};
 
 #[get("/")]
 async fn index(
 	db: web::Data<reindeer::Db>,
 	session: Session,
-	browser_session: BrowserSessionSecret,
 ) -> Response {
+	let browser_session = if let Ok(Some(session)) = session.get::<BrowserSessionSecret>(SESSION_COOKIE) {
+		println!("Session found: {:?}", session.user());
+		session.validate(&db).await?;
+		session
+	} else {
+		return Ok(HttpResponse::Found()
+			.append_header(("Location", "/login"))
+			.finish());
+	};
+
 	if let Some(Ok(proxy_redirect_url)) = session.remove_as::<ProxyRedirectUrl>(PROXY_QUERY_CODE) {
+		// Redirect the user to the proxy but with an additional query secret (proxy_code)
+		// so that we can identify them and hand them a proper partial session token.
+		// The partial session token does not have access to the whole session
+		// but only to the application that is being redirected to.
+		//
+		// Note that the proxy code will get forwarded to us from the proxy under a
+		// different domain, so we can't just use a normal session cookie.
+
 		let proxy_code = ProxyCodeSecret::new_child(
 			browser_session,
 			proxy_redirect_url.clone(),
 			&db,
 		)
 		.await?;
+
 		info!("Redirecting newly authenticated user to proxy redirect url (destination) {}", &proxy_redirect_url.url);
 		let final_redirect_url = proxy_code.final_redirect_url()?;
 
@@ -32,13 +50,14 @@ async fn index(
 			.finish());
 	}
 
+	// Render the index page
 	let config = CONFIG.read().await;
 	let mut index_data = BTreeMap::new();
 	index_data.insert("email", browser_session.user().email.clone());
 	let realmed_services = config.services.from_user(&browser_session.user());
-	println!("realmed_services: {:?}", realmed_services);
 	let index_page = get_partial("index", index_data, Some(realmed_services))?;
 
+	// Respond with the index page and set the X-Remote headers as configured
 	Ok(HttpResponse::Ok()
 		.append_header((
 			config.auth_url_email_header.as_str(),
@@ -64,7 +83,7 @@ async fn index(
 mod tests {
 	use super::*;
 	use crate::user_secret::LoginLinkSecret;
-use crate::utils::tests::*;
+	use crate::utils::tests::*;
 	use crate::{handle_login_link, SESSION_COOKIE};
 
 	use std::collections::HashMap;
@@ -110,9 +129,7 @@ use crate::utils::tests::*;
 		let req = actix_test::TestRequest::get()
 			.uri(&login_link.get_login_url())
 			.to_request();
-		println!("req: {:?}", req);
 		let resp = actix_test::call_service(&mut app, req).await;
-		println!("res: {:?}", resp);
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/");
 
@@ -126,7 +143,9 @@ use crate::utils::tests::*;
 			.uri("/")
 			.cookie(parsed_cookie)
 			.to_request();
+		println!("req: {:?}", req);
 		let resp = actix_test::call_service(&mut app, req).await;
+		println!("res: {:?}", resp);
 		assert_eq!(resp.status(), StatusCode::OK);
 		let config = CONFIG.read().await;
 		assert_eq!(

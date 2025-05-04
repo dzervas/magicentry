@@ -9,17 +9,17 @@ use crate::error::Response;
 use crate::user_secret::proxy_code::ProxyRedirectUrl;
 use crate::user_secret::{BrowserSessionSecret, ProxyCodeSecret};
 use crate::utils::get_partial;
-use crate::PROXY_QUERY_CODE;
+use crate::{PROXY_QUERY_CODE, SESSION_COOKIE};
 
 #[get("/login")]
 async fn login_page(
 	db: web::Data<reindeer::Db>,
 	session: Session,
-	browser_session_opt: Option<BrowserSessionSecret>,
 	proxy_redirect_opt: Option<web::Query<ProxyRedirectUrl>>,
 ) -> Response {
 	// Check if the user is already logged in
-	let browser_session = if let Some(session) = browser_session_opt {
+	let browser_session = if let Ok(Some(session)) = session.get::<BrowserSessionSecret>(SESSION_COOKIE) {
+		session.validate(&db).await?;
 		session
 	} else {
 		// This is the same flow as explained below, but the user is unauthenticated,
