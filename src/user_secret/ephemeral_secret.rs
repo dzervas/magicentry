@@ -25,8 +25,8 @@ impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, Excha
 		Ok(new_secret)
 	}
 
-	pub async fn try_from_string(db: &Db, code: String) -> Result<Self> {
-		Ok(Self(UserSecret::try_from_string(db, code).await?, PhantomData))
+	pub async fn try_from_string(code: String, db: &Db) -> Result<Self> {
+		Ok(Self(UserSecret::try_from_string(code, db).await?, PhantomData))
 	}
 	pub fn code(&self) -> &SecretString { &self.0.code() }
 	pub fn user(&self) -> &User { &self.0.user() }

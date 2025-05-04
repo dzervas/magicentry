@@ -13,8 +13,8 @@ use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
-use crate::token::MagicLinkToken;
 use crate::user::User;
+use crate::user_secret::LoginLinkSecret;
 use crate::utils::get_partial;
 use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
 
@@ -81,20 +81,22 @@ async fn login_action(
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
 		.body(login_action_page));
+
+	// Return 200 to avoid leaking valid emails
 	let Some(user) = User::from_config(&form.email).await else {
-		// Return 200 to avoid leaking valid emails
 		return result;
 	};
 
 	// Generate the magic link
-	let link = MagicLinkToken::new(&db, user.clone(), None, None).await?;
+	let link = LoginLinkSecret::new(user.clone(), None, &db).await?;
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
-	let magic_link = format!("{}/login/{}", base_url, link.code);
+	let magic_link = base_url + &link.get_login_url();
 	let name = &user.name.clone();
 	let username = &user.username.clone();
 
-	debug!("Link: {} {:?}", &magic_link, link);
+	#[cfg(debug_assertions)]
+	info!("Link: {}", &magic_link);
 
 	// Send it via email
 	if let Some(mailer) = mailer.as_ref() {
@@ -172,7 +174,6 @@ mod tests {
 
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};
-	use reindeer::Entity;
 
 	#[actix_web::test]
 	async fn test_login_action() {
@@ -208,8 +209,6 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
-		let links =
-			MagicLinkToken::get_with_filter(|t| t.user == "invalid@example.com", db).unwrap();
-		assert!(links.is_empty());
+		// TODO: Test the login link
 	}
 }

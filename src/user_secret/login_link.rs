@@ -42,7 +42,7 @@ impl actix_web::FromRequest for LoginLinkSecret {
 		};
 
 		Box::pin(async move {
-			Self::try_from_string(db.get_ref(), code).await
+			Self::try_from_string(code, db.get_ref()).await
 		})
 	}
 }

@@ -99,7 +99,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 	}
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
-	pub async fn try_from_string(db: &Db, code: String) -> Result<Self> {
+	pub async fn try_from_string(code: String, db: &Db) -> Result<Self> {
 		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::SecretNotFound)?;
 		let user_secret = UserSecret(internal_secret);
 		user_secret.validate(db).await?;
