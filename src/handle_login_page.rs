@@ -1,21 +1,19 @@
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;
-use actix_web::{get, web, HttpRequest, HttpResponse};
+use actix_web::{get, web, HttpResponse};
 use log::info;
 
-use crate::error::{AppErrorKind, Response};
-use crate::handle_login_action::ProxyRedirectLink;
-use crate::token::ProxyCookieToken;
-use crate::user_secret::{browser_session, BrowserSessionSecret, ProxyCodeSecret};
+use crate::error::Response;
+use crate::user_secret::proxy_code::ProxyRedirectUrl;
+use crate::user_secret::{BrowserSessionSecret, MetadataKind as _, ProxyCodeSecret};
 use crate::utils::get_partial;
 
 #[get("/login")]
 async fn login_page(
-	req: HttpRequest,
 	db: web::Data<reindeer::Db>,
 	browser_session_opt: Option<BrowserSessionSecret>,
-	proxy_redirect_opt: Option<web::Query<ProxyRedirectLink>>,
+	proxy_redirect_opt: Option<web::Query<ProxyRedirectUrl>>,
 ) -> Response {
 	// Check if the user is already logged in
 	let browser_session = if let Some(session) = browser_session_opt {
@@ -29,7 +27,7 @@ async fn login_page(
 	};
 
 	// Check if the request is a redirect from a proxy auth-url
-	let proxy_redirect = if let Some(proxy_redirect) = proxy_redirect_opt {
+	let mut proxy_redirect_url = if let Some(proxy_redirect) = proxy_redirect_opt {
 		proxy_redirect.into_inner()
 	} else {
 		return Ok(HttpResponse::Found()
@@ -37,23 +35,27 @@ async fn login_page(
 			.finish());
 	};
 
-	// Redirect the user to the proxy but with an additional query secret
-	// so that we can identify them and hand them a proper partial session token.
-	// The partial session token does not have access to the whole session
-	// but only to the application that is being redirected to.
 	let proxy_code = ProxyCodeSecret::new_child(
 		browser_session,
-		url::Url::parse(&proxy_redirect.scope_app_url).map_err(|_| {
-			AppErrorKind::InvalidRedirectUri
-		})?,
+		().into(),
 		&db,
 	)
 	.await?;
 
-	info!("Redirecting pre-authenticated user to scope {}", &proxy_redirect.scope_app_url);
+	// Check the provided redirect URL early to avoid confusion later on
+	proxy_redirect_url.validate(&db).await?;
+
+	// Redirect the user to the proxy but with an additional query secret
+	// so that we can identify them and hand them a proper partial session token.
+	// The partial session token does not have access to the whole session
+	// but only to the application that is being redirected to.
+	info!("Redirecting pre-authenticated user to scope {}", &proxy_redirect_url.url);
+	proxy_redirect_url.url
+		.query_pairs_mut()
+		.append_pair("magicentry_code", proxy_code.code().to_str_that_i_wont_print());
 
 	Ok(HttpResponse::Found()
-		.append_header(("Location", redirect_url.as_str()))
+		.append_header(("Location", proxy_redirect_url.url.to_string()))
 		.finish())
 }
 

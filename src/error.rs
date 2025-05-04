@@ -17,27 +17,38 @@ pub async fn not_found() -> Response {
 
 #[derive(Debug, Display, DeriveError, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AppErrorKind {
-	TokenNotFound,
+	// Authentication & secret errors
+	#[display("The provided secret does not exist")]
+	SecretNotFound,
+	#[display("The provided secret is bound to a token that no longer exists")]
 	NoParentToken,
 	NoSessionSet,
 	MissingMetadata,
 	IncorrectMetadata,
 	InvalidTargetUser,
-	MissingOriginHeader,
 	InvalidParentToken,
-	InvalidTokenType,
-	ExpiredToken,
-	InvalidTokenMetadata,
+	#[display("The provided secret is of the wrong type")]
+	InvalidSecretType,
+	#[display("The provided secret has expired")]
+	ExpiredSecret,
+	#[display("The metadata provided to the secret were invalid")]
+	InvalidSecretMetadata,
+	#[display("The request does not have a valid magic link token")]
 	MissingLoginLinkCode,
 
+	// Database errors
 	#[display("Unable to access the database instance during request parsing")]
 	DatabaseInstanceError,
 
+	// Proxy (auth-url) errors
 	#[display("Missing auth_url code in (query string or cookie)")]
 	MissingAuthURLCode,
 	#[display("Could not parse X-Original-URI header (it is set but not valid)")]
 	CouldNotParseXOrginalURIHeader,
+	#[display("The provided return destination URL (`rd` query parameter) doesn't have a an origin that is allowed in the config")]
+	InvalidReturnDestinationUrl,
 
+	// Generic errors
 	#[display("What you're looking for ain't here")]
 	NotFound,
 	#[display("You are not logged in!")]
@@ -50,34 +61,37 @@ pub enum AppErrorKind {
 	CouldNotParseAuthorizationHeader,
 	#[display("The Duration provided is incorrect or too big (max i64)")]
 	InvalidDuration,
-	#[display("Client sent a redirect_uri different from the one in the config")]
-	InvalidRedirectUri,
-	#[display("The client_id shown during authorization does not match the client_id provided")]
+	MissingOriginHeader,
+
+	// OIDC errors
+	#[display("OIDC Client sent a redirect_uri different from the one in the config")]
+	InvalidOIDCRedirectUrl,
+	#[display("The OIDC client_id shown during authorization does not match the client_id provided")]
 	NotMatchingClientID,
-	#[display("Client sent a client_id that is not in the config")]
+	#[display("OIDC Client sent a client_id that is not in the config")]
 	InvalidClientID,
-	#[display("Client sent a client_secret that does not correspond to the client_id it sent")]
+	#[display("OIDC Client sent a client_secret that does not correspond to the client_id it sent")]
 	InvalidClientSecret,
 	#[display("OIDC not configured for this client")]
 	OIDCNotConfigured,
-	#[display("Client did not send a client_id")]
+	#[display("OIDC Client did not send a client_id")]
 	NoClientID,
-	#[display("Client did not send a client_secret")]
+	#[display("OIDC Client did not send a client_secret")]
 	NoClientSecret,
-	#[display("Client did not send a client_secret or a code_challenge")]
+	#[display("OIDC Client did not send a client_secret or a code_challenge")]
 	NoClientSecretOrCodeChallenge,
-	#[display("Client sent a code_challenge_method that is not S256")]
+	#[display("OIDC Client sent a code_challenge_method that is not S256")]
 	InvalidCodeChallengeMethod,
-	#[display("Client sent a code_verifier but did not send a code_challenge")]
+	#[display("OIDC Client sent a code_verifier but did not send a code_challenge")]
 	NoCodeChallenge,
 	#[display("Someone tried to get a token with an invalid invalid OIDC code")]
 	InvalidOIDCCode,
-	#[display("The code_verifier does not match the code_challenge")]
+	#[display("The OIDC code_verifier does not match the code_challenge")]
 	InvalidCodeVerifier,
-	#[display(
-		"The client tried to create a token without providing any credentials (client_verifier or client_secret)"
-	)]
+	#[display("The client tried to create a token without providing any credentials (client_verifier or client_secret)")]
 	NoClientCredentialsProvided,
+
+	// WebAuthn errors
 	PasskeyAlreadyRegistered,
 }
 
@@ -92,8 +106,9 @@ impl ResponseError for Error {
 	fn status_code(&self) -> StatusCode {
 		if let Some(app_error) = &self.app_error {
 			match app_error {
-				AppErrorKind::TokenNotFound => StatusCode::FOUND,
+				AppErrorKind::SecretNotFound => StatusCode::FOUND,
 				AppErrorKind::NotLoggedIn
+				| AppErrorKind::ExpiredSecret
 				| AppErrorKind::InvalidOIDCCode
 				| AppErrorKind::InvalidClientID
 				| AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
@@ -126,7 +141,7 @@ impl ResponseError for Error {
 			log::warn!("{}", self);
 		}
 
-		if self.app_error == Some(AppErrorKind::TokenNotFound)
+		if self.app_error == Some(AppErrorKind::SecretNotFound)
 			|| self.app_error == Some(AppErrorKind::NotLoggedIn)
 		{
 			HttpResponse::build(status)

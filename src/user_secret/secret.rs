@@ -71,21 +71,21 @@ impl<K: UserSecretKind> UserSecret<K> {
 	/// This is useful for cleaning up expired secrets
 	pub async fn validate(&self, db: &Db) -> Result<()> {
 		if !self.0.code.0.starts_with(get_prefix(K::PREFIX).as_str()) {
-			return Err(AppErrorKind::InvalidTokenType.into());
+			return Err(AppErrorKind::InvalidSecretType.into());
 		}
 
 		if self.0.expires_at <= Utc::now().naive_utc() {
 			InternalUserSecret::<K>::remove(&self.0.code, db)?;
-			return Err(AppErrorKind::ExpiredToken.into());
+			return Err(AppErrorKind::ExpiredSecret.into());
 		}
 
 		if !InternalUserSecret::<K>::exists(&self.0.code, db)? {
-			return Err(AppErrorKind::TokenNotFound.into());
+			return Err(AppErrorKind::SecretNotFound.into());
 		}
 
 		if self.0.metadata.validate(db).await.is_err() {
 			InternalUserSecret::<K>::remove(&self.0.code, db)?;
-			return Err(AppErrorKind::InvalidTokenMetadata.into());
+			return Err(AppErrorKind::InvalidSecretMetadata.into());
 		}
 
 		Ok(())
@@ -98,7 +98,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
 	pub async fn try_from_string(db: &Db, code: String) -> Result<Self> {
-		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::TokenNotFound)?;
+		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::SecretNotFound)?;
 		let user_secret = UserSecret(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)

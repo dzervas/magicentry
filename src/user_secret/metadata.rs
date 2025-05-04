@@ -23,6 +23,10 @@ pub struct EmptyMetadata();
 
 impl MetadataKind for EmptyMetadata {}
 
+impl From<()> for EmptyMetadata {
+	fn from(_: ()) -> Self { EmptyMetadata() }
+}
+
 /// This struct is used to denote that a secret is a child of another secret.
 /// It contains the parent secret primary key and the actual metadata.
 ///

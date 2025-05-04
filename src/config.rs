@@ -9,7 +9,7 @@ use crate::service::Services;
 use crate::user::User;
 use crate::{CONFIG, CONFIG_FILE};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct ConfigFile {
 	pub database_url: String,
@@ -52,6 +52,8 @@ pub struct ConfigFile {
 	pub request_content_type: String,
 
 	pub webauthn_enable: bool,
+
+	pub force_https_redirects: bool,
 
 	pub users: Vec<User>,
 	pub services: Services,
@@ -97,6 +99,8 @@ impl Default for ConfigFile {
 			request_content_type: "application/x-www-form-urlencoded".to_string(),
 
 			webauthn_enable: true,
+
+			force_https_redirects: true,
 
 			users: vec![],
 			services: Services(vec![]),

@@ -89,7 +89,7 @@ pub async fn get_post_login_location(
 		let redirect_url = oidc_auth_req
 			.get_redirect_url(&oidc_code, &user_session.user)
 			.await
-			.ok_or(AppErrorKind::InvalidRedirectUri)?;
+			.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 		log::info!("Redirecting to client {}", &oidc_auth_req.client_id);
 		Ok(redirect_url)
 	} else if let Some(Ok(scoped_login)) = scoped_login_opt {
@@ -104,7 +104,7 @@ pub async fn get_post_login_location(
 		let redirect_url = scoped_login
 			.get_redirect_url(&scoped_code, &user_session.user)
 			.await
-			.ok_or(AppErrorKind::InvalidRedirectUri)?;
+			.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 		log::info!("Redirecting to scope {}", &scoped_login.scope_app_url);
 		Ok(redirect_url)
 	} else {

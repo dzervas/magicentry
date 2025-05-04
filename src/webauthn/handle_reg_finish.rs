@@ -20,12 +20,12 @@ pub async fn reg_finish(
 	// Since we trust the registration token and it holds the user, we treat it as an authentication token as well
 	let reg_state_code = session
 		.remove_as::<String>(WEBAUTHN_COOKIE)
-		.ok_or(AppErrorKind::TokenNotFound)??;
+		.ok_or(AppErrorKind::SecretNotFound)??;
 	let reg_state_token = WebauthnToken::from_code(&db, &reg_state_code).await?;
 	let reg_state = serde_json::from_str(
 		&reg_state_token
 			.metadata
-			.ok_or(AppErrorKind::TokenNotFound)?,
+			.ok_or(AppErrorKind::SecretNotFound)?,
 	)?;
 
 	let sk = webauthn.finish_passkey_registration(&req, &reg_state)?;

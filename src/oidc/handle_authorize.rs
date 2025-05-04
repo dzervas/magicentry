@@ -148,14 +148,14 @@ async fn authorize(
 	let redirect_url = auth_req
 		.get_redirect_url(&oidc_session.code, &oidc_session.user)
 		.await
-		.ok_or(AppErrorKind::InvalidRedirectUri)?;
+		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 	let redirect_url_uri = redirect_url.parse::<Uri>()?;
 	let redirect_url_scheme = redirect_url_uri
 		.scheme_str()
-		.ok_or(AppErrorKind::InvalidRedirectUri)?;
+		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 	let redirect_url_authority = redirect_url_uri
 		.authority()
-		.ok_or(AppErrorKind::InvalidRedirectUri)?;
+		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 	let redirect_url_str = format!("{}://{}", redirect_url_scheme, redirect_url_authority);
 
 	let mut authorize_data = BTreeMap::new();

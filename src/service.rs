@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::user::User;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Service {
 	pub name: String,
 	pub url: String,
@@ -12,20 +12,20 @@ pub struct Service {
 	pub saml: Option<ServiceSAML>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceOIDC {
 	pub client_id: String,
 	pub client_secret: String,
 	pub redirect_urls: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceSAML {
 	pub entity_id: String,
 	pub redirect_url: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Services(pub Vec<Service>);
 
 impl Services {

@@ -118,7 +118,7 @@ impl<K: TokenKindType> Token<K> {
 	}
 
 	pub async fn from_code(db: &Db, code: &String) -> Result<Self> {
-		let token = Self::get(code, db)?.ok_or(AppErrorKind::TokenNotFound)?;
+		let token = Self::get(code, db)?.ok_or(AppErrorKind::SecretNotFound)?;
 
 		// Can't call is_valid as async recursion is not allowed
 		let is_expired = token.is_expired(db).await?;
@@ -128,7 +128,7 @@ impl<K: TokenKindType> Token<K> {
 		}
 
 		if is_expired {
-			return Err(AppErrorKind::TokenNotFound.into());
+			return Err(AppErrorKind::SecretNotFound.into());
 		}
 
 		Ok(token)
@@ -203,7 +203,7 @@ impl SessionToken {
 
 			token
 		} else {
-			Err(AppErrorKind::TokenNotFound.into())
+			Err(AppErrorKind::SecretNotFound.into())
 		}
 	}
 }
@@ -222,13 +222,13 @@ impl ScopedSessionToken {
 			let metadata = token.metadata.clone().unwrap_or_default();
 			let scope_parsed = metadata
 				.parse::<Uri>()
-				.map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+				.map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
 			let scope_scheme = scope_parsed
 				.scheme_str()
-				.ok_or(AppErrorKind::InvalidRedirectUri)?;
+				.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 			let scope_authority = scope_parsed
 				.authority()
-				.ok_or(AppErrorKind::InvalidRedirectUri)?;
+				.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 			let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
 
 			if origin == scope_origin {
@@ -271,13 +271,13 @@ impl ScopedSessionToken {
 		let metadata = proxy_token.metadata.clone().unwrap_or_default();
 		let scope_parsed = metadata
 			.parse::<Uri>()
-			.map_err(|_| AppErrorKind::InvalidRedirectUri)?;
+			.map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
 		let scope_scheme = scope_parsed
 			.scheme_str()
-			.ok_or(AppErrorKind::InvalidRedirectUri)?;
+			.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 		let scope_authority = scope_parsed
 			.authority()
-			.ok_or(AppErrorKind::InvalidRedirectUri)?;
+			.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 		let scope_origin = format!("{}://{}", scope_scheme, scope_authority);
 		let origin = get_request_origin(req)?;
 
