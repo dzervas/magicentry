@@ -2,7 +2,7 @@ use reindeer::Db;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use super::secret::{UserSecret, UserSecretKind};
+use super::primitive::{UserSecret, UserSecretKind};
 
 use crate::error::Result;
 
@@ -38,12 +38,14 @@ pub struct ChildSecretMetadata<P: UserSecretKind, M> {
 }
 
 impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
-	pub(super) fn new(parent: UserSecret<P>, metadata: M) -> Self {
+	pub fn new(parent: UserSecret<P>, metadata: M) -> Self {
 		Self { parent, metadata }
 	}
 
 	pub fn parent(&self) -> &UserSecret<P> { &self.parent }
 	pub fn metadata(&self) -> &M { &self.metadata }
+
+	pub(super) fn take_parent(self) -> UserSecret<P> { self.parent }
 }
 
 impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind for ChildSecretMetadata<P, M> {
@@ -53,3 +55,14 @@ impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKi
 		Ok(())
 	}
 }
+
+// impl<P, M, S, SM> ChildSecretMetadata<P, M> where
+// 	M : MetadataKind,
+// 	SM : MetadataKind,
+// 	S : UserSecretKind,
+// 	P : UserSecretKind<Metadata=ChildSecretMetadata<S, SM>>,
+// {
+// 	pub fn to_sibling_with_metadata(self, metadata: SM) -> ChildSecretMetadata<S, SM> {
+// 		ChildSecretMetadata::new(self.parent, metadata)
+// 	}
+// }

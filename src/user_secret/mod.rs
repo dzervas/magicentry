@@ -1,6 +1,6 @@
 #![allow(async_fn_in_trait)]
-pub mod secret;
-pub mod ephemeral_secret;
+pub mod primitive;
+pub mod ephemeral_primitive;
 pub mod metadata;
 
 // Secret types
@@ -12,6 +12,7 @@ pub mod proxy_session;
 pub use browser_session::BrowserSessionSecret;
 pub use login_link::LoginLinkSecret;
 pub use proxy_code::ProxyCodeSecret;
+pub use proxy_session::ProxySessionSecret;
 pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use reindeer::AsBytes;
@@ -25,7 +26,7 @@ pub fn get_prefix(prefix: &str) -> String {
 
 pub fn register(db: &reindeer::Db) -> crate::error::Result<()> {
 	use reindeer::Entity;
-	use secret::InternalUserSecret;
+	use primitive::InternalUserSecret;
 
 	// Initialize the database with the secret types
 	InternalUserSecret::<browser_session::BrowserSessionSecretKind>::register(db)?;

@@ -1,3 +1,4 @@
+use actix_web::cookie::Cookie;
 use futures::future::BoxFuture;
 use reindeer::Db;
 use serde::{Deserialize, Serialize};
@@ -6,9 +7,9 @@ use crate::error::{AppErrorKind, Result};
 use crate::PROXY_QUERY_CODE;
 
 use super::browser_session::BrowserSessionSecretKind;
-use super::ephemeral_secret::EphemeralUserSecret;
+use super::ephemeral_primitive::EphemeralUserSecret;
 use super::proxy_session::ProxySessionSecretKind;
-use super::secret::UserSecretKind;
+use super::primitive::UserSecretKind;
 use super::{ChildSecretMetadata, MetadataKind};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -41,6 +42,7 @@ impl MetadataKind for ProxyRedirectUrl {
 	}
 }
 
+
 impl From<url::Url> for ProxyRedirectUrl {
 	fn from(url: url::Url) -> Self {
 		Self{ url }
@@ -50,6 +52,15 @@ impl From<url::Url> for ProxyRedirectUrl {
 impl Into<url::Url> for ProxyRedirectUrl {
 	fn into(self) -> url::Url {
 		self.url
+	}
+}
+
+impl Into<Cookie<'_>> for ProxyRedirectUrl {
+	fn into(self) -> Cookie<'static> {
+		Cookie::new(
+			PROXY_QUERY_CODE,
+			self.url.to_string(),
+		)
 	}
 }
 
@@ -80,18 +91,14 @@ impl actix_web::FromRequest for ProxyCodeSecret {
 	type Future = BoxFuture<'static, Result<Self>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let code = if let Some(code) = req.match_info().get(PROXY_QUERY_CODE) {
-			code.to_string()
-		} else {
+		let Some(code) = req.match_info().get(PROXY_QUERY_CODE) else {
 			return Box::pin(async { Err(AppErrorKind::MissingLoginLinkCode.into()) });
 		};
-		println!("ProxyCodeSecret::from_request code: {}", code);
-		let db = if let Some(db) = req.app_data::<actix_web::web::Data<Db>>() {
-			db.clone()
-		} else {
+		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {
 			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
 		};
 
+		let code = code.to_string();
 		Box::pin(async move {
 			Self::try_from_string(code, db.get_ref()).await
 		})

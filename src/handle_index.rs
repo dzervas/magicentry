@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 use log::info;
@@ -9,24 +8,21 @@ use crate::error::Response;
 use crate::user_secret::proxy_code::ProxyRedirectUrl;
 use crate::user_secret::{BrowserSessionSecret, ProxyCodeSecret};
 use crate::utils::get_partial;
-use crate::{CONFIG, PROXY_QUERY_CODE, SESSION_COOKIE};
+use crate::CONFIG;
 
 #[get("/")]
 async fn index(
 	db: web::Data<reindeer::Db>,
-	session: Session,
+	browser_session_opt: Option<BrowserSessionSecret>,
+	proxy_redirect_url_opt: Option<web::Query<ProxyRedirectUrl>>,
 ) -> Response {
-	let browser_session = if let Ok(Some(session)) = session.get::<BrowserSessionSecret>(SESSION_COOKIE) {
-		println!("Session found: {:?}", session.user());
-		session.validate(&db).await?;
-		session
-	} else {
+	let Some(browser_session) = browser_session_opt else {
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/login"))
 			.finish());
 	};
 
-	if let Some(Ok(proxy_redirect_url)) = session.remove_as::<ProxyRedirectUrl>(PROXY_QUERY_CODE) {
+	if let Some(proxy_redirect_url) = proxy_redirect_url_opt {
 		// Redirect the user to the proxy but with an additional query secret (proxy_code)
 		// so that we can identify them and hand them a proper partial session token.
 		// The partial session token does not have access to the whole session
@@ -34,6 +30,7 @@ async fn index(
 		//
 		// Note that the proxy code will get forwarded to us from the proxy under a
 		// different domain, so we can't just use a normal session cookie.
+		let proxy_redirect_url = proxy_redirect_url.into_inner();
 
 		let proxy_code = ProxyCodeSecret::new_child(
 			browser_session,

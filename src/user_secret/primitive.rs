@@ -110,6 +110,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 	pub fn user(&self) -> &User { &self.0.user }
 	pub fn expires_at(&self) -> NaiveDateTime { self.0.expires_at }
 	pub fn metadata(&self) -> &K::Metadata { &self.0.metadata }
+	pub fn take_metadata(self) -> K::Metadata { self.0.metadata }
 }
 
 /// Operations for user secrets that are bound to a parent secret

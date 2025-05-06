@@ -1,16 +1,14 @@
-use actix_session::Session;
 use actix_web::http::header;
 use actix_web::{get, web, HttpResponse};
 use log::info;
 
 use crate::error::Response;
 use crate::user_secret::LoginLinkSecret;
-use crate::SESSION_COOKIE;
 
 #[get("/login/{magic}")]
 async fn login_link(
+	// req: HttpRequest,
 	login_secret: LoginLinkSecret,
-	session: Session,
 	db: web::Data<reindeer::Db>,
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
@@ -18,11 +16,14 @@ async fn login_link(
 	// TODO: Handle the redirect URL
 	// let redirect_url = get_post_login_location(&db, &session, &user_session).await?;
 	// let redirect_url = login_secret.metadata().unwrap_or_else(url::Url::from_directory_path("/"));
-	let user_session = login_secret.exchange(&db).await?;
-	session.insert(SESSION_COOKIE, user_session)?;
+	// let redirect_url = if let Some(redirect_url) = req.cookie(PROXY_QUERY_CODE) {
+	// 	let redirect_url_str = redirect_url.value().to_string();
+	// }
 
+	let user_session = login_secret.exchange(&db).await?;
 	Ok(HttpResponse::Found()
 		.append_header((header::LOCATION, "/"))
+		.cookie(user_session.into())
 		.finish())
 }
 

@@ -2,8 +2,8 @@ use futures::future::BoxFuture;
 use reindeer::Db;
 
 use super::browser_session::BrowserSessionSecretKind;
-use super::ephemeral_secret::EphemeralUserSecret;
-use super::secret::UserSecretKind;
+use super::ephemeral_primitive::EphemeralUserSecret;
+use super::primitive::UserSecretKind;
 
 use crate::error::{AppErrorKind, Result};
 

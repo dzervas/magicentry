@@ -1,6 +1,12 @@
+use actix_web::cookie::Cookie;
+use futures::future::BoxFuture;
+use reindeer::Db;
 use serde::{Deserialize, Serialize};
 
-use super::secret::{UserSecret, UserSecretKind};
+use crate::error::{AppErrorKind, Result};
+use crate::SESSION_COOKIE;
+
+use super::primitive::{UserSecret, UserSecretKind};
 use super::metadata::EmptyMetadata;
 
 #[derive(PartialEq, Serialize, Deserialize)]
@@ -15,4 +21,30 @@ impl UserSecretKind for BrowserSessionSecretKind {
 
 pub type BrowserSessionSecret = UserSecret<BrowserSessionSecretKind>;
 
-// TODO: Try to implement FromRequest for BrowserSessionSecret again - couldn't find a way to access Session from within from_request
+impl actix_web::FromRequest for BrowserSessionSecret {
+	type Error = crate::error::Error;
+	type Future = BoxFuture<'static, Result<Self>>;
+
+	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+		let Some(code) = req.cookie(SESSION_COOKIE) else {
+			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
+		};
+		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {
+			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
+		};
+
+		let code = code.value().to_string();
+		Box::pin(async move {
+			Self::try_from_string(code, db.get_ref()).await
+		})
+	}
+}
+
+impl Into<Cookie<'_>> for BrowserSessionSecret {
+	fn into(self) -> Cookie<'static> {
+		Cookie::new(
+			SESSION_COOKIE,
+			self.code().to_str_that_i_wont_print().to_owned(),
+		)
+	}
+}

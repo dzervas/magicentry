@@ -6,7 +6,7 @@ use reindeer::{Db, Entity as _};
 use crate::user::User;
 use crate::error::Result;
 
-use super::secret::{InternalUserSecret, UserSecret, UserSecretKind};
+use super::primitive::{InternalUserSecret, UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};
 
 pub struct EphemeralUserSecret<K: UserSecretKind, ExchangeTo: UserSecretKind>(UserSecret<K>, PhantomData<ExchangeTo>);
@@ -34,7 +34,7 @@ impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, Excha
 	pub fn metadata(&self) -> &K::Metadata { &self.0.metadata() }
 }
 
-impl<K, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, ExchangeTo> where
+impl<K, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 	K : UserSecretKind,
 	ExchangeTo : UserSecretKind<Metadata=EmptyMetadata>,
 {
@@ -54,4 +54,16 @@ impl<P, K, M, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 	}
 
 	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata().metadata() }
+}
+
+impl<K, M, P, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
+	P : UserSecretKind,
+	M : MetadataKind,
+	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
+	ExchangeTo : UserSecretKind<Metadata=ChildSecretMetadata<P, EmptyMetadata>>,
+{
+	pub async fn exchange_sibling(self, db: &Db) -> Result<UserSecret<ExchangeTo>> {
+		let parent = self.0.take_metadata().take_parent();
+		self.exchange_with_metadata(db, ChildSecretMetadata::new(parent, EmptyMetadata())).await
+	}
 }

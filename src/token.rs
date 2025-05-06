@@ -181,9 +181,7 @@ impl<K: TokenKindType> Token<K> {
 	}
 }
 
-// TODO: The bound type should be absent instead of Self
 token_kind! {
-	MagicLinkToken(duration = crate::CONFIG.read().await.link_duration, ephemeral = true, bound_type = Self),
 	SessionToken(duration = crate::CONFIG.read().await.session_duration, ephemeral = false, bound_type = Self),
 	ProxyCookieToken(duration = crate::CONFIG.read().await.oidc_code_duration, ephemeral = true, bound_type = SessionToken),
 	ScopedSessionToken(duration = crate::CONFIG.read().await.session_duration, ephemeral = false, bound_type = SessionToken),
@@ -295,60 +293,5 @@ impl ScopedSessionToken {
 		info!("New scoped session for: {}", &origin);
 
 		Ok(Some(scoped_token))
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::utils::tests::*;
-	use crate::RANDOM_STRING_LEN;
-	use chrono::Utc;
-	use tests::MagicLinkToken;
-	use log::debug;
-
-	#[actix_web::test]
-	async fn test_token() {
-		let db = &db_connect().await;
-		let user = get_valid_user().await;
-
-		let link = MagicLinkToken::new(db, user.clone(), None, None)
-			.await
-			.unwrap();
-
-		assert_eq!(link.user, user.email);
-		assert_eq!(link.code.len(), RANDOM_STRING_LEN * 2);
-		assert!(link.expires_at > Utc::now().naive_utc());
-
-		// Test visit function
-		let user_from_link = MagicLinkToken::from_code(db, &link.code)
-			.await
-			.unwrap()
-			.user;
-		assert_eq!(user, user_from_link);
-
-		// Test expired UserLink
-		let expired_target = "expired_magic".to_string();
-		let expired_user_link = MagicLinkToken {
-			code: expired_target.clone(),
-			_kind: PhantomData,
-			user,
-			expires_at: Utc::now().naive_utc() - chrono::Duration::try_days(2).unwrap(),
-			bound_to: None,
-			metadata: None,
-		};
-
-		expired_user_link.save(db).unwrap();
-
-		let expired_user = MagicLinkToken::from_code(db, &expired_target).await;
-		assert!(expired_user.is_err());
-
-		// Make sure that the expired record is removed
-		let record = MagicLinkToken::get(&expired_target, db).unwrap();
-		debug!("{:?}", record);
-		assert!(record.is_none());
-
-		let expired_user = MagicLinkToken::from_code(db, &"nonexistent_magic".to_string()).await;
-		assert!(expired_user.is_err());
 	}
 }

@@ -65,8 +65,8 @@ pub async fn init(db: &Db) -> RS256KeyPair {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::token::MagicLinkToken;
-	use crate::utils::tests::*;
+	use crate::user_secret::LoginLinkSecret;
+use crate::utils::tests::*;
 
 	use actix_session::storage::CookieSessionStore;
 	use actix_session::SessionMiddleware;
@@ -131,10 +131,10 @@ mod tests {
 		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
 		assert!(target.starts_with("http://localhost:8080/login"));
 
-		let token = MagicLinkToken::new(db, user, None, None).await.unwrap();
+		let token = LoginLinkSecret::new(user, None, db).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
-			.uri(format!("/login/{}", token.code).as_str())
+			.uri(&token.get_login_url())
 			.cookie(parsed_cookie)
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
