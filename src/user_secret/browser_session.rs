@@ -42,6 +42,7 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 
 impl Into<Cookie<'_>> for BrowserSessionSecret {
 	fn into(self) -> Cookie<'static> {
+		// TODO: Unset the cookie on error
 		Cookie::new(
 			SESSION_COOKIE,
 			self.code().to_str_that_i_wont_print().to_owned(),

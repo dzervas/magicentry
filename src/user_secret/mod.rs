@@ -8,11 +8,15 @@ pub mod browser_session;
 pub mod login_link;
 pub mod proxy_code;
 pub mod proxy_session;
+pub mod oidc_token;
+pub mod oidc_authcode;
 
 pub use browser_session::BrowserSessionSecret;
 pub use login_link::LoginLinkSecret;
 pub use proxy_code::ProxyCodeSecret;
 pub use proxy_session::ProxySessionSecret;
+pub use oidc_token::OIDCTokenSecret;
+pub use oidc_authcode::OIDCAuthCodeSecret;
 pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use reindeer::AsBytes;
