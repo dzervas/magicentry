@@ -40,7 +40,7 @@ impl<K: UserSecretKind> Entity for InternalUserSecret<K> {
 	fn use_pre_remove_hook() -> bool { true }
 }
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 
 /// Basic user secret operations

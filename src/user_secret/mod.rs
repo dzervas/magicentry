@@ -10,13 +10,15 @@ pub mod proxy_code;
 pub mod proxy_session;
 pub mod oidc_token;
 pub mod oidc_authcode;
+pub mod webauthn_auth;
 
 pub use browser_session::BrowserSessionSecret;
 pub use login_link::LoginLinkSecret;
 pub use proxy_code::ProxyCodeSecret;
 pub use proxy_session::ProxySessionSecret;
-pub use oidc_token::OIDCTokenSecret;
 pub use oidc_authcode::OIDCAuthCodeSecret;
+pub use oidc_token::OIDCTokenSecret;
+pub use webauthn_auth::WebAuthnAuthSecret;
 pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use reindeer::AsBytes;
@@ -37,6 +39,9 @@ pub fn register(db: &reindeer::Db) -> crate::error::Result<()> {
 	InternalUserSecret::<login_link::LoginLinkSecretKind>::register(db)?;
 	InternalUserSecret::<proxy_code::ProxyCodeSecretKind>::register(db)?;
 	InternalUserSecret::<proxy_session::ProxySessionSecretKind>::register(db)?;
+	InternalUserSecret::<oidc_authcode::OIDCAuthCodeSecretKind>::register(db)?;
+	InternalUserSecret::<oidc_token::OIDCTokenSecretKind>::register(db)?;
+	InternalUserSecret::<webauthn_auth::WebAuthnAuthSecretKind>::register(db)?;
 	Ok(())
 }
 

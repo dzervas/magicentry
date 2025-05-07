@@ -9,10 +9,11 @@ use crate::error::Result;
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
 
-pub trait MetadataKind: PartialEq + Serialize + DeserializeOwned {
+pub trait MetadataKind: Serialize + DeserializeOwned {
 	async fn validate(&self, _db: &Db) -> Result<()> { Ok(()) }
 }
 
+impl MetadataKind for webauthn_rs::prelude::PasskeyAuthentication {}
 impl MetadataKind for String {}
 impl MetadataKind for url::Url {}
 impl<T: MetadataKind> MetadataKind for Option<T> {}
@@ -31,7 +32,7 @@ impl From<()> for EmptyMetadata {
 /// It contains the parent secret primary key and the actual metadata.
 ///
 /// When the parent secret is deleted, this secret will be deleted as well.
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ChildSecretMetadata<P: UserSecretKind, M> {
 	parent: UserSecret<P>,
 	metadata: M,
