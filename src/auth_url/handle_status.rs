@@ -1,12 +1,11 @@
 use actix_web::cookie::Cookie;
-use actix_web::{get, web, HttpRequest, HttpResponse};
-use log::{debug, info};
+use actix_web::{get, web, HttpResponse};
+use log::info;
 
 use crate::error::Response;
-use crate::token::ScopedSessionToken;
-use crate::user_secret::{ChildSecretMetadata, EmptyMetadata, ProxySessionSecret};
+use crate::user_secret::ProxySessionSecret;
 use crate::user_secret::ProxyCodeSecret;
-use crate::{CONFIG, SCOPED_SESSION_COOKIE};
+use crate::{CONFIG, PROXY_SESSION_COOKIE};
 
 /// This endpoint is used to check weather a user is logged in from a proxy
 /// running in a different domain.
@@ -32,34 +31,27 @@ async fn status(
 		proxy_session
 	} else if let Some(proxy_code) = proxy_code_opt {
 		info!("Proxied login for {}", &proxy_code.user().email);
-		proxy_code
+		let proxy_session = proxy_code
 			.exchange_sibling(&db)
-			.await?
-	} else {
-		return Ok(HttpResponse::Unauthorized().finish());
-	};
+			.await?;
 
-	// let (token, cookie): (ScopedSessionToken, Option<Cookie<'_>>) =
-	// 	if let Ok(Some(token)) = ScopedSessionToken::from_session(&db, &req).await {
-	// 		debug!("Found scoped session from proxy cookie: {:?}", &token.code);
-	// 		(token, None)
-	// 	} else if let Ok(Some(token)) = ScopedSessionToken::from_proxied_req(&db, &req).await {
-	// 		let code = token.code.clone();
-	// 		debug!("Found ephemeral proxy cookie: {:?}, turning it into a scoped session", &code);
-	// 		(
-	// 			token,
-	// 			Some(
-	// 				Cookie::build(SCOPED_SESSION_COOKIE, code)
-	// 					.path("/")
-	// 					.http_only(true)
-	// 					.secure(true)
-	// 					// .expires(expiry)
-	// 					.finish(),
-	// 			),
-	// 		)
-	// 	} else {
-	// 		return Ok(HttpResponse::Unauthorized().finish());
-	// 	};
+		response = response.cookie(
+			Cookie::build(PROXY_SESSION_COOKIE, proxy_session.code().to_string())
+				.path("/")
+				.http_only(true)
+				.finish(),
+		);
+
+		proxy_session
+	} else {
+		let mut remove_cookie = Cookie::new(PROXY_SESSION_COOKIE, "");
+		remove_cookie.make_removal();
+		remove_cookie.set_http_only(true);
+
+		return Ok(HttpResponse::Unauthorized()
+			.cookie(remove_cookie)
+			.finish());
+	};
 
 	let config = CONFIG.read().await;
 	response = response
@@ -80,10 +72,5 @@ async fn status(
 			proxy_session.user().realms.join(","),
 		));
 
-	// if let Some(cookie) = cookie {
-	// 	Ok(response.cookie(cookie).finish())
-	// } else {
-	// 	Ok(response.finish())
-	// }
 	Ok(response.finish())
 }

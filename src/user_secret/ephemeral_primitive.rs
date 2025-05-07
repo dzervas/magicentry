@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use chrono::NaiveDateTime;
 use reindeer::{Db, Entity as _};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 use crate::user::User;
 use crate::error::Result;
@@ -9,6 +11,7 @@ use crate::error::Result;
 use super::primitive::{InternalUserSecret, UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};
 
+#[derive(PartialEq, Serialize, Deserialize)]
 pub struct EphemeralUserSecret<K: UserSecretKind, ExchangeTo: UserSecretKind>(UserSecret<K>, PhantomData<ExchangeTo>);
 
 impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, ExchangeTo> {
@@ -57,13 +60,19 @@ impl<P, K, M, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 }
 
 impl<K, M, P, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
-	P : UserSecretKind,
+	P : UserSecretKind + DeserializeOwned + Serialize,
 	M : MetadataKind,
 	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 	ExchangeTo : UserSecretKind<Metadata=ChildSecretMetadata<P, EmptyMetadata>>,
 {
 	pub async fn exchange_sibling(self, db: &Db) -> Result<UserSecret<ExchangeTo>> {
-		let parent = self.0.take_metadata().take_parent();
-		self.exchange_with_metadata(db, ChildSecretMetadata::new(parent, EmptyMetadata())).await
+		self.0.validate(db).await?;
+		InternalUserSecret::<K>::remove(&self.0.code(), db)?;
+		let user = self.0.user().clone();
+		let metadata = self.0.take_metadata().to_empty();
+
+		let new_secret = UserSecret::new(user, metadata, db).await?;
+
+		Ok(new_secret)
 	}
 }

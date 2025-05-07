@@ -38,14 +38,14 @@ pub struct ChildSecretMetadata<P: UserSecretKind, M> {
 }
 
 impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
-	pub fn new(parent: UserSecret<P>, metadata: M) -> Self {
+	pub(super) fn new(parent: UserSecret<P>, metadata: M) -> Self {
 		Self { parent, metadata }
 	}
 
 	pub fn parent(&self) -> &UserSecret<P> { &self.parent }
 	pub fn metadata(&self) -> &M { &self.metadata }
 
-	pub(super) fn take_parent(self) -> UserSecret<P> { self.parent }
+	pub(super) fn to_empty(self) -> ChildSecretMetadata<P, EmptyMetadata> { ChildSecretMetadata { parent: self.parent, metadata: EmptyMetadata() } }
 }
 
 impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind for ChildSecretMetadata<P, M> {
