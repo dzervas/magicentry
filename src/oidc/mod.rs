@@ -66,7 +66,7 @@ pub async fn init(db: &Db) -> RS256KeyPair {
 mod tests {
 	use super::*;
 	use crate::user_secret::LoginLinkSecret;
-use crate::utils::tests::*;
+	use crate::utils::tests::*;
 
 	use actix_session::storage::CookieSessionStore;
 	use actix_session::SessionMiddleware;

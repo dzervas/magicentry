@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::error::{AppErrorKind, Response};
-use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::token::{OIDCBearerToken, OIDCCodeToken};
+use crate::user_secret::OIDCAuthCodeSecret;
 use crate::{generate_cors_preflight, CONFIG};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -73,16 +72,13 @@ pub async fn token(
 	token_req: web::Form<TokenRequest>,
 	jwt_keypair: web::Data<RS256KeyPair>,
 	basic: Option<BasicAuth>,
+	oidc_authcode: OIDCAuthCodeSecret,
 ) -> Response {
 	// This is a too long function.
 	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
 	debug!("Token request: {:?}", token_req);
 
-	let session = OIDCCodeToken::from_code(&db, &token_req.code).await?;
-	debug!("Session: {:?}", session);
-	let auth_req = AuthorizeRequest::try_from(
-		session.metadata.ok_or(AppErrorKind::MissingMetadata)?
-	)?;
+	let auth_req = oidc_authcode.child_metadata();
 
 	let config = CONFIG.read().await;
 	let client_id = if let Some(basic_creds) = basic.clone() {
@@ -140,7 +136,7 @@ pub async fn token(
 			.to_string();
 		service = config
 			.services
-			.from_oidc_client_id_with_realms(&req_client_id, &session.user)
+			.from_oidc_client_id_with_realms(&req_client_id, oidc_authcode.user())
 			.ok_or(AppErrorKind::InvalidClientID)?;
 		oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
 
@@ -153,14 +149,12 @@ pub async fn token(
 
 	let base_url = config.url_from_request(&req);
 	let id_token = auth_req
-		.generate_id_token(&session.user, base_url, jwt_keypair.as_ref())
+		.generate_id_token(&oidc_authcode.user(), base_url, jwt_keypair.as_ref())
 		.await?;
-	let access_token = OIDCBearerToken::new(&db, session.user, session.bound_to, None)
-		.await?
-		.code;
+	let oidc_token = oidc_authcode.exchange_sibling(&db).await?;
 
 	let response = TokenResponse {
-		access_token,
+		access_token: oidc_token.code().to_str_that_i_wont_print().to_owned(),
 		token_type: "Bearer".to_string(),
 		expires_in: config.session_duration.num_seconds(),
 		id_token,
