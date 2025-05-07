@@ -1,13 +1,12 @@
 use std::collections::BTreeMap;
 
-use actix_session::Session;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
 use crate::saml::authn_request::AuthnRequest;
-use crate::token::SessionToken;
+use crate::user_secret::BrowserSessionSecret;
 use crate::utils::get_partial;
 use crate::CONFIG;
 
@@ -28,8 +27,12 @@ pub struct SAMLResponse {
 }
 
 #[get("/saml/sso")]
-pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<reindeer::Db>) -> Response {
-	let Ok(token) = SessionToken::from_session(&db, &session).await else {
+pub async fn sso(
+	data: web::Query<SAMLRequest>,
+	browser_session_opt: Option<BrowserSessionSecret>
+) -> Response {
+	let Some(browser_session) = browser_session_opt else {
+		// TODO: Implement this properly with a different query param
 		let query = serde_qs::to_string(&data.into_inner())?;
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", format!("/login?rd=/saml/sso%3F{}", query)))
@@ -41,10 +44,10 @@ pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
 	let mut response = authn_request.to_response(
 		&format!("{}/saml/metadata", &config.external_url),
-		&token.user
+		&browser_session.user()
 	);
 
-	log::info!("Starting SAML flow for user: {}", token.user.email);
+	log::info!("Starting SAML flow for user: {}", browser_session.user().email);
 
 	response.sign_saml_response(
 		&config.get_saml_key()?,
@@ -52,9 +55,9 @@ pub async fn sso(data: web::Query<SAMLRequest>, session: Session, db: web::Data<
 	)?;
 
 	let mut authorize_data = BTreeMap::new();
-	authorize_data.insert("name", token.user.name.clone());
-	authorize_data.insert("username", token.user.username.clone());
-	authorize_data.insert("email", token.user.email.clone());
+	authorize_data.insert("name", browser_session.user().name.clone());
+	authorize_data.insert("username", browser_session.user().username.clone());
+	authorize_data.insert("email", browser_session.user().email.clone());
 	authorize_data.insert("client", "test client".to_string());
 	authorize_data.insert("samlACS", authn_request.acs_url.clone());
 	authorize_data.insert("samlResponseData", response.to_encoded_string()?);
