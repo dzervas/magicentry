@@ -7,5 +7,6 @@ mkShell {
     pkg-config
 
     cargo-audit
+    gnuplot # For benchmarks
   ];
 }

@@ -24,6 +24,7 @@ pub async fn auth_finish(
 	req: Json<PublicKeyCredential>,
 ) -> Result<Json<AuthFinishResponse>> {
 	// Since we trust the registration token and it holds the user, we treat it as an authentication token as well
+	// Implement FromRequest for WebAuthnAuthSecret
 	let auth_code = session
 		.remove_as::<String>(WEBAUTHN_COOKIE)
 		.ok_or(AppErrorKind::SecretNotFound)??;

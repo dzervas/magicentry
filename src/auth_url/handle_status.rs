@@ -36,7 +36,7 @@ async fn status(
 			.await?;
 
 		response = response.cookie(
-			Cookie::build(PROXY_SESSION_COOKIE, proxy_session.code().to_string())
+			Cookie::build(PROXY_SESSION_COOKIE, proxy_session.code().to_str_that_i_wont_print())
 				.path("/")
 				.http_only(true)
 				.finish(),
