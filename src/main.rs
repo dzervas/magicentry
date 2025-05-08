@@ -1,9 +1,7 @@
 use magicentry::config::{ConfigFile, ConfigKV, ConfigKeys};
 pub use magicentry::*;
 
-use actix_session::storage::CookieSessionStore;
-use actix_session::SessionMiddleware;
-use actix_web::cookie::{Key, SameSite};
+use actix_web::cookie::Key;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::extractors::basic;
@@ -16,6 +14,10 @@ use tokio::select;
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+
+
+	#[cfg(feature = "e2e-test")]
+	log::warn!("Running in E2E Tests mode, all magic links will written to disk in the `.link.txt` file.");
 
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
@@ -123,23 +125,7 @@ pub async fn main() -> std::io::Result<()> {
 			.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent())
 
 			// Middleware
-			.wrap(Logger::default())
-			.wrap(
-				SessionMiddleware::builder(
-					CookieSessionStore::default(),
-					secret.clone()
-				)
-				// TODO: Handle secure & http only cookies (config)
-				// .cookie_http_only(true)
-				// .cookie_secure(false)
-				.cookie_same_site(SameSite::Lax)
-				.session_lifecycle(
-					actix_session::config::PersistentSession::default()
-						.session_ttl(
-							actix_web::cookie::time::Duration::try_from(cookie_duration)
-							.expect("Couldn't set session_ttl - something is wrong with session_duration"))
-				)
-				.build());
+			.wrap(Logger::default());
 
 		if webauthn_enable {
 			let webauthn = webauthn::init(title.clone(), external_url.clone())

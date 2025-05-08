@@ -37,7 +37,6 @@ impl<K: UserSecretKind> Entity for InternalUserSecret<K> {
 	fn store_name() -> &'static str { K::PREFIX }
 	fn get_key(&self) -> &Self::Key { &self.code }
 	fn set_key(&mut self, key: &Self::Key) { self.code = key.clone(); }
-	fn use_pre_remove_hook() -> bool { true }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -95,7 +94,8 @@ impl<K: UserSecretKind> UserSecret<K> {
 
 	/// Just delete the secret from the db
 	pub async fn delete(self, db: &Db) -> Result<()> {
-		Ok(InternalUserSecret::<K>::remove(&self.0.code, db)?)
+		InternalUserSecret::<K>::remove(&self.0.code, db)?;
+		Ok(())
 	}
 
 	/// Parse and validate a secret from a string - most probably from user controlled data

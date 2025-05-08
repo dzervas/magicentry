@@ -7,6 +7,7 @@ rust-version = "1.77"
 [features]
 default = []
 kube = ["dep:kube", "dep:k8s-openapi"]
+e2e-test = []
 
 [dependencies]
 actix-web = "4.10"

@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::io::Write;
 
 use actix_session::Session;
 use actix_web::http::header::ContentType;
@@ -97,6 +98,9 @@ async fn login_action(
 
 	#[cfg(debug_assertions)]
 	info!("Link: {}", &magic_link);
+
+	#[cfg(feature = "e2e-test")]
+	std::fs::File::create("hurl/.link.txt").unwrap().write_all(magic_link.as_bytes()).unwrap();
 
 	// Send it via email
 	if let Some(mailer) = mailer.as_ref() {

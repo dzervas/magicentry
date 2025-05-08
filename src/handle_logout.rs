@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
 use crate::user_secret::BrowserSessionSecret;
-use crate::SESSION_COOKIE;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogoutRequest {
@@ -17,16 +16,8 @@ pub struct LogoutRequest {
 async fn logout(
 	req: web::Query<LogoutRequest>,
 	db: web::Data<reindeer::Db>,
-	session: actix_session::Session,
+	browser_session: BrowserSessionSecret,
 ) -> Response {
-	let browser_session = if let Some(Ok(session)) = session.remove_as::<BrowserSessionSecret>(SESSION_COOKIE) {
-		session.validate(&db).await?;
-		session
-	} else {
-		return Ok(HttpResponse::Found()
-			.append_header(("Location", "/login"))
-			.finish());
-	};
 	browser_session.delete(&db).await?;
 
 	// XXX: Open redirect
@@ -43,5 +34,6 @@ async fn logout(
 
 	Ok(HttpResponse::Found()
 		.append_header(("Location", target_url.as_str()))
+		.cookie(BrowserSessionSecret::unset_cookie())
 		.finish())
 }

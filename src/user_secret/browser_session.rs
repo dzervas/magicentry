@@ -26,7 +26,9 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 	type Future = BoxFuture<'static, Result<Self>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+		println!("{:?}", req.cookies().unwrap());
 		let Some(code) = req.cookie(SESSION_COOKIE) else {
+			println!("No session cookie found");
 			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
 		};
 		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {
@@ -47,5 +49,13 @@ impl Into<Cookie<'_>> for BrowserSessionSecret {
 			SESSION_COOKIE,
 			self.code().to_str_that_i_wont_print().to_owned(),
 		)
+	}
+}
+
+impl BrowserSessionSecret {
+	pub fn unset_cookie() -> Cookie<'static> {
+		let mut cookie: Cookie<'_> = Cookie::new(SESSION_COOKIE, "");
+		cookie.make_removal();
+		cookie
 	}
 }

@@ -8,5 +8,6 @@ mkShell {
 
     cargo-audit
     gnuplot # For benchmarks
+    hurl
   ];
 }
