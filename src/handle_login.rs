@@ -11,20 +11,20 @@ use crate::utils::get_partial;
 async fn login(
 	db: web::Data<reindeer::Db>,
 	browser_session_opt: Option<BrowserSessionSecret>,
-	login_redirect_opt: web::Query<Option<LoginLinkRedirect>>,
+	login_redirect_opt: Option<web::Query<LoginLinkRedirect>>,
 ) -> Response {
 	// Check if the user is already logged in
 	if browser_session_opt.is_some() {
 		// Already authorized, back to the index OR redirect to the service
 		// Check if the request has redirect query parameters
-		let Some(login_redirect) = login_redirect_opt.into_inner() else {
+		let Some(login_redirect) = login_redirect_opt else {
 			return Ok(HttpResponse::Found()
 				.append_header(("Location", "/"))
 				.finish());
 		};
 
 		// Make sure that the redirect URL is valid (based on redirect_urls and origins)
-		let login_redirect_url = login_redirect
+		let login_redirect_url = login_redirect.into_inner()
 			.into_redirect_url(browser_session_opt, &db).await?
 			.to_string();
 
