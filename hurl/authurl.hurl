@@ -1,4 +1,4 @@
-POST http://localhost:8080/login?rd=http://localhost:8081/
+POST http://localhost:8080/login?rd=http://localhost:8081/asdf?a=b
 [Form]
 email: valid@example.com
 HTTP 200
@@ -12,6 +12,13 @@ link: body
 
 GET {{link}}
 HTTP 302
-Location: http://localhost:8081/
 [Captures]
 session: cookie "session_id"
+[Asserts]
+# Here we check multiple things:
+# - that the redirect origin is valid (according to the config)
+# - that the whole url is kept is it was passed
+# - that the existing query parameters are kept
+# - that our custom `magicentry_code` query parameter was added
+# - the code is populated and of the correct type
+header "Location" startsWith "http://localhost:8081/asdf?a=b&magicentry_code=me_proxy_"

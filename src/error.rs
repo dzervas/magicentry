@@ -63,6 +63,9 @@ pub enum AppErrorKind {
 	#[display("The Duration provided is incorrect or too big (max i64)")]
 	InvalidDuration,
 	MissingOriginHeader,
+	NoLoginLinkRedirect,
+	#[display("Multiple login link redirect query parameters were given (rd, saml, oidc)")]
+	MultipleLoginLinkRedirectDefinitions,
 
 	// OIDC errors
 	#[display("OIDC Client sent a redirect_uri different from the one in the config")]

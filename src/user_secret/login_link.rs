@@ -11,74 +11,70 @@ use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind};
 use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_QUERY_CODE};
 
+// This should have been an enum, but bincode (used by reindeer db) doesn't support it
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum LoginLinkRedirect {
-	AuthUrl { rd: url::Url },
-	// OIDC { oidc: crate::oidc::AuthorizeRequest },
-	// SAML { saml: crate::saml::AuthnRequest },
+pub struct LoginLinkRedirect {
+	rd: Option<url::Url>,
+	oidc: Option<crate::oidc::AuthorizeRequest>,
+	saml: Option<crate::saml::AuthnRequest>,
 }
 
 impl LoginLinkRedirect {
 	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &Db) -> Result<url::Url> {
-		self.find_service().await?;
+		let mut url = self.validate_internal().await?;
 
-		match self {
-			Self::AuthUrl { rd: url } => {
-				// Redirect the user to the proxy but with an additional query secret (proxy_code)
-				// so that we can identify them and hand them a proper partial session token.
-				// The partial session token does not have access to the whole session
-				// but only to the application that is being redirected to.
-				//
-				// Note that the proxy code will get forwarded to us from the proxy under a
-				// different domain, so we can't just use a normal session cookie.
+		if self.rd.is_some() {
+			// Redirect the user to the proxy but with an additional query secret (proxy_code)
+			// so that we can identify them and hand them a proper partial session token.
+			// The partial session token does not have access to the whole session
+			// but only to the application that is being redirected to.
+			//
+			// Note that the proxy code will get forwarded to us from the proxy under a
+			// different domain, so we can't just use a normal session cookie.
 
-				let browser_session = browser_session_opt.ok_or(AppErrorKind::NotLoggedIn)?;
-				let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), db).await?;
-
-				let mut new_url = url.clone();
-				new_url
-					.query_pairs_mut()
-					.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
-				Ok(new_url)
-			},
-			// Self::OIDC { oidc } => Ok(oidc.redirect_uri.clone().ok_or(AppErrorKind::MissingOIDCRedirectUrl)?),
-			// Self::SAML { saml } => Ok(saml.acs_url),
+			let browser_session = browser_session_opt.ok_or(AppErrorKind::NotLoggedIn)?;
+			let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), db).await?;
+			url
+				.query_pairs_mut()
+				.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
 		}
+
+		Ok(url)
 	}
 
-	async fn find_service(&self) -> Result<crate::service::Service> {
+	async fn validate_internal(&self) -> Result<url::Url> {
 		let config = CONFIG.read().await;
 
-		match self {
-			Self::AuthUrl { rd: url } => config.services
+		if self.rd.is_some() as u8 + self.oidc.is_some() as u8 + self.saml.is_some() as u8 > 1 {
+			return Err(AppErrorKind::MultipleLoginLinkRedirectDefinitions.into())
+		}
+
+		if let Some(url) = &self.rd {
+			config.services
 				.from_auth_url_origin(&url.origin())
-				.ok_or(AppErrorKind::InvalidReturnDestinationUrl.into()),
-			// Self::OIDC { oidc: url } => config.services
-			// 	.from_oidc_redirect_url(url)
-			// 	.ok_or(AppErrorKind::InvalidOIDCRedirectUrl.into()),
-			// Self::SAML { saml: url } => config.services
-			// 	.from_saml_redirect_url(url)
-			// 	.ok_or(AppErrorKind::InvalidSAMLRedirectUrl.into()),
+				.ok_or(AppErrorKind::InvalidReturnDestinationUrl)?;
+			Ok(url.clone())
+		} else if let Some(oidc) = &self.oidc {
+			let url = url::Url::parse(&oidc.redirect_uri).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
+			config.services
+				.from_oidc_redirect_url(&url)
+				.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
+			Ok(url)
+		} else if let Some(saml) = &self.saml {
+			let url = url::Url::parse(&saml.acs_url).map_err(|_| AppErrorKind::InvalidSAMLRedirectUrl)?;
+			config.services
+				.from_saml_redirect_url(&url)
+				.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
+			Ok(url)
+		} else {
+			Ok(url::Url::parse("/").unwrap())
 		}
 	}
 }
 
-// impl TryInto<url::Url> for LoginLinkRedirect {
-// 	type Error = crate::error::Error;
-
-// 	fn try_into(self) -> Result<url::Url> {
-// 		let url = match self {
-// 			Self::AuthUrl { rd } => Ok(rd),
-// 			Self::OIDC { oidc } => url::Url::parse(&oidc.redirect_uri).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl.into()),
-// 			Self::SAML { saml } => url::Url::parse(&saml.acs_url).map_err(|_| AppErrorKind::InvalidSAMLRedirectUrl.into()),
-// 		}?;
-// 	}
-// }
-
 impl MetadataKind for LoginLinkRedirect {
 	async fn validate(&self, _: &Db) -> Result<()> {
-		self.find_service().await?;
+		self.validate_internal().await?;
 		Ok(())
 	}
 }

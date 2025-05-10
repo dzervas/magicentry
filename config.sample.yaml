@@ -87,14 +87,18 @@ services:
   - name: example
     # URL of the service (for cataloging)
     url: https://openidconnect.net
-    # Valid service origins (for CORS, OIDC and auth-url)
-    # Omit the paths, only the scheme, host and port
-    valid_origins:
-      - https://openidconnect.net
-      - http://localhost:8080 # Used in the flow_scoped.rs test
     # Realms of which users have access to
     realms:
       - example
+    # Auth-URL configuration (optional)
+    auth_url:
+      # Allowed origins that the client can be redirected to
+      # Omit the paths, only the scheme, host and port and a leading /
+      origins:
+        - https://openidconnect.net
+        - http://localhost:8080 # Used in the flow_scoped.rs test
+        - http://localhost:8081 # Used in hurl
+    valid_origins:
     # OIDC configuration (optional)
     # All of the settings below are tightly coupled with the service config
     oidc:
