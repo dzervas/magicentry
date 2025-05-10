@@ -66,10 +66,10 @@ impl From<LoginReturnURL> for String {
 }
 
 #[post("/login")]
-async fn login_action(
+async fn login_post(
 	req: HttpRequest,
 	form: web::Form<LoginInfo>,
-	login_redirect_opt: Option<web::Query<LoginLinkRedirect>>,
+	login_redirect: Option<web::Query<LoginLinkRedirect>>,
 	db: web::Data<reindeer::Db>,
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
@@ -85,7 +85,8 @@ async fn login_action(
 	};
 
 	// Generate the magic link
-	let link = LoginLinkSecret::new(user.clone(), login_redirect_opt.map(|l| l.into_inner()), &db).await?;
+	println!("Login redirect: {:?}", login_redirect);
+	let link = LoginLinkSecret::new(user.clone(), login_redirect.map(|l| l.into_inner()), &db).await?;
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
 	let magic_link = base_url + &link.get_login_url();
@@ -178,7 +179,7 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(None::<SmtpTransport>))
 				.app_data(web::Data::new(None::<reqwest::Client>))
-				.service(login_action),
+				.service(login_post),
 		)
 		.await;
 

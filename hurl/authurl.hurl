@@ -12,6 +12,6 @@ link: body
 
 GET {{link}}
 HTTP 302
-Location: /
+Location: http://localhost:8081/
 [Captures]
 session: cookie "session_id"

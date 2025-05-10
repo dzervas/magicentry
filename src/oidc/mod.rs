@@ -9,6 +9,8 @@ pub mod handle_jwks;
 pub mod handle_token;
 pub mod handle_userinfo;
 
+pub use handle_authorize::AuthorizeRequest;
+
 #[macro_export]
 macro_rules! generate_cors_preflight {
 	($func_name:ident, $path:expr, $methods:expr) => {

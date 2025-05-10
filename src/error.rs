@@ -67,6 +67,8 @@ pub enum AppErrorKind {
 	// OIDC errors
 	#[display("OIDC Client sent a redirect_uri different from the one in the config")]
 	InvalidOIDCRedirectUrl,
+	#[display("OIDC Client did not send a redirect_uri")]
+	MissingOIDCRedirectUrl,
 	#[display("The OIDC client_id shown during authorization does not match the client_id provided")]
 	NotMatchingClientID,
 	#[display("OIDC Client sent a client_id that is not in the config")]

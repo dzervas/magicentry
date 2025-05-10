@@ -22,7 +22,7 @@ async fn test_global_login() {
 			.app_data(basic::Config::default().realm("MagicEntry"))
 			.service(handle_index::index)
 			.service(handle_login::login)
-			.service(handle_login_post::login_action)
+			.service(handle_login_post::login_post)
 			.service(handle_magic_link::magic_link)
 			.service(handle_logout::logout)
 			.service(auth_url::handle_status::status)

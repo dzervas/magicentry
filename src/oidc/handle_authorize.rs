@@ -22,7 +22,7 @@ pub struct AuthorizeRequest {
 	pub scope: String,
 	pub response_type: String,
 	pub client_id: String,
-	pub redirect_uri: Option<String>,
+	pub redirect_uri: String,
 	pub state: Option<String>,
 	pub code_challenge: Option<String>,
 	pub code_challenge_method: Option<String>,
@@ -30,11 +30,7 @@ pub struct AuthorizeRequest {
 
 impl AuthorizeRequest {
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
-		let redirect_url = if let Some(redirect_url_enc) = &self.redirect_uri {
-			Url::parse(&urlencoding::decode(redirect_url_enc).ok()?).ok()?
-		} else {
-			return None;
-		};
+		let redirect_url = Url::parse(&urlencoding::decode(&self.redirect_uri).ok()?).ok()?;
 
 		let config = CONFIG.read().await;
 

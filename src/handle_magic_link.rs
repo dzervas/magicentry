@@ -12,16 +12,17 @@ async fn magic_link(
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
 	let login_redirect_opt = login_secret.metadata().clone();
+	println!("Login redirect: {:?}", login_redirect_opt);
 	let browser_session = login_secret.exchange(&db).await?;
 	let cookie = (&browser_session).into();
 
 	// Handle post-login redirect URLs from the cookie set by OIDC/SAML/auth-url
-	// These can be configured through either the service.<name>.valid_origins, service.<name>.saml.redirect_urls or service.<name>.oidc.redirect_urls
+	// These can be configured through either the service.<name>.auth_url.origins, service.<name>.saml.redirect_urls or service.<name>.oidc.redirect_urls
 	// redirect_url = login_secret.redirect_url(&db).await?;
 	let redirect_url = if let Some(login_redirect) = login_redirect_opt {
 		login_redirect
-		.into_redirect_url(Some(browser_session), &db).await?
-		.to_string()
+			.into_redirect_url(Some(browser_session), &db).await?
+			.to_string()
 	} else {
 		"/".to_string()
 	};

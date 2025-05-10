@@ -44,6 +44,7 @@ serde_qs = { version = "0.15", features = ["actix-web4"] }
 serde_yaml = "0.9"
 sha2 = "0.10"
 tokio = { version = "1", features = ["full"] }
+url = { version = "2", features = ["serde"] }
 urlencoding = "2.1"
 uuid = { version = "1.16", features = ["serde", "v4"] }
 webauthn-rs = { version = "0.5", features = [
@@ -60,7 +61,6 @@ k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
 actix-web-httpauth = "0.8"
 flate2 = "1.1"
 base64 = "0.22"
-url = "2.5"
 quick-xml = { version = "0.37", features = ["async-tokio", "serialize"] }
 rsa = { version = "0.9", features = ["sha2"] }
 

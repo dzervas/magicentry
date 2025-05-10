@@ -75,7 +75,7 @@ pub async fn main() -> std::io::Result<()> {
 			// Auth routes
 			.service(handle_index::index)
 			.service(handle_login::login)
-			.service(handle_login_post::login_action)
+			.service(handle_login_post::login_post)
 			.service(handle_magic_link::magic_link)
 			.service(handle_logout::logout)
 			.service(handle_static::static_files)

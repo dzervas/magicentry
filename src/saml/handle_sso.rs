@@ -31,6 +31,8 @@ pub async fn sso(
 	data: web::Query<SAMLRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>
 ) -> Response {
+	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
+
 	let Some(browser_session) = browser_session_opt else {
 		// TODO: Implement this properly with a different query param
 		let query = serde_qs::to_string(&data.into_inner())?;
@@ -40,8 +42,6 @@ pub async fn sso(
 	};
 
 	let config = CONFIG.read().await;
-
-	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
 	let mut response = authn_request.to_response(
 		&format!("{}/saml/metadata", &config.external_url),
 		&browser_session.user()
