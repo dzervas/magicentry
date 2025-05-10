@@ -20,9 +20,9 @@ pub mod utils;
 pub mod webauthn;
 
 pub mod handle_index;
-pub mod handle_login_action;
-pub mod handle_login_link;
-pub mod handle_login_page;
+pub mod handle_login_post;
+pub mod handle_magic_link;
+pub mod handle_login;
 pub mod handle_logout;
 pub mod handle_static;
 
@@ -33,6 +33,7 @@ pub const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
 pub const PROXY_QUERY_CODE: &str = "magicentry_code";
 pub const PROXY_REDIRECT: &str = "proxy_redirect";
 pub const PROXY_SESSION_COOKIE: &str = "magicentry_session_id";
+pub const POST_LOGIN_REDIRECT_COOKIE: &str = "post_login_redirect";
 pub const PROXIED_COOKIE: &str = "code";
 pub const RANDOM_STRING_LEN: usize = 32;
 pub const SCOPED_LOGIN: &str = "scope";

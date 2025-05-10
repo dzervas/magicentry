@@ -1,17 +1,84 @@
 use futures::future::BoxFuture;
 use reindeer::Db;
+use serde::{Deserialize, Serialize};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
 use super::primitive::UserSecretKind;
+use super::proxy_code::ProxyCodeSecret;
+use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind};
 
 use crate::error::{AppErrorKind, Result};
+use crate::{CONFIG, PROXY_QUERY_CODE};
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum LoginLinkRedirect {
+	#[serde(rename = "rd")]
+	AuthURL(url::Url),
+	#[serde(rename = "oidc")]
+	OIDC(url::Url),
+	#[serde(rename = "saml")]
+	SAML(url::Url),
+}
+
+impl LoginLinkRedirect {
+	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &Db) -> Result<url::Url> {
+		self.find_service().await?;
+
+		match self {
+			Self::AuthURL(url) => {
+				// Redirect the user to the proxy but with an additional query secret (proxy_code)
+				// so that we can identify them and hand them a proper partial session token.
+				// The partial session token does not have access to the whole session
+				// but only to the application that is being redirected to.
+				//
+				// Note that the proxy code will get forwarded to us from the proxy under a
+				// different domain, so we can't just use a normal session cookie.
+
+				let browser_session = browser_session_opt.ok_or(AppErrorKind::NotLoggedIn)?;
+				let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), db).await?;
+
+				let mut new_url = url.clone();
+				new_url
+					.query_pairs_mut()
+					.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
+				Ok(new_url)
+			},
+			Self::OIDC(url) => Ok(url.clone()),
+			Self::SAML(url) => Ok(url.clone()),
+		}
+	}
+
+	async fn find_service(&self) -> Result<crate::service::Service> {
+		let config = CONFIG.read().await;
+
+		match self {
+			Self::AuthURL(url) => config.services
+				.from_auth_url_origin(&url.origin())
+				.ok_or(AppErrorKind::InvalidReturnDestinationUrl.into()),
+			Self::OIDC(url) => config.services
+				.from_oidc_redirect_url(url)
+				.ok_or(AppErrorKind::InvalidOIDCRedirectUrl.into()),
+			Self::SAML(url) => config.services
+				.from_saml_redirect_url(url)
+				.ok_or(AppErrorKind::InvalidSAMLRedirectUrl.into()),
+		}
+	}
+}
+
+impl MetadataKind for LoginLinkRedirect {
+	async fn validate(&self, _: &Db) -> Result<()> {
+		self.find_service().await?;
+		Ok(())
+	}
+}
 
 pub struct LoginLinkSecretKind;
 
 impl UserSecretKind for LoginLinkSecretKind {
 	const PREFIX: &'static str = "login";
-	type Metadata = Option<url::Url>;
+	type Metadata = Option<LoginLinkRedirect>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.link_duration }
 }

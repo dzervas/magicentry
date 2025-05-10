@@ -7,6 +7,7 @@ use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use jwt_simple::prelude::*;
 use log::{debug, info};
+use url::Url;
 
 use crate::error::Error;
 use crate::error::{AppErrorKind, Response};
@@ -30,18 +31,26 @@ pub struct AuthorizeRequest {
 impl AuthorizeRequest {
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
 		let redirect_url = if let Some(redirect_url_enc) = &self.redirect_uri {
-			urlencoding::decode(redirect_url_enc).ok()?.to_string()
+			Url::parse(&urlencoding::decode(redirect_url_enc).ok()?).ok()?
 		} else {
 			return None;
 		};
 
 		let config = CONFIG.read().await;
 
-		let service = config.services.from_oidc_redirect_url_with_realms(&redirect_url, user);
-
-		if service.is_none() {
+		let Some(service) = config.services.from_oidc_redirect_url(&redirect_url) else {
 			log::warn!(
-				"Invalid redirect_uri: {} for client_id: {}",
+				"Invalid OIDC redirect_uri: {} for client_id: {}",
+				redirect_url,
+				self.client_id
+			);
+			return None;
+		};
+
+		if !service.is_user_allowed(user) {
+			log::warn!(
+				"User {} is not allowed to access OIDC redirect_uri: {} for client_id: {}",
+				user.email,
 				redirect_url,
 				self.client_id
 			);
@@ -49,12 +58,14 @@ impl AuthorizeRequest {
 		}
 
 		// Use the Url type
-		Some(format!(
-			"{}?code={}&state={}",
-			redirect_url,
-			code,
-			self.state.clone().unwrap_or_default()
-		))
+		Some(
+			redirect_url.clone()
+				.query_pairs_mut()
+				.append_pair("code", code)
+				.append_pair("state", &self.state.clone().unwrap_or_default())
+				.finish()
+				.to_string()
+		)
 	}
 
 	pub async fn generate_id_token(

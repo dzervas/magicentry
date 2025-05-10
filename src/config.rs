@@ -158,16 +158,6 @@ impl ConfigFile {
 		watcher
 	}
 
-	pub fn allowed_origins(&self) -> Vec<String> {
-		let mut allowed_origins = vec![];
-
-		for service in &self.services.0 {
-			allowed_origins.extend(service.valid_origins.clone());
-		}
-
-		allowed_origins
-	}
-
 	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_cert_pem_path)?;
 		Ok(data

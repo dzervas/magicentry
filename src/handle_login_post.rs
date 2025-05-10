@@ -1,23 +1,22 @@
 use std::collections::BTreeMap;
 use std::io::Write;
 
-use actix_session::Session;
 use actix_web::http::header::ContentType;
-use actix_web::http::Uri;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
 use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
-use log::{debug, info};
+use log::info;
 use reqwest::header::CONTENT_TYPE;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
 use crate::user::User;
+use crate::user_secret::login_link::LoginLinkRedirect;
 use crate::user_secret::LoginLinkSecret;
 use crate::utils::get_partial;
-use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
+use crate::{SmtpTransport, CONFIG};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {
@@ -30,50 +29,47 @@ pub struct LoginInfo {
 /// It is used to redirect the user back to the original URL after
 /// authentication.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ProxyRedirectLink {
+pub struct LoginReturnURL {
 	#[serde(rename = "rd")]
-	pub(crate) scope_app_url: String,
+	pub(crate) service_destination: String,
 }
 
-impl ProxyRedirectLink {
+impl LoginReturnURL {
 	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
-		let redirect_url = urlencoding::decode(&self.scope_app_url).ok()?.to_string();
-		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
-		let redirect_url_parsed = redirect_url_clean.parse::<Uri>().ok()?;
-
-		let origin_authority = redirect_url_parsed.authority()?;
-		let origin_scheme = redirect_url_parsed.scheme()?;
-		let origin = format!("{}://{}", origin_scheme, origin_authority);
+		let service_destination_decoded = urlencoding::decode(&self.service_destination).ok()?.to_string();
+		let mut redirect_url = Url::parse(&service_destination_decoded).ok()?;
 
 		let config = CONFIG.read().await;
 		// Check that the redirect URL is allowed and that the user has access to it
-		config.services.from_origin_with_realms(&origin, user)?;
+		let service = config.services.from_auth_url_origin(&redirect_url.origin())?;
+		if !service.is_user_allowed(user) {
+			return None;
+		}
 
-		let new_redirect_url = Url::parse_with_params(&redirect_url, &[("code", code)])
-			.ok()?
-			.to_string();
+		// Add the link code query parameter
+		redirect_url.query_pairs_mut().append_pair("code", code);
 
-		Some(new_redirect_url)
+		Some(redirect_url.to_string())
 	}
 }
 
-impl From<String> for ProxyRedirectLink {
+impl From<String> for LoginReturnURL {
 	fn from(scope: String) -> Self {
-		ProxyRedirectLink { scope_app_url: scope }
+		LoginReturnURL { service_destination: scope }
 	}
 }
 
-impl From<ProxyRedirectLink> for String {
-	fn from(scoped: ProxyRedirectLink) -> Self {
-		scoped.scope_app_url
+impl From<LoginReturnURL> for String {
+	fn from(scoped: LoginReturnURL) -> Self {
+		scoped.service_destination
 	}
 }
 
 #[post("/login")]
 async fn login_action(
 	req: HttpRequest,
-	session: Session,
 	form: web::Form<LoginInfo>,
+	login_redirect_opt: web::Query<Option<LoginLinkRedirect>>,
 	db: web::Data<reindeer::Db>,
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
@@ -84,12 +80,12 @@ async fn login_action(
 		.body(login_action_page));
 
 	// Return 200 to avoid leaking valid emails
-	let Some(user) = User::from_config(&form.email).await else {
+	let Some(user) = User::from_email(&form.email).await else {
 		return result;
 	};
 
 	// Generate the magic link
-	let link = LoginLinkSecret::new(user.clone(), None, &db).await?;
+	let link = LoginLinkSecret::new(user.clone(), login_redirect_opt.into_inner(), &db).await?;
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
 	let magic_link = base_url + &link.get_login_url();
@@ -103,6 +99,7 @@ async fn login_action(
 	std::fs::File::create("hurl/.link.txt").unwrap().write_all(magic_link.as_bytes()).unwrap();
 
 	// Send it via email
+	// TODO: Make a notifier struct that is `FromRequest` (`FromConfig`?)
 	if let Some(mailer) = mailer.as_ref() {
 		let email = Message::builder()
 			.from(config.smtp_from.parse()?)
@@ -160,12 +157,6 @@ async fn login_action(
 				resp.text().await.unwrap_or_default()
 			);
 		}
-	}
-
-	// If this is a scoped login, save the scope in the server session storage
-	if let Ok(scoped) = serde_qs::from_str::<ProxyRedirectLink>(req.query_string()) {
-		debug!("Setting scoped login for link: {:?}", &scoped);
-		session.insert(SCOPED_LOGIN, scoped)?;
 	}
 
 	result

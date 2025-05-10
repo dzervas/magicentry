@@ -4,7 +4,7 @@ use reindeer::Entity;
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Result};
-use crate::handle_login_action::LoginInfo;
+use crate::handle_login_post::LoginInfo;
 use crate::user::User;
 use crate::user_secret::WebAuthnAuthSecret;
 
@@ -23,7 +23,7 @@ pub async fn auth_start(
 		.collect::<Vec<_>>();
 	let (resp, auth) = webauthn.start_passkey_authentication(passkeys.as_slice())?;
 
-	let user = User::from_config(&form.email)
+	let user = User::from_email(&form.email)
 		.await
 		.ok_or(AppErrorKind::InvalidTargetUser)?;
 

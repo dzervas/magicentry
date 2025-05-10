@@ -1,7 +1,6 @@
-use magicentry::config::{ConfigFile, ConfigKV, ConfigKeys};
+use magicentry::config::ConfigFile;
 pub use magicentry::*;
 
-use actix_web::cookie::Key;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::extractors::basic;
@@ -27,11 +26,6 @@ pub async fn main() -> std::io::Result<()> {
 		.expect("Failed to load config file");
 
 	let config = CONFIG.read().await;
-	let cookie_duration = config
-		.session_duration
-		.clone()
-		.to_std()
-		.expect("Couldn't parse session_duration");
 	let webauthn_enable = config.webauthn_enable;
 	let listen_host = config.listen_host.clone();
 	let listen_port = config.listen_port;
@@ -44,23 +38,6 @@ pub async fn main() -> std::io::Result<()> {
 	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 	token::register_token_kind(&db).expect("Failed to register token kinds");
 	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
-
-	let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
-		let secret = secret_kv
-			.value
-			.expect("Failed to load secret from database");
-		let master = hex::decode(secret)
-			.expect("Failed to decode secret - is something wrong with the database?");
-		Key::from(&master)
-	} else {
-		let key = Key::generate();
-		let master = hex::encode(key.master());
-
-		ConfigKV::set(ConfigKeys::Secret, Some(master), &db)
-			.expect("Unable to set secret in the database");
-
-		key
-	};
 
 	// Mailer setup
 	let mailer: Option<SmtpTransport> = if config.smtp_enable {
@@ -97,9 +74,9 @@ pub async fn main() -> std::io::Result<()> {
 
 			// Auth routes
 			.service(handle_index::index)
-			.service(handle_login_page::login_page)
-			.service(handle_login_action::login_action)
-			.service(handle_login_link::login_link)
+			.service(handle_login::login)
+			.service(handle_login_post::login_action)
+			.service(handle_magic_link::magic_link)
 			.service(handle_logout::logout)
 			.service(handle_static::static_files)
 			.service(handle_static::favicon)

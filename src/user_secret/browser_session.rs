@@ -42,7 +42,11 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 	}
 }
 
-impl Into<Cookie<'_>> for BrowserSessionSecret {
+// Here the "consume self when the secret is used" pattern is broken
+// as the use-case for this implementation in [handle_magic_link](crate::handle_magic_link::magic_link)
+// requires that the structs lives after the transformation to cookie,
+// to be made into a proxy code secret, if that's the case.
+impl Into<Cookie<'_>> for &BrowserSessionSecret {
 	fn into(self) -> Cookie<'static> {
 		// TODO: Unset the cookie on error
 		Cookie::new(

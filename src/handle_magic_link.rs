@@ -6,24 +6,29 @@ use crate::error::Response;
 use crate::user_secret::LoginLinkSecret;
 
 #[get("/login/{magic}")]
-async fn login_link(
-	// req: HttpRequest,
+async fn magic_link(
 	login_secret: LoginLinkSecret,
 	db: web::Data<reindeer::Db>,
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
+	let login_redirect_opt = login_secret.metadata().clone();
+	let browser_session = login_secret.exchange(&db).await?;
+	let cookie = (&browser_session).into();
 
-	// TODO: Handle the redirect URL
-	// let redirect_url = get_post_login_location(&db, &session, &user_session).await?;
-	// let redirect_url = login_secret.metadata().unwrap_or_else(url::Url::from_directory_path("/"));
-	// let redirect_url = if let Some(redirect_url) = req.cookie(PROXY_QUERY_CODE) {
-	// 	let redirect_url_str = redirect_url.value().to_string();
-	// }
+	// Handle post-login redirect URLs from the cookie set by OIDC/SAML/auth-url
+	// These can be configured through either the service.<name>.valid_origins, service.<name>.saml.redirect_urls or service.<name>.oidc.redirect_urls
+	// redirect_url = login_secret.redirect_url(&db).await?;
+	let redirect_url = if let Some(login_redirect) = login_redirect_opt {
+		login_redirect
+		.into_redirect_url(Some(browser_session), &db).await?
+		.to_string()
+	} else {
+		"/".to_string()
+	};
 
-	let user_session = login_secret.exchange(&db).await?;
 	Ok(HttpResponse::Found()
-		.append_header((header::LOCATION, "/"))
-		.cookie(user_session.into())
+		.append_header((header::LOCATION, redirect_url))
+		.cookie(cookie)
 		.finish())
 }
 
@@ -42,7 +47,7 @@ mod tests {
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
-				.service(login_link),
+				.service(magic_link),
 		)
 		.await;
 

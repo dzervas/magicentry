@@ -21,9 +21,9 @@ async fn test_global_login() {
 			.app_data(web::Data::new(None::<reqwest::Client>))
 			.app_data(basic::Config::default().realm("MagicEntry"))
 			.service(handle_index::index)
-			.service(handle_login_page::login_page)
-			.service(handle_login_action::login_action)
-			.service(handle_login_link::login_link)
+			.service(handle_login::login)
+			.service(handle_login_post::login_action)
+			.service(handle_magic_link::magic_link)
 			.service(handle_logout::logout)
 			.service(auth_url::handle_status::status)
 			.wrap(
@@ -40,7 +40,7 @@ async fn test_global_login() {
 		&app,
 		TestRequest::post()
 			.uri(format!("/login?rd={}", scope).as_str())
-			.set_form(&handle_login_action::LoginInfo {
+			.set_form(&handle_login_post::LoginInfo {
 				email: "valid@example.com".to_string(),
 			})
 			.to_request(),

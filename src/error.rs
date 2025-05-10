@@ -35,6 +35,7 @@ pub enum AppErrorKind {
 	InvalidSecretMetadata,
 	#[display("The request does not have a valid magic link token")]
 	MissingLoginLinkCode,
+	Unauthorized,
 
 	// Database errors
 	#[display("Unable to access the database instance during request parsing")]
@@ -91,6 +92,10 @@ pub enum AppErrorKind {
 	#[display("The client tried to create a token without providing any credentials (client_verifier or client_secret)")]
 	NoClientCredentialsProvided,
 
+	// SAML errors
+	#[display("SAML Client sent a redirect_uri different from the one in the config")]
+	InvalidSAMLRedirectUrl,
+
 	// WebAuthn errors
 	PasskeyAlreadyRegistered,
 }
@@ -109,7 +114,8 @@ impl ResponseError for Error {
 				AppErrorKind::NotLoggedIn
 				| AppErrorKind::ExpiredSecret
 				| AppErrorKind::SecretNotFound => StatusCode::FOUND,
-				AppErrorKind::InvalidOIDCCode
+				AppErrorKind::Unauthorized
+				| AppErrorKind::InvalidOIDCCode
 				| AppErrorKind::InvalidClientID
 				| AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
 				AppErrorKind::NotFound => StatusCode::NOT_FOUND,

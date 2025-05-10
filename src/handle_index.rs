@@ -1,51 +1,22 @@
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;
-use actix_web::{get, web, HttpResponse};
-use log::info;
+use actix_web::{get, HttpResponse};
 
 use crate::error::Response;
-use crate::user_secret::proxy_code::ProxyRedirectUrl;
-use crate::user_secret::{BrowserSessionSecret, ProxyCodeSecret};
+use crate::user_secret::BrowserSessionSecret;
 use crate::utils::get_partial;
 use crate::CONFIG;
 
 #[get("/")]
 async fn index(
-	db: web::Data<reindeer::Db>,
 	browser_session_opt: Option<BrowserSessionSecret>,
-	proxy_redirect_url_opt: Option<web::Query<ProxyRedirectUrl>>,
 ) -> Response {
 	let Some(browser_session) = browser_session_opt else {
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/login"))
 			.finish());
 	};
-
-	if let Some(proxy_redirect_url) = proxy_redirect_url_opt {
-		// Redirect the user to the proxy but with an additional query secret (proxy_code)
-		// so that we can identify them and hand them a proper partial session token.
-		// The partial session token does not have access to the whole session
-		// but only to the application that is being redirected to.
-		//
-		// Note that the proxy code will get forwarded to us from the proxy under a
-		// different domain, so we can't just use a normal session cookie.
-		let proxy_redirect_url = proxy_redirect_url.into_inner();
-
-		let proxy_code = ProxyCodeSecret::new_child(
-			browser_session,
-			proxy_redirect_url.clone(),
-			&db,
-		)
-		.await?;
-
-		info!("Redirecting newly authenticated user to proxy redirect url (destination) {}", &proxy_redirect_url.url);
-		let final_redirect_url = proxy_code.final_redirect_url()?;
-
-		return Ok(HttpResponse::Found()
-			.append_header(("Location", final_redirect_url.to_string()))
-			.finish());
-	}
 
 	// Render the index page
 	let config = CONFIG.read().await;
@@ -81,7 +52,7 @@ mod tests {
 	use super::*;
 	use crate::user_secret::LoginLinkSecret;
 	use crate::utils::tests::*;
-	use crate::{handle_login_link, SESSION_COOKIE};
+	use crate::{handle_magic_link, SESSION_COOKIE};
 
 	use std::collections::HashMap;
 
@@ -89,7 +60,7 @@ mod tests {
 	use actix_session::SessionMiddleware;
 	use actix_web::cookie::{Cookie, Key, SameSite};
 	use actix_web::http::StatusCode;
-	use actix_web::{test as actix_test, App};
+	use actix_web::{test as actix_test, web, App};
 
 	#[actix_web::test]
 	async fn test_index() {
@@ -103,7 +74,7 @@ mod tests {
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(index)
-				.service(handle_login_link::login_link)
+				.service(handle_magic_link::magic_link)
 				.wrap(
 					SessionMiddleware::builder(CookieSessionStore::default(), secret)
 						.cookie_secure(false)

@@ -13,24 +13,11 @@ pub mod handle_userinfo;
 macro_rules! generate_cors_preflight {
 	($func_name:ident, $path:expr, $methods:expr) => {
 		#[actix_web::options($path)]
-		pub async fn $func_name(req: actix_web::HttpRequest) -> impl actix_web::Responder {
+		pub async fn $func_name() -> impl actix_web::Responder {
 			use actix_web::HttpResponse;
 
-			let allowed_origins = crate::CONFIG.read().await.allowed_origins();
-			let Some(origin_val) = req.headers().get("Origin") else {
-				return HttpResponse::BadRequest().finish();
-			};
-
-			let Ok(origin) = origin_val.to_str() else {
-				return HttpResponse::BadRequest().finish();
-			};
-
-			if !allowed_origins.contains(&origin.to_string()) {
-				return HttpResponse::Forbidden().finish();
-			}
-
 			HttpResponse::NoContent()
-				.append_header(("Access-Control-Allow-Origin", origin))
+				.append_header(("Access-Control-Allow-Origin", "*"))
 				.append_header(("Access-Control-Allow-Headers", "Content-Type"))
 				.append_header((
 					"Access-Control-Allow-Methods",
@@ -96,7 +83,7 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(keypair))
 				.app_data(basic::Config::default().realm("MagicEntry"))
-				.service(crate::handle_login_link::login_link)
+				.service(crate::handle_magic_link::magic_link)
 				.service(handle_authorize::authorize_get)
 				.service(handle_authorize::authorize_post)
 				.service(handle_token::token)

@@ -1,15 +1,10 @@
 use std::collections::BTreeMap;
 
-use actix_session::Session;
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
-use reindeer::Db;
 
 use crate::error::{AppErrorKind, Result};
-use crate::handle_login_action::ProxyRedirectLink;
-use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::token::{ProxyCookieToken, SessionToken};
-use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN, TEMPLATES};
+use crate::{CONFIG, RANDOM_STRING_LEN, TEMPLATES};
 
 pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<T>) -> Result<String> {
 	let config = CONFIG.try_read()?;
@@ -70,47 +65,6 @@ pub fn random_string() -> String {
 	let mut buffer = [0u8; RANDOM_STRING_LEN];
 	rand::fill(&mut buffer);
 	hex::encode(buffer)
-}
-
-pub async fn get_post_login_location(
-	db: &Db,
-	session: &Session,
-	user_session: &SessionToken,
-) -> Result<String> {
-	// TODO: WTF does this do?
-	let oidc_authorize_req_opt = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE);
-	let scoped_login_opt = session.remove_as::<ProxyRedirectLink>(SCOPED_LOGIN);
-
-	if let Some(Ok(oidc_auth_req)) = oidc_authorize_req_opt {
-		todo!();
-		// let oidc_code = oidc_auth_req
-		// 	.generate_session_code(db, user_session.user.clone(), user_session.code.clone())
-		// 	.await?
-		// 	.code;
-		// let redirect_url = oidc_auth_req
-		// 	.get_redirect_url(&oidc_code, &user_session.user)
-		// 	.await
-		// 	.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
-		// log::info!("Redirecting to client {}", &oidc_auth_req.client_id);
-		// Ok(redirect_url)
-	} else if let Some(Ok(scoped_login)) = scoped_login_opt {
-		let scoped_code = ProxyCookieToken::new(
-			db,
-			user_session.user.clone(),
-			Some(user_session.code.clone()),
-			Some(scoped_login.clone().into()),
-		)
-		.await?
-		.code;
-		let redirect_url = scoped_login
-			.get_redirect_url(&scoped_code, &user_session.user)
-			.await
-			.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
-		log::info!("Redirecting to scope {}", &scoped_login.scope_app_url);
-		Ok(redirect_url)
-	} else {
-		Ok("/".to_string())
-	}
 }
 
 #[cfg(test)]

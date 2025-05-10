@@ -136,8 +136,13 @@ pub async fn token(
 			.to_string();
 		service = config
 			.services
-			.from_oidc_client_id_with_realms(&req_client_id, oidc_authcode.user())
+			.from_oidc_client_id(&req_client_id)
 			.ok_or(AppErrorKind::InvalidClientID)?;
+
+		if !service.is_user_allowed(oidc_authcode.user()) {
+			return Err(AppErrorKind::Unauthorized.into());
+		}
+
 		oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
 
 		if oidc.client_id != req_client_id || oidc.client_secret != req_client_secret {
@@ -162,24 +167,9 @@ pub async fn token(
 		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty
 	};
 
-	if service.valid_origins.is_empty() {
-		return Ok(HttpResponse::Ok().json(response));
-	}
-
-	let Some(origin_val) = req.headers().get("Origin") else {
-		return Ok(HttpResponse::BadRequest().finish());
-	};
-
-	let Ok(origin) = origin_val.to_str() else {
-		return Ok(HttpResponse::BadRequest().finish());
-	};
-
-	if !service.valid_origins.contains(&origin.to_string()) {
-		return Ok(HttpResponse::Forbidden().finish());
-	}
-
 	Ok(HttpResponse::Ok()
-		.append_header(("Access-Control-Allow-Origin", origin))
+		// TODO: WTF to do with these origins?
+		.append_header(("Access-Control-Allow-Origin", "*"))
 		.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
 		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
 		.json(response))
