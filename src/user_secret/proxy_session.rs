@@ -3,7 +3,7 @@ use reindeer::Db;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Result};
-use crate::PROXY_SESSION_COOKIE;
+use crate::{CONFIG, PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
@@ -13,7 +13,7 @@ use super::{ChildSecretMetadata, EmptyMetadata};
 pub struct ProxySessionSecretKind;
 
 impl UserSecretKind for ProxySessionSecretKind {
-	const PREFIX: &'static str = "proxy";
+	const PREFIX: &'static str = "proxy_session";
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
@@ -26,6 +26,10 @@ impl actix_web::FromRequest for ProxySessionSecret {
 	type Future = BoxFuture<'static, Result<Self>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+		let Some(origin_header) = req.headers().get(PROXY_ORIGIN_HEADER).cloned() else {
+			log::warn!("Got a proxy session request with no origin");
+			return Box::pin(async { Err(AppErrorKind::MissingOriginHeader.into()) });
+		};
 		let Some(code) = req.cookie(PROXY_SESSION_COOKIE) else {
 			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
 		};
@@ -35,6 +39,9 @@ impl actix_web::FromRequest for ProxySessionSecret {
 
 		let code = code.value().to_string();
 		Box::pin(async move {
+			let origin_url = url::Url::parse(origin_header.to_str()?)?;
+			let config = CONFIG.read().await;
+			config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
 			Self::try_from_string(code, db.get_ref()).await
 		})
 	}

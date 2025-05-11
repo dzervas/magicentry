@@ -85,8 +85,6 @@ async fn login_post(
 	};
 
 	// Generate the magic link
-	println!("Login redirect: {:?}", login_redirect);
-
 	let link = LoginLinkSecret::new(
 		user.clone(),
 		login_redirect.into_inner().into_opt().await,

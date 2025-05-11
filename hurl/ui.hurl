@@ -24,11 +24,6 @@ Location: /
 [Captures]
 session: cookie "session_id"
 
-# Check that link reuse doesn't work
-GET {{link}}
-HTTP 302
-Location: /login
-
 GET http://localhost:8080/
 [Cookies]
 session_id: {{session}}
@@ -42,6 +37,14 @@ session_id: {{session}}
 HTTP 302
 Location: /login
 
+# === Failure tests
+
+# Check that link reuse doesn't work
+GET {{link}}
+HTTP 302
+Location: /login
+
+# Check that after logout, the session gets invalidated
 GET http://localhost:8080/
 [Cookies]
 session_id: {{session}}

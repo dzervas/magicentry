@@ -12,7 +12,6 @@ async fn magic_link(
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
 	let login_redirect_opt = login_secret.metadata().clone();
-	println!("Login redirect: {:?}", login_redirect_opt);
 	let browser_session = login_secret.exchange(&db).await?;
 	let cookie = (&browser_session).into();
 

@@ -48,6 +48,7 @@ pub enum AppErrorKind {
 	CouldNotParseXOrginalURIHeader,
 	#[display("The provided return destination URL (`rd` query parameter) doesn't have a an origin that is allowed in the config")]
 	InvalidReturnDestinationUrl,
+	InvalidOriginHeader,
 
 	// Generic errors
 	#[display("What you're looking for ain't here")]
@@ -215,6 +216,7 @@ from_error!(ToStrError, "ToStr error: {}");
 
 from_error!(actix_web::cookie::ParseError, "Actix Cookie error: {}");
 from_error!(actix_web::http::uri::InvalidUri, "Actix Invalid URI error: {}");
+from_error!(actix_web::http::header::ToStrError, "Actix Header value to string error: {}");
 from_error!(actix_session::SessionGetError, "Actix Session Get error: {}");
 from_error!(actix_session::SessionInsertError, "Actix Session Insert error: {}");
 
@@ -232,6 +234,7 @@ from_error!(quick_xml::SeError, "Quick XML serialization error: {}");
 from_error!(reindeer::Error, "Reindeer database error: {}");
 from_error!(reqwest::Error, "Reqwest error: {}");
 from_error!(rsa::pkcs1::Error, "RSA PKCS1 error: {}");
+from_error!(url::ParseError, "URL Parse Error: {}");
 from_error!(webauthn_rs::prelude::WebauthnError, "WebAuthN error: {}");
 
 from_error!(std::io::Error, "IO error: {}");

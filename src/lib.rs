@@ -31,6 +31,7 @@ pub mod tests;
 
 pub const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
 pub const PROXY_QUERY_CODE: &str = "magicentry_code";
+pub const PROXY_ORIGIN_HEADER: &str = "x-original-uri"; // Is it X-Original-Uri or X-Original-Url or X-Forwarded-Host or something else?
 pub const PROXY_REDIRECT: &str = "proxy_redirect";
 pub const PROXY_SESSION_COOKIE: &str = "magicentry_session_id";
 pub const POST_LOGIN_REDIRECT_COOKIE: &str = "post_login_redirect";
