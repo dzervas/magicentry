@@ -69,7 +69,7 @@ impl From<LoginReturnURL> for String {
 async fn login_post(
 	req: HttpRequest,
 	form: web::Form<LoginInfo>,
-	login_redirect: Option<web::Query<LoginLinkRedirect>>,
+	login_redirect: web::Query<LoginLinkRedirect>,
 	db: web::Data<reindeer::Db>,
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
@@ -86,7 +86,12 @@ async fn login_post(
 
 	// Generate the magic link
 	println!("Login redirect: {:?}", login_redirect);
-	let link = LoginLinkSecret::new(user.clone(), login_redirect.map(|l| l.into_inner()), &db).await?;
+
+	let link = LoginLinkSecret::new(
+		user.clone(),
+		login_redirect.into_inner().into_opt().await,
+		&db
+	).await?;
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
 	let magic_link = base_url + &link.get_login_url();

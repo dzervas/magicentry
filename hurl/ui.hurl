@@ -1,8 +1,10 @@
+# Visit the login page
 GET http://localhost:8080/login
 HTTP 200
 [Asserts]
 xpath "//form[@method='post']" count == 1
 
+# Click the "login" button
 POST http://localhost:8080/login
 [Form]
 email: valid@example.com
@@ -15,6 +17,7 @@ HTTP 200
 [Captures]
 link: body
 
+# Visit the magic link that was sent
 GET {{link}}
 HTTP 302
 Location: /

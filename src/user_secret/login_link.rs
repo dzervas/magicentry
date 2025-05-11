@@ -42,6 +42,14 @@ impl LoginLinkRedirect {
 		Ok(url)
 	}
 
+	pub async fn into_opt(self) -> Option<Self> {
+		if self.validate_internal().await.is_ok() {
+			Some(self)
+		} else {
+			None
+		}
+	}
+
 	async fn validate_internal(&self) -> Result<url::Url> {
 		let config = CONFIG.read().await;
 
@@ -67,7 +75,7 @@ impl LoginLinkRedirect {
 				.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
 			Ok(url)
 		} else {
-			Ok(url::Url::parse("/").unwrap())
+			Err(AppErrorKind::NoLoginLinkRedirect.into())
 		}
 	}
 }
