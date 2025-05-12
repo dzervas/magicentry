@@ -8,7 +8,6 @@ use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
 use log::info;
 use reqwest::header::CONTENT_TYPE;
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
@@ -21,48 +20,6 @@ use crate::{SmtpTransport, CONFIG};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {
 	pub email: String,
-}
-
-/// This struct holds the `rd` query parameter, used by nginx at least
-/// during handling of unauthenticated requests while using the auth-url
-/// mechanism.
-/// It is used to redirect the user back to the original URL after
-/// authentication.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoginReturnURL {
-	#[serde(rename = "rd")]
-	pub(crate) service_destination: String,
-}
-
-impl LoginReturnURL {
-	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
-		let service_destination_decoded = urlencoding::decode(&self.service_destination).ok()?.to_string();
-		let mut redirect_url = Url::parse(&service_destination_decoded).ok()?;
-
-		let config = CONFIG.read().await;
-		// Check that the redirect URL is allowed and that the user has access to it
-		let service = config.services.from_auth_url_origin(&redirect_url.origin())?;
-		if !service.is_user_allowed(user) {
-			return None;
-		}
-
-		// Add the link code query parameter
-		redirect_url.query_pairs_mut().append_pair("code", code);
-
-		Some(redirect_url.to_string())
-	}
-}
-
-impl From<String> for LoginReturnURL {
-	fn from(scope: String) -> Self {
-		LoginReturnURL { service_destination: scope }
-	}
-}
-
-impl From<LoginReturnURL> for String {
-	fn from(scoped: LoginReturnURL) -> Self {
-		scoped.service_destination
-	}
 }
 
 #[post("/login")]

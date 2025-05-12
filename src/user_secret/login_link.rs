@@ -15,6 +15,7 @@ use crate::{CONFIG, PROXY_QUERY_CODE};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LoginLinkRedirect {
 	rd: Option<url::Url>,
+	// TODO: Bincode can't save them flattened and we can't encode them within the field
 	oidc: Option<crate::oidc::AuthorizeRequest>,
 	saml: Option<crate::saml::AuthnRequest>,
 }

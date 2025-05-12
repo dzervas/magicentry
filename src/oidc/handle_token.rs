@@ -69,15 +69,15 @@ generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 pub async fn token(
 	req: HttpRequest,
 	db: web::Data<reindeer::Db>,
-	token_req: web::Form<TokenRequest>,
+	web::Form(token_req): web::Form<TokenRequest>,
 	jwt_keypair: web::Data<RS256KeyPair>,
 	basic: Option<BasicAuth>,
-	oidc_authcode: OIDCAuthCodeSecret,
 ) -> Response {
 	// This is a too long function.
 	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
 	debug!("Token request: {:?}", token_req);
 
+	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 
 	let config = CONFIG.read().await;

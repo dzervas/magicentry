@@ -12,7 +12,7 @@ use super::{ChildSecretMetadata, EmptyMetadata};
 pub struct OIDCTokenSecretKind;
 
 impl UserSecretKind for OIDCTokenSecretKind {
-	const PREFIX: &'static str = "proxy";
+	const PREFIX: &'static str = "oidc_token";
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
