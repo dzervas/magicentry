@@ -117,6 +117,13 @@ pub async fn main() -> std::io::Result<()> {
 
 		app
 	})
+	.workers(if cfg!(debug_assertions) || cfg!(test) || cfg!(feature = "e2e-test") {
+		1
+	} else {
+		std::thread::available_parallelism()
+			.map(|n| n.get())
+			.unwrap_or(2)
+	})
 	.bind(format!("{}:{}", listen_host, listen_port))
 	.unwrap()
 	.run();

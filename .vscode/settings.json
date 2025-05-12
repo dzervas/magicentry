@@ -1,7 +1,4 @@
 {
-	"rust-analyzer.cargo.extraEnv": {
-		"DATABASE_URL": "sqlite://database.sqlite3"
-	},
 	"cSpell.words": [
 		"actix",
 		"chrono",
@@ -25,9 +22,7 @@
 		"webauthn"
 	],
 	"python.analysis.typeCheckingMode": "off",
-	"rust-analyzer.cargo.features": "all",
-	"rust-analyzer.check.features": "all",
-	"nixEnvSelector.nixFile": "${workspaceFolder}/shell.nix",
+	"rust-analyzer.cargo.features": ["kube"],
 	"html.format.enable": false,
 	"html.format.indentHandlebars": false
 }
