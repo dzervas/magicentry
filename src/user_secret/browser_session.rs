@@ -26,7 +26,6 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 	type Future = BoxFuture<'static, Result<Self>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		println!("{:?}", req.cookies().unwrap());
 		let Some(code) = req.cookie(SESSION_COOKIE) else {
 			println!("No session cookie found");
 			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });

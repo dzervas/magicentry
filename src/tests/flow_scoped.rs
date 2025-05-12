@@ -1,10 +1,8 @@
 use crate::utils::tests::db_connect;
 use crate::*;
-use actix_session::storage::CookieSessionStore;
-use actix_session::SessionMiddleware;
 use actix_web::test::{call_service, TestRequest};
 
-use actix_web::cookie::{Cookie, Key};
+use actix_web::cookie::Cookie;
 use actix_web::http::StatusCode;
 use actix_web::{test as actix_test, web, App};
 use actix_web_httpauth::extractors::basic;
@@ -12,7 +10,6 @@ use actix_web_httpauth::extractors::basic;
 #[actix_web::test]
 async fn test_global_login() {
 	let db = db_connect().await;
-	let secret = Key::from(&[0; 64]);
 	let email_stub: SmtpTransport = lettre::transport::stub::AsyncStubTransport::new_ok();
 	let app = actix_test::init_service(
 		App::new()
@@ -26,12 +23,6 @@ async fn test_global_login() {
 			.service(handle_magic_link::magic_link)
 			.service(handle_logout::logout)
 			.service(auth_url::handle_status::status)
-			.wrap(
-				SessionMiddleware::builder(CookieSessionStore::default(), secret)
-					.cookie_content_security(actix_session::config::CookieContentSecurity::Signed)
-					.cookie_secure(false)
-					.build(),
-			),
 	)
 	.await;
 

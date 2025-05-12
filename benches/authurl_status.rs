@@ -16,7 +16,6 @@ pub async fn db_connect() -> Db {
 		.expect("Failed to open reindeer database.");
 	magicentry::user_secret::register(&db).unwrap();
 	magicentry::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-	magicentry::token::register_token_kind(&db).expect("Failed to register token kinds");
 
 	db
 }

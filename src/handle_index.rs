@@ -56,9 +56,7 @@ mod tests {
 
 	use std::collections::HashMap;
 
-	use actix_session::storage::CookieSessionStore;
-	use actix_session::SessionMiddleware;
-	use actix_web::cookie::{Cookie, Key, SameSite};
+	use actix_web::cookie::Cookie;
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, web, App};
 
@@ -66,7 +64,6 @@ mod tests {
 	async fn test_index() {
 		let db = &db_connect().await;
 		let mut session_map = HashMap::new();
-		let secret = Key::from(&[0; 64]);
 		let user = get_valid_user().await;
 		session_map.insert(SESSION_COOKIE, "valid_session_id");
 
@@ -75,12 +72,6 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.service(index)
 				.service(handle_magic_link::magic_link)
-				.wrap(
-					SessionMiddleware::builder(CookieSessionStore::default(), secret)
-						.cookie_secure(false)
-						.cookie_same_site(SameSite::Lax)
-						.build(),
-				),
 		)
 		.await;
 

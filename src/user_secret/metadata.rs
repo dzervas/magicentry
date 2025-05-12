@@ -14,6 +14,7 @@ pub trait MetadataKind: Serialize + DeserializeOwned {
 }
 
 impl MetadataKind for webauthn_rs::prelude::PasskeyAuthentication {}
+impl MetadataKind for webauthn_rs::prelude::PasskeyRegistration {}
 impl MetadataKind for String {}
 impl MetadataKind for url::Url {}
 impl<T: MetadataKind> MetadataKind for Option<T> {}

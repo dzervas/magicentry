@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use actix_session::Session;
+use actix_web::cookie::Cookie;
 use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
 use actix_web::HttpRequest;
@@ -127,14 +127,11 @@ impl MetadataKind for AuthorizeRequest {
 
 async fn authorize(
 	req: HttpRequest,
-	session: Session,
 	db: web::Data<reindeer::Db>,
 	auth_req: AuthorizeRequest,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> Response {
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
-
-	session.insert(AUTHORIZATION_COOKIE, auth_req.clone())?;
 
 	let Some(browser_session) = browser_session_opt else {
 		let config = CONFIG.read().await;
@@ -174,6 +171,7 @@ async fn authorize(
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
+		.cookie(Cookie::new(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)?))
 		.body(authorize_page))
 	// Either send to ?code=<code>&state=<state>
 	// TODO: Or send to ?error=<error>&error_description=<error_description>&state=<state>
@@ -182,21 +180,19 @@ async fn authorize(
 #[get("/oidc/authorize")]
 pub async fn authorize_get(
 	req: HttpRequest,
-	session: Session,
 	db: web::Data<reindeer::Db>,
 	data: web::Query<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
-	authorize(req, session, db, data.into_inner(), browser_session_opt).await
+	authorize(req, db, data.into_inner(), browser_session_opt).await
 }
 
 #[post("/oidc/authorize")]
 pub async fn authorize_post(
 	req: HttpRequest,
-	session: Session,
 	db: web::Data<reindeer::Db>,
 	data: web::Form<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
-	authorize(req, session, db, data.into_inner(), browser_session_opt).await
+	authorize(req, db, data.into_inner(), browser_session_opt).await
 }

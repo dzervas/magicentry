@@ -81,7 +81,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 		}
 
 		if !InternalUserSecret::<K>::exists(&self.0.code, db)? {
-			return Err(AppErrorKind::SecretNotFound.into());
+			return Err(AppErrorKind::WebAuthnSecretNotFound.into());
 		}
 
 		if self.0.metadata.validate(db).await.is_err() {
@@ -100,7 +100,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
 	pub async fn try_from_string(code: String, db: &Db) -> Result<Self> {
-		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::SecretNotFound)?;
+		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::WebAuthnSecretNotFound)?;
 		let user_secret = UserSecret(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)

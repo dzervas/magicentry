@@ -4,30 +4,30 @@ use reindeer::Db;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Result};
-use crate::webauthn::WEBAUTHN_AUTH_COOKIE;
+use crate::webauthn::WEBAUTHN_REG_COOKIE;
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
 use super::primitive::UserSecretKind;
 
 #[derive(PartialEq, Serialize, Deserialize)]
-pub struct WebAuthnAuthSecretKind;
+pub struct WebAuthnRegSecretKind;
 
-impl UserSecretKind for WebAuthnAuthSecretKind {
-	const PREFIX: &'static str = "webauthn_auth";
-	type Metadata = webauthn_rs::prelude::PasskeyAuthentication;
+impl UserSecretKind for WebAuthnRegSecretKind {
+	const PREFIX: &'static str = "webauthn_reg";
+	type Metadata = webauthn_rs::prelude::PasskeyRegistration;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
 }
 
-pub type WebAuthnAuthSecret = EphemeralUserSecret<WebAuthnAuthSecretKind, BrowserSessionSecretKind>;
+pub type WebAuthnRegSecret = EphemeralUserSecret<WebAuthnRegSecretKind, BrowserSessionSecretKind>;
 
-impl actix_web::FromRequest for WebAuthnAuthSecret {
+impl actix_web::FromRequest for WebAuthnRegSecret {
 	type Error = crate::error::Error;
 	type Future = BoxFuture<'static, Result<Self>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let Some(code) = req.cookie(WEBAUTHN_AUTH_COOKIE) else {
+		let Some(code) = req.cookie(WEBAUTHN_REG_COOKIE) else {
 			return Box::pin(async { Err(AppErrorKind::WebAuthnSecretNotFound.into()) });
 		};
 		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {
@@ -41,11 +41,11 @@ impl actix_web::FromRequest for WebAuthnAuthSecret {
 	}
 }
 
-impl Into<Cookie<'_>> for WebAuthnAuthSecret {
+impl Into<Cookie<'_>> for WebAuthnRegSecret {
 	fn into(self) -> Cookie<'static> {
 		// TODO: Unset the cookie on error
 		Cookie::new(
-			WEBAUTHN_AUTH_COOKIE,
+			WEBAUTHN_REG_COOKIE,
 			self.code().to_str_that_i_wont_print().to_owned(),
 		)
 	}

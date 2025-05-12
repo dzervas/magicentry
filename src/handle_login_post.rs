@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::io::Write;
 
 use actix_web::http::header::ContentType;
 use actix_web::{post, web, HttpRequest, HttpResponse};
@@ -16,6 +15,9 @@ use crate::user_secret::login_link::LoginLinkRedirect;
 use crate::user_secret::LoginLinkSecret;
 use crate::utils::get_partial;
 use crate::{SmtpTransport, CONFIG};
+
+#[cfg(feature = "e2e-test")]
+use std::io::Write;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {

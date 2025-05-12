@@ -11,6 +11,7 @@ pub mod proxy_session;
 pub mod oidc_token;
 pub mod oidc_authcode;
 pub mod webauthn_auth;
+pub mod webauthn_reg;
 
 pub use browser_session::BrowserSessionSecret;
 pub use login_link::LoginLinkSecret;
@@ -19,6 +20,7 @@ pub use proxy_session::ProxySessionSecret;
 pub use oidc_authcode::OIDCAuthCodeSecret;
 pub use oidc_token::OIDCTokenSecret;
 pub use webauthn_auth::WebAuthnAuthSecret;
+pub use webauthn_reg::WebAuthnRegSecret;
 pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use reindeer::AsBytes;

@@ -13,7 +13,6 @@ pub mod error;
 pub mod oidc;
 pub mod saml;
 pub mod service;
-pub mod token;
 pub mod user;
 pub mod user_secret;
 pub mod utils;

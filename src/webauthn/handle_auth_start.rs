@@ -1,9 +1,8 @@
-use actix_web::web::Json;
-use actix_web::{post, web};
+use actix_web::{post, web, HttpResponse};
 use reindeer::Entity;
 use webauthn_rs::prelude::*;
 
-use crate::error::{AppErrorKind, Result};
+use crate::error::{AppErrorKind, Response};
 use crate::handle_login_post::LoginInfo;
 use crate::user::User;
 use crate::user_secret::WebAuthnAuthSecret;
@@ -15,7 +14,7 @@ pub async fn auth_start(
 	webauthn: web::Data<Webauthn>,
 	form: web::Json<LoginInfo>,
 	db: web::Data<reindeer::Db>,
-) -> Result<Json<RequestChallengeResponse>> {
+) -> Response {
 	// TODO: Handle the errors to avoid leaking (in)valid emails
 	let passkeys = PasskeyStore::get_with_filter(|p| p.user.email == form.email, &db)?
 		.iter()
@@ -27,8 +26,9 @@ pub async fn auth_start(
 		.await
 		.ok_or(AppErrorKind::InvalidTargetUser)?;
 
-	// Just store the auth secret, we don't want to give it to the user
-	let _ = WebAuthnAuthSecret::new(user, auth, &db).await?;
+	let auth = WebAuthnAuthSecret::new(user, auth, &db).await?;
 
-	Ok(Json(resp))
+	Ok(HttpResponse::Ok()
+		.cookie(auth.into())
+		.json(resp))
 }

@@ -82,7 +82,6 @@ pub mod tests {
 			.expect("Failed to open reindeer database.");
 		crate::user_secret::register(&db).unwrap();
 		crate::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-		crate::token::register_token_kind(&db).expect("Failed to register token kinds");
 
 		db
 	}

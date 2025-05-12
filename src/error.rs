@@ -18,8 +18,6 @@ pub async fn not_found() -> Response {
 #[derive(Debug, Display, DeriveError, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AppErrorKind {
 	// Authentication & secret errors
-	#[display("The provided secret does not exist")]
-	SecretNotFound,
 	#[display("The provided secret is bound to a token that no longer exists")]
 	NoParentToken,
 	NoSessionSet,
@@ -104,6 +102,8 @@ pub enum AppErrorKind {
 
 	// WebAuthn errors
 	PasskeyAlreadyRegistered,
+	#[display("The provided webauthn secret does not exist")]
+	WebAuthnSecretNotFound,
 }
 
 #[derive(Debug, Display, DeriveError, Clone)]
@@ -119,7 +119,7 @@ impl ResponseError for Error {
 			match app_error {
 				AppErrorKind::NotLoggedIn
 				| AppErrorKind::ExpiredSecret
-				| AppErrorKind::SecretNotFound => StatusCode::FOUND,
+				| AppErrorKind::WebAuthnSecretNotFound => StatusCode::FOUND,
 				AppErrorKind::Unauthorized
 				| AppErrorKind::InvalidOIDCCode
 				| AppErrorKind::InvalidClientID
@@ -156,7 +156,7 @@ impl ResponseError for Error {
 			log::warn!("{}", self);
 		}
 
-		if self.app_error == Some(AppErrorKind::SecretNotFound)
+		if self.app_error == Some(AppErrorKind::WebAuthnSecretNotFound)
 			|| self.app_error == Some(AppErrorKind::NotLoggedIn)
 		{
 			HttpResponse::build(status)
@@ -217,8 +217,6 @@ from_error!(ToStrError, "ToStr error: {}");
 from_error!(actix_web::cookie::ParseError, "Actix Cookie error: {}");
 from_error!(actix_web::http::uri::InvalidUri, "Actix Invalid URI error: {}");
 from_error!(actix_web::http::header::ToStrError, "Actix Header value to string error: {}");
-from_error!(actix_session::SessionGetError, "Actix Session Get error: {}");
-from_error!(actix_session::SessionInsertError, "Actix Session Insert error: {}");
 
 from_error!(base64::DecodeError, "Base64 decode error: {}");
 from_error!(formatx::Error, "Formatx formatting error: {}");

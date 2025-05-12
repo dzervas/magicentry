@@ -39,9 +39,6 @@ mod tests {
 	use super::*;
 	use crate::utils::tests::*;
 
-	use actix_session::storage::CookieSessionStore;
-	use actix_session::SessionMiddleware;
-	use actix_web::cookie::{Key, SameSite};
 	use actix_web::http::header::ContentType;
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};
@@ -49,17 +46,10 @@ mod tests {
 	#[actix_web::test]
 	async fn test_login_page() {
 		let db = &db_connect().await;
-		let secret = Key::from(&[0; 64]);
 		let mut app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(login)
-				.wrap(
-					SessionMiddleware::builder(CookieSessionStore::default(), secret)
-						.cookie_secure(false)
-						.cookie_same_site(SameSite::Lax)
-						.build(),
-				),
 		)
 		.await;
 
