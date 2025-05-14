@@ -4,7 +4,7 @@ use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::error::Response;
+use crate::error::{AppErrorKind, Response};
 use crate::saml::authn_request::AuthnRequest;
 use crate::user_secret::BrowserSessionSecret;
 use crate::utils::get_partial;
@@ -42,6 +42,16 @@ pub async fn sso(
 	};
 
 	let config = CONFIG.read().await;
+	let service = config.services.from_saml_entity_id(&authn_request.issuer)
+		.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
+
+	if !service.is_user_allowed(browser_session.user()) {
+		log::warn!("User {} is not allowed to access SAML service {}", browser_session.user().email, service.name);
+		return Ok(HttpResponse::Found()
+			.append_header(("Location", "/login"))
+			.finish());
+	}
+
 	let mut response = authn_request.to_response(
 		&format!("{}/saml/metadata", &config.external_url),
 		&browser_session.user()

@@ -94,20 +94,6 @@ impl AuthorizeRequest {
 	}
 }
 
-impl TryFrom<String> for AuthorizeRequest {
-	type Error = serde_qs::Error;
-	fn try_from(value: String) -> std::result::Result<Self, Self::Error> {
-		serde_qs::from_str(&value)
-	}
-}
-
-impl TryFrom<&AuthorizeRequest> for String {
-	type Error = serde_qs::Error;
-	fn try_from(value: &AuthorizeRequest) -> std::result::Result<Self, Self::Error> {
-		serde_qs::to_string(&value)
-	}
-}
-
 impl MetadataKind for AuthorizeRequest {
 	async fn validate(&self, _db: &reindeer::Db) -> crate::error::Result<()> {
 		if let Some(code_challenge_method) = self.code_challenge_method.as_ref() {
@@ -148,6 +134,7 @@ async fn authorize(
 	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &db).await?;
 
 	// TODO: Check the state with the cookie for CSRF
+	// TODO: WTF?
 	let redirect_url = auth_req
 		.get_redirect_url(&oidc_authcode.code().to_str_that_i_wont_print(), &oidc_authcode.user())
 		.await

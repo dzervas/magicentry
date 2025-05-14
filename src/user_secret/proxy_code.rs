@@ -42,12 +42,18 @@ impl actix_web::FromRequest for ProxyCodeSecret {
 			let code = origin_url
 				.query_pairs()
 				.find(|e| e.0.to_lowercase() == PROXY_QUERY_CODE)
-				.ok_or(AppErrorKind::CouldNotParseXOrginalURIHeader)?;
+				.ok_or(AppErrorKind::CouldNotParseXOriginalURIHeader)?;
 
 			let config = CONFIG.read().await;
-			config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
-			// TODO: Check if the user has the needed realm
-			Self::try_from_string(code.1.to_string(), db.get_ref()).await
+			let service = config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
+			let secret = Self::try_from_string(code.1.to_string(), db.get_ref()).await?;
+
+			if !service.is_user_allowed(secret.user()) {
+				log::warn!("User {} tried to access {} with a proxy code", secret.user().email, service.name);
+				return Err(AppErrorKind::Unauthorized.into());
+			}
+
+			Ok(secret)
 		})
 	}
 }
