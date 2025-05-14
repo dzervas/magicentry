@@ -41,8 +41,15 @@ impl actix_web::FromRequest for ProxySessionSecret {
 		Box::pin(async move {
 			let origin_url = url::Url::parse(origin_header.to_str()?)?;
 			let config = CONFIG.read().await;
-			config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
-			Self::try_from_string(code, db.get_ref()).await
+			let service = config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
+			let secret = Self::try_from_string(code, db.get_ref()).await?;
+
+			if !service.is_user_allowed(secret.user()) {
+				log::warn!("User {} tried to access {} with a proxy session", secret.user().email, service.name);
+				return Err(AppErrorKind::Unauthorized.into());
+			}
+
+			Ok(secret)
 		})
 	}
 }
