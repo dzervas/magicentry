@@ -12,15 +12,16 @@ pub mod config_kube;
 pub mod error;
 pub mod oidc;
 pub mod saml;
-pub mod token;
+pub mod service;
 pub mod user;
+pub mod user_secret;
 pub mod utils;
 pub mod webauthn;
 
 pub mod handle_index;
-pub mod handle_login_action;
-pub mod handle_login_link;
-pub mod handle_login_page;
+pub mod handle_login_post;
+pub mod handle_magic_link;
+pub mod handle_login;
 pub mod handle_logout;
 pub mod handle_static;
 
@@ -28,6 +29,11 @@ pub mod handle_static;
 pub mod tests;
 
 pub const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
+pub const PROXY_QUERY_CODE: &str = "magicentry_code";
+pub const PROXY_ORIGIN_HEADER: &str = "x-original-uri"; // Is it X-Original-Uri or X-Original-Url or X-Forwarded-Host or something else?
+pub const PROXY_REDIRECT: &str = "proxy_redirect";
+pub const PROXY_SESSION_COOKIE: &str = "magicentry_session_id";
+pub const POST_LOGIN_REDIRECT_COOKIE: &str = "post_login_redirect";
 pub const PROXIED_COOKIE: &str = "code";
 pub const RANDOM_STRING_LEN: usize = 32;
 pub const SCOPED_LOGIN: &str = "scope";
@@ -71,6 +77,8 @@ lazy_static! {
 			dir_src
 		)
 		.expect("Failed to register partials directory");
+
+		handlebars.set_strict_mode(true);
 
 		#[cfg(debug_assertions)]
 		handlebars.set_dev_mode(true);

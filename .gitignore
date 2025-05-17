@@ -34,3 +34,4 @@ node_modules
 /recipe.json
 
 *.pem
+.link.txt

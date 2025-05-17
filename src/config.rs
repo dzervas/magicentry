@@ -5,10 +5,11 @@ use notify::{PollWatcher, Watcher};
 use reindeer::{AsBytes, Db, Entity};
 use serde::{Deserialize, Serialize};
 
+use crate::service::Services;
 use crate::user::User;
 use crate::{CONFIG, CONFIG_FILE};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct ConfigFile {
 	pub database_url: String,
@@ -31,12 +32,9 @@ pub struct ConfigFile {
 	pub auth_url_name_header: String,
 	pub auth_url_email_header: String,
 	pub auth_url_realms_header: String,
-	pub auth_url_scopes: Vec<crate::auth_url::AuthUrlScope>,
 
-	pub oidc_enable: bool,
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub oidc_code_duration: Duration,
-	pub oidc_clients: Vec<crate::oidc::client::OIDCClient>,
 
 	pub saml_cert_pem_path: String,
 	pub saml_key_pem_path: String,
@@ -55,7 +53,10 @@ pub struct ConfigFile {
 
 	pub webauthn_enable: bool,
 
+	// pub force_https_redirects: bool,
+
 	pub users: Vec<User>,
+	pub services: Services,
 }
 
 impl Default for ConfigFile {
@@ -75,15 +76,12 @@ impl Default for ConfigFile {
 			static_path: "static".to_string(),
 
 			auth_url_enable       : true,
-			auth_url_user_header  : "X-Auth-User".to_string(),
-			auth_url_email_header : "X-Auth-Email".to_string(),
-			auth_url_name_header  : "X-Auth-Name".to_string(),
-			auth_url_realms_header: "X-Auth-Realms".to_string(),
-			auth_url_scopes       : vec![],
+			auth_url_user_header  : "X-Remote-User".to_string(),
+			auth_url_email_header : "X-Remote-Email".to_string(),
+			auth_url_name_header  : "X-Remote-Name".to_string(),
+			auth_url_realms_header: "X-Remote-Realms".to_string(),
 
-			oidc_enable       : true,
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),
-			oidc_clients      : vec![],
 
 			saml_cert_pem_path: "saml_cert.pem".to_string(),
 			saml_key_pem_path : "saml_key.pem".to_string(),
@@ -102,7 +100,10 @@ impl Default for ConfigFile {
 
 			webauthn_enable: true,
 
+			// force_https_redirects: true,
+
 			users: vec![],
+			services: Services(vec![]),
 		}
 	}
 }
@@ -155,16 +156,6 @@ impl ConfigFile {
 			.expect("Failed to watch config file for changes");
 
 		watcher
-	}
-
-	pub fn allowed_origins(&self) -> Vec<String> {
-		let mut allowed_origins = vec![];
-
-		for client in &self.oidc_clients {
-			allowed_origins.extend(client.origins.clone());
-		}
-
-		allowed_origins
 	}
 
 	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {

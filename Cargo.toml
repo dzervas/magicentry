@@ -7,10 +7,10 @@ rust-version = "1.77"
 [features]
 default = []
 kube = ["dep:kube", "dep:k8s-openapi"]
+e2e-test = []
 
 [dependencies]
 actix-web = "4.10"
-actix-session = { version = "0.10", features = ["cookie-session"] }
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0", features = ["display", "error"] }
 duration-str = "0.17"
@@ -39,13 +39,14 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_qs = { version = "0.14", features = ["actix-web4"] }
+serde_qs = { version = "0.15", features = ["actix-web4"] }
 serde_yaml = "0.9"
 sha2 = "0.10"
 tokio = { version = "1", features = ["full"] }
+url = { version = "2", features = ["serde"] }
 urlencoding = "2.1"
 uuid = { version = "1.16", features = ["serde", "v4"] }
-webauthn-rs = { version = "0.5.0", features = [
+webauthn-rs = { version = "0.5", features = [
 	"danger-allow-state-serialisation",
 ] }
 md5 = "0.7.0"
@@ -57,14 +58,19 @@ openssl = { version = "0.10", features = ["vendored"] }
 kube = { version = "0.99", features = ["runtime", "derive"], optional = true }
 k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
 actix-web-httpauth = "0.8"
-flate2 = "1.1.1"
-base64 = "0.22.1"
-url = "2.5.4"
-quick-xml = { version = "0.37.4", features = ["async-tokio", "serialize"] }
-rsa = { version = "0.9.8", features = ["sha2"] }
+flate2 = "1.1"
+base64 = "0.22"
+quick-xml = { version = "0.37", features = ["async-tokio", "serialize"] }
+rsa = { version = "0.9", features = ["sha2"] }
 
 [dev-dependencies]
+actix-http = "3.11"
+criterion = { version = "0.5.1", features = ["async_tokio"] }
 scraper = "0.23"
+
+[[bench]]
+name = "authurl_status"
+harness = false
 
 [profile.release]
 opt-level = 3

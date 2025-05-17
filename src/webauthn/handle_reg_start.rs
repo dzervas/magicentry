@@ -1,33 +1,27 @@
-use actix_session::Session;
-use actix_web::web::Json;
-use actix_web::{post, web};
+use actix_web::{post, web, HttpResponse};
 use webauthn_rs::prelude::*;
 
-use crate::error::Result;
-use crate::token::{SessionToken, WebauthnToken};
-
-use super::WEBAUTHN_COOKIE;
+use crate::error::Response;
+use crate::user_secret::{BrowserSessionSecret, WebAuthnRegSecret};
 
 #[post("/webauthn/register/start")]
 pub async fn reg_start(
-	session: Session,
+	browser_session: BrowserSessionSecret,
 	db: web::Data<reindeer::Db>,
 	webauthn: web::Data<Webauthn>,
-) -> Result<Json<CreationChallengeResponse>> {
-	let token = SessionToken::from_session(&db, &session).await?;
-	let reg_user = token.user.clone();
+) -> Response {
+	let user = browser_session.user().clone();
 
 	let (ccr, reg_state) = webauthn.start_passkey_registration(
-		(&token.user).into(),
-		&token.user.email.clone(),
-		&token.user.name.clone(),
+		(&user).into(),
+		&user.email.clone(),
+		&user.name.clone(),
 		None,
 	)?;
 
-	let reg_state_str = serde_json::to_string(&reg_state)?;
-	let registration =
-		WebauthnToken::new(&db, reg_user, Some(token.code), Some(reg_state_str)).await?;
-	session.insert(WEBAUTHN_COOKIE, registration.code)?;
+	let reg = WebAuthnRegSecret::new(user, reg_state, &db).await?;
 
-	Ok(Json(ccr))
+	Ok(HttpResponse::Ok()
+		.cookie(reg.into())
+		.json(ccr))
 }

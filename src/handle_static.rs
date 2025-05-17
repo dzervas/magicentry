@@ -5,6 +5,7 @@ use actix_web::{get, web, HttpResponse};
 #[get("/static/{filename}")]
 async fn static_files(filename: web::Path<String>) -> HttpResponse {
 	let (file, content_type) = match filename.as_str() {
+		"app-placeholder.svg" => ("app-placeholder.svg", "image/svg+xml"),
 		"main.css" => ("main.build.css", "text/css"),
 		"logo.svg" => ("logo.svg", "image/svg+xml"),
 		"webauthn.js" => ("webauthn.build.js", "text/javascript"),
