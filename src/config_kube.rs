@@ -7,7 +7,8 @@ use kube::runtime::watcher::Event;
 use kube::{Api, Client};
 use serde::{Deserialize, Serialize};
 
-use crate::error::Result;
+use crate::error::{AppErrorKind, Result};
+use crate::service::{Service, ServiceAuthUrl};
 use crate::CONFIG;
 
 const ANNOTATION_PREFIX: &str = "magicentry.rs/";
@@ -57,6 +58,7 @@ impl IngressConfig {
 
 	pub fn to_map(&self) -> BTreeMap<String, String> {
 		let mut map = BTreeMap::new();
+		map.insert("name".to_string(), self.name.to_string());
 		map.insert("auth_url".to_string(), self.auth_url.to_string());
 		map.insert("realms".to_string(), self.realms.join(",").to_string());
 		map.insert(
@@ -67,48 +69,68 @@ impl IngressConfig {
 	}
 
 	pub async fn process(&self, ingress: &Ingress) -> Result<()> {
-		let mut config = CONFIG.write().await;
 		let no_name = String::new();
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
 
-		if self.auth_url {
-			config.auth_url_enable = true;
-
-			let Some(hosts) = ingress.spec.as_ref() else {
-				log::warn!("Ingress {:?} has no hosts", name);
-				return Ok(());
-			};
-
-			for host in hosts.rules.as_ref().unwrap_or(&Vec::new()) {
-				let Some(host_str) = host.host.as_ref() else {
-					log::warn!("Ingress {:?} has no host", name);
-					continue;
-				};
-
-				let has_tls = hosts.tls.as_ref().is_some_and(|tls| {
+		let tls = ingress.spec.as_ref().and_then(|spec| spec.tls.as_ref());
+		let urls = ingress.spec
+			.as_ref()
+			.and_then(|spec| spec.rules.as_ref())
+			.and_then(|rules| rules.first())
+			.and_then(|rule| rule.host.as_ref())
+			.map(|host| {
+				let has_tls = tls.map_or(false, |tls| {
 					tls.iter().any(|tls| {
 						tls.hosts
 							.as_ref()
 							.unwrap_or(&Vec::new())
-							.contains(&host_str)
+							.contains(host)
 					})
 				});
 
-				let origin = if has_tls {
-					format!("https://{}", host_str)
-				} else {
-					format!("http://{}", host_str)
-				};
+				let mut url = url::Url::parse(&host).unwrap_or_else(|_| {
+					log::error!("Ingress {:?} has invalid host {}", name, host);
+					url::Url::parse("http://localhost").unwrap()
+				});
+				url.set_scheme(if has_tls { "https" } else { "http" }).unwrap();
 
-				log::info!("Adding auth_url scope for host {:?}", &origin);
+				url
+			})
+			.iter().cloned().collect::<Vec<_>>();
+		let Some(service_url) = urls.get(0).cloned() else {
+			log::warn!("Ingress {} has no host", name);
+			return Err(AppErrorKind::IngressHasNoHost.into());
+		};
 
-				// config.auth_url_scopes.push(AuthUrlScope {
-				// 	realms: self.realms.clone(),
-				// 	origin,
-				// });
+		let service = Service {
+			name: self.name.clone(),
+			// Iterate over spec.rules[].host and see if spec.tls[].hosts contains the host
+			url: service_url,
+			realms: self.realms.clone(),
+			auth_url: if self.auth_url {
+				Some(ServiceAuthUrl {
+					origins: urls
+						.iter()
+						.map(|url| url.to_string())
+						.collect(),
+				})
+			} else {
+				None
+			},
+			oidc: None,
+			saml: None,
+		};
+
+		let mut config = CONFIG.write().await;
+		if config.services.get(name).is_none() {
+			log::info!("Adding service {} to config", name);
+			config.services.0.push(service.clone());
+		} else if let Some(existing_service) = config.services.get_mut(name) {
+			if existing_service != &service {
+				log::info!("Updating service {} in config", name);
+				*existing_service = service.clone();
 			}
 		}
-
 		drop(config);
 
 		Ok(())

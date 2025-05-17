@@ -14,7 +14,7 @@
     "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
 
     "start-e2e": "concurrently 'npm:start-server' 'npm:e2e-server'",
-    "start-server": "CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./benches --restart cargo run --features e2e-test",
+    "start-server": "CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --features e2e-test",
     "e2e-server": "http-server hurl -p 8081"
   },
   "devDependencies": {

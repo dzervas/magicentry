@@ -104,6 +104,10 @@ pub enum AppErrorKind {
 	PasskeyAlreadyRegistered,
 	#[display("The provided webauthn secret does not exist")]
 	WebAuthnSecretNotFound,
+
+	// Kubernetes errors
+	#[display("Kubernetes ingress has no host")]
+	IngressHasNoHost,
 }
 
 #[derive(Debug, Display, DeriveError, Clone)]

@@ -41,6 +41,16 @@ pub struct ServiceOIDC {
 pub struct Services(pub Vec<Service>);
 
 impl Services {
+	pub fn get(&self, name: &str) -> Option<&Service> {
+		self.0.iter()
+			.find(|s| s.name == name)
+	}
+
+	pub fn get_mut(&mut self, name: &str) -> Option<&mut Service> {
+		self.0.iter_mut()
+			.find(|s| s.name == name)
+	}
+
 	/// Returns all the services that the provided user has access to
 	pub fn from_user(&self, user: &User) -> Self {
 		let res = self.0.iter()

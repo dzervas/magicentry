@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use magicentry::config::ConfigFile;
 pub use magicentry::*;
 
