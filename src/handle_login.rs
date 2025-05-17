@@ -10,7 +10,7 @@ use crate::utils::get_partial;
 
 #[get("/login")]
 async fn login(
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	login_redirect: web::Query<LoginLinkRedirect>,
 ) -> Response {

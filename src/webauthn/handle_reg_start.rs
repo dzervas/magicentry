@@ -7,7 +7,7 @@ use crate::user_secret::{BrowserSessionSecret, WebAuthnRegSecret};
 #[post("/webauthn/register/start")]
 pub async fn reg_start(
 	browser_session: BrowserSessionSecret,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	webauthn: web::Data<Webauthn>,
 ) -> Response {
 	let user = browser_session.user().clone();

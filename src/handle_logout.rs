@@ -15,7 +15,7 @@ pub struct LogoutRequest {
 #[get("/logout")]
 async fn logout(
 	req: web::Query<LogoutRequest>,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	browser_session: BrowserSessionSecret,
 ) -> Response {
 	browser_session.delete(&db).await?;

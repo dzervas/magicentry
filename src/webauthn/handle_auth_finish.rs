@@ -13,7 +13,7 @@ pub struct AuthFinishResponse {
 
 #[post("/webauthn/auth/finish")]
 pub async fn auth_finish(
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	webauthn: web::Data<Webauthn>,
 	auth: WebAuthnAuthSecret,
 	Json(req): Json<PublicKeyCredential>,

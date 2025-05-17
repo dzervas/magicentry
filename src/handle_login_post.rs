@@ -29,7 +29,7 @@ async fn login_post(
 	req: HttpRequest,
 	form: web::Form<LoginInfo>,
 	login_redirect: web::Query<LoginLinkRedirect>,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
 ) -> Response {

@@ -8,7 +8,7 @@ use crate::user_secret::LoginLinkSecret;
 #[get("/login/{magic}")]
 async fn magic_link(
 	login_secret: LoginLinkSecret,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
 	let login_redirect_opt = login_secret.metadata().clone();

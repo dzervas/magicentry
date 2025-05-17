@@ -13,7 +13,7 @@ use super::store::PasskeyStore;
 pub async fn auth_start(
 	webauthn: web::Data<Webauthn>,
 	form: web::Json<LoginInfo>,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 ) -> Response {
 	// TODO: Handle the errors to avoid leaking (in)valid emails
 	let passkeys = PasskeyStore::get_with_filter(|p| p.user.email == form.email, &db)?

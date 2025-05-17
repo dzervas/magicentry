@@ -40,6 +40,8 @@ pub const SCOPED_LOGIN: &str = "scope";
 pub const SCOPED_SESSION_COOKIE: &str = "scoped_session_id";
 pub const SESSION_COOKIE: &str = "session_id";
 
+pub type Database = reindeer::Db;
+
 #[cfg(not(test))]
 pub type SmtpTransport = lettre::transport::smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
 #[cfg(not(test))]

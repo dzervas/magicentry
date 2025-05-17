@@ -68,7 +68,7 @@ generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 #[post("/oidc/token")]
 pub async fn token(
 	req: HttpRequest,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	web::Form(token_req): web::Form<TokenRequest>,
 	jwt_keypair: web::Data<RS256KeyPair>,
 	basic: Option<BasicAuth>,

@@ -11,7 +11,7 @@ use super::store::PasskeyStore;
 #[post("/webauthn/register/finish")]
 pub async fn reg_finish(
 	reg: WebAuthnRegSecret,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	webauthn: web::Data<Webauthn>,
 	req: Json<RegisterPublicKeyCredential>,
 ) -> Response {

@@ -113,7 +113,7 @@ impl MetadataKind for AuthorizeRequest {
 
 async fn authorize(
 	req: HttpRequest,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	auth_req: AuthorizeRequest,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> Response {
@@ -167,7 +167,7 @@ async fn authorize(
 #[get("/oidc/authorize")]
 pub async fn authorize_get(
 	req: HttpRequest,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	data: web::Query<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
@@ -177,7 +177,7 @@ pub async fn authorize_get(
 #[post("/oidc/authorize")]
 pub async fn authorize_post(
 	req: HttpRequest,
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	data: web::Form<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
