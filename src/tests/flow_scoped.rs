@@ -1,3 +1,5 @@
+use crate::user_secret::primitive::UserSecretKind;
+use crate::user_secret::proxy_code::ProxyCodeSecretKind;
 use crate::utils::tests::db_connect;
 use crate::*;
 use actix_web::test::{call_service, TestRequest};
@@ -38,11 +40,6 @@ async fn test_global_login() {
 	)
 	.await;
 	assert_eq!(resp.status(), StatusCode::OK);
-	let headers = resp.headers().clone();
-	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
-	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
-	println!("CookieHeader: {:?}", &cookie_header);
-	println!("Cookie: {:?}", &parsed_cookie);
 
 	let messages = email_stub.messages().await;
 	let login_message = &messages.first().unwrap().1;
@@ -59,7 +56,6 @@ async fn test_global_login() {
 		&app,
 		TestRequest::get()
 			.uri(&login_link)
-			.cookie(parsed_cookie)
 			.to_request(),
 	)
 	.await;
@@ -67,16 +63,13 @@ async fn test_global_login() {
 	assert_eq!(resp.status(), StatusCode::FOUND);
 	let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
 	println!("Location header: {}", &location_header);
-	assert!(location_header.starts_with("http://localhost:8080/?code="));
-
-	let one_time_code = location_header.split("=").nth(1).unwrap();
+	assert!(location_header.starts_with(format!("http://localhost:8080/?{}=me_{}_", PROXY_QUERY_CODE, ProxyCodeSecretKind::PREFIX).as_str()));
 
 	let resp = call_service(
 		&app,
 		TestRequest::get()
 			.uri("/auth-url/status")
-			.cookie(Cookie::new(PROXIED_COOKIE, one_time_code))
-			.append_header(("x-original-url", "http://localhost:8080"))
+			.append_header((PROXY_ORIGIN_HEADER, location_header))
 			.to_request(),
 	)
 	.await;
@@ -90,7 +83,7 @@ async fn test_global_login() {
 		TestRequest::get()
 			.uri("/auth-url/status")
 			.cookie(parsed_cookie)
-			.append_header(("x-original-url", "http://localhost:8080"))
+			.append_header((PROXY_ORIGIN_HEADER, "http://localhost:8080/random/endpoint"))
 			.to_request(),
 	)
 	.await;

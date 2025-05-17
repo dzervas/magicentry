@@ -105,9 +105,6 @@ mod tests {
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
-		let headers = resp.headers().clone();
-		let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
-		let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
 
 		assert_eq!(resp.status(), StatusCode::FOUND);
 
@@ -119,7 +116,6 @@ mod tests {
 
 		let req = actix_test::TestRequest::get()
 			.uri(&token.get_login_url())
-			.cookie(parsed_cookie)
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);

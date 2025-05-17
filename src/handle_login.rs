@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 
 use crate::error::Response;
@@ -31,7 +32,7 @@ async fn login(
 
 	// Unauthorized, show the login page
 	let login_page = get_partial::<()>("login", BTreeMap::new(), None)?;
-	Ok(HttpResponse::Ok().body(login_page))
+	Ok(HttpResponse::Ok().content_type(ContentType::html()).body(login_page))
 }
 
 #[cfg(test)]
