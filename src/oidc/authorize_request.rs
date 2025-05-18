@@ -112,10 +112,9 @@ pub mod as_string {
 		serializer: S,
 	) -> Result<S::Ok, S::Error> {
 		use serde::ser::Error;
-		println!("Serializing AuthorizeRequest: {:?}", req);
 		if let Some(value) = req {
 			let json = serde_json::to_string(value).map_err(Error::custom)?;
-			serializer.serialize_str(&json)
+			serializer.serialize_some(&json)
 		} else {
 			serializer.serialize_none()
 		}
@@ -125,9 +124,7 @@ pub mod as_string {
 		deserializer: D,
 	) -> Result<Option<AuthorizeRequest>, D::Error> {
 		use serde::de::Error;
-		println!("Deserializing AuthorizeRequest");
 		let opt_json = Option::<String>::deserialize(deserializer)?;
-		println!("Deserializing AuthorizeRequest : {:?}", opt_json);
 
 		if let Some(json) = &opt_json {
 			serde_json::from_str(&json).map(Some).map_err(Error::custom)

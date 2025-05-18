@@ -27,8 +27,8 @@ pub struct LoginInfo {
 #[post("/login")]
 async fn login_post(
 	req: HttpRequest,
-	form: web::Form<LoginInfo>,
-	login_redirect: web::Query<LoginLinkRedirect>,
+	web::Form(form): web::Form<LoginInfo>,
+	web::Query(login_redirect): web::Query<LoginLinkRedirect>,
 	db: web::Data<crate::Database>,
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
@@ -46,7 +46,7 @@ async fn login_post(
 	// Generate the magic link
 	let link = LoginLinkSecret::new(
 		user.clone(),
-		login_redirect.into_inner().into_opt().await,
+		login_redirect.into_opt().await,
 		&db
 	).await?;
 	let config = CONFIG.read().await;

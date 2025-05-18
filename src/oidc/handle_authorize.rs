@@ -25,15 +25,16 @@ async fn authorize(
 	let Some(browser_session) = browser_session_opt else {
 		let config = CONFIG.read().await;
 		let base_url = config.url_from_request(&req);
-		let target_url = format!("{}/login?{}", base_url, serde_qs::to_string(&auth_req)?);
+		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
+		target_url.set_path("/login");
+		target_url.query_pairs_mut()
+			.append_pair("oidc", &serde_json::to_string(&auth_req)?);
+
 		return Ok(HttpResponse::Found()
-			.append_header(("Location", target_url))
+			.append_header(("Location", target_url.as_str()))
 			.finish());
 	};
 
-	// let oidc_authcode = auth_req
-	// 	.generate_session_code(&db, browser_session.user().clone(), browser_session.code())
-	// 	.await?;
 	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &db).await?;
 
 	// TODO: Check the state with the cookie for CSRF

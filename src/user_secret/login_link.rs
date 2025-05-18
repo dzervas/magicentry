@@ -14,15 +14,15 @@ use crate::{CONFIG, PROXY_QUERY_CODE};
 // This should have been an enum, but bincode (used by reindeer db) doesn't support it
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LoginLinkRedirect {
-	rd: Option<url::Url>,
+	pub rd: Option<url::Url>,
 	#[serde(with = "crate::oidc::authorize_request::as_string", default)]
-	oidc: Option<crate::oidc::AuthorizeRequest>,
+	pub oidc: Option<crate::oidc::AuthorizeRequest>,
 	#[serde(with = "crate::saml::authn_request::as_string", default)]
-	saml: Option<crate::saml::AuthnRequest>,
+	pub saml: Option<crate::saml::AuthnRequest>,
 }
 
 impl LoginLinkRedirect {
-	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &Db) -> Result<url::Url> {
+	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &Db) -> Result<String> {
 		let mut url = self.validate_internal().await?;
 
 		if self.rd.is_some() {
@@ -39,9 +39,14 @@ impl LoginLinkRedirect {
 			url
 				.query_pairs_mut()
 				.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
+			Ok(url.to_string())
+		} else if let Some(oidc) = &self.oidc {
+			Ok(format!("/oidc/authorize?{}", serde_qs::to_string(oidc)?))
+		} else if let Some(saml) = &self.saml {
+			Ok(format!("/saml/sso?{}", serde_qs::to_string(saml)?))
+		} else {
+			Err(AppErrorKind::NoLoginLinkRedirect.into())
 		}
-
-		Ok(url)
 	}
 
 	pub async fn into_opt(self) -> Option<Self> {

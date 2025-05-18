@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;
-use actix_web::{get, web, HttpResponse};
+use actix_web::{get, web, HttpRequest, HttpResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Response};
@@ -28,16 +28,22 @@ pub struct SAMLResponse {
 
 #[get("/saml/sso")]
 pub async fn sso(
-	data: web::Query<SAMLRequest>,
+	req: HttpRequest,
+	web::Query(data): web::Query<SAMLRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>
 ) -> Response {
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
 
 	let Some(browser_session) = browser_session_opt else {
-		// TODO: Implement this properly with a different query param
-		let query = serde_qs::to_string(&data.into_inner())?;
+		let config = CONFIG.read().await;
+		let base_url = config.url_from_request(&req);
+		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
+		target_url.set_path("/login");
+		target_url.query_pairs_mut()
+			.append_pair("saml", &serde_json::to_string(&data)?);
+
 		return Ok(HttpResponse::Found()
-			.append_header(("Location", format!("/login?rd=/saml/sso%3F{}", query)))
+			.append_header(("Location", target_url.as_str()))
 			.finish());
 	};
 

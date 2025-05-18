@@ -27,7 +27,6 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
 		let Some(code) = req.cookie(SESSION_COOKIE) else {
-			println!("No session cookie found");
 			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
 		};
 		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {

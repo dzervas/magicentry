@@ -56,7 +56,8 @@ pub async fn init(db: &Db) -> RS256KeyPair {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::user_secret::LoginLinkSecret;
+	use crate::user_secret::login_link::LoginLinkRedirect;
+use crate::user_secret::LoginLinkSecret;
 	use crate::utils::tests::*;
 
 	use actix_web::cookie::Cookie;
@@ -114,7 +115,20 @@ mod tests {
 		let target = resp.headers().get("Location").unwrap().to_str().unwrap();
 		assert!(target.starts_with("http://localhost:8080/login"));
 
-		let token = LoginLinkSecret::new(user, None, db).await.unwrap();
+		let login_redirect = LoginLinkRedirect {
+			rd: None,
+			saml: None,
+			oidc: Some(AuthorizeRequest {
+				client_id: client_id.to_string(),
+				redirect_uri: redirect_url.to_string(),
+				scope: "openid profile email phone address".to_string(),
+				response_type: "code".to_string(),
+				state: Some(state.to_string()),
+				code_challenge: None,
+				code_challenge_method: None,
+			}),
+		};
+		let token = LoginLinkSecret::new(user, Some(login_redirect), db).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(&token.get_login_url())
@@ -122,25 +136,15 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		println!("Headers: {:?}", resp.headers());
-		assert!(resp
-			.headers()
-			.get("Location")
-			.unwrap()
-			.to_str()
-			.unwrap()
-			.starts_with(redirect_url));
+		let location = resp.headers().get("Location").unwrap().to_str().unwrap();
+		assert!(location.starts_with("/oidc/authorize"));
 
 		let headers = resp.headers().clone();
 		let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 		let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
 
 		let req = actix_test::TestRequest::get()
-			.uri(format!(
-				"/oidc/authorize?client_id={}&redirect_uri={}&scope=openid%20profile%20email%20phone%20address&response_type=code&state={}",
-				client_id,
-				redirect,
-				state
-			).as_str())
+			.uri(location)
 			.cookie(parsed_cookie.clone())
 			.to_request();
 		let resp = actix_test::call_service(&mut app, req).await;
