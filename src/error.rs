@@ -145,6 +145,9 @@ impl ResponseError for Error {
 		#[allow(unused_mut)] // Since it's used during release builds
 		let mut description = self.cause.clone();
 
+		#[cfg(any(debug_assertions, test))]
+		println!("Error: {}", self);
+
 		if status.is_server_error() {
 			log::error!("{}", self);
 
@@ -153,9 +156,6 @@ impl ResponseError for Error {
 				description.clear();
 				description = "Something went very wrong from our end".to_string();
 			}
-
-			#[cfg(debug_assertions)]
-			println!("Error: {}", self);
 		} else if status != StatusCode::NOT_FOUND {
 			log::warn!("{}", self);
 		}

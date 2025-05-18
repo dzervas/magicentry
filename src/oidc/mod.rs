@@ -3,13 +3,15 @@ use reindeer::{Db, Entity};
 
 use crate::config::{ConfigKV, ConfigKeys};
 
+pub mod authorize_request;
+
 pub mod handle_authorize;
 pub mod handle_discover;
 pub mod handle_jwks;
 pub mod handle_token;
 pub mod handle_userinfo;
 
-pub use handle_authorize::AuthorizeRequest;
+pub use authorize_request::AuthorizeRequest;
 
 #[macro_export]
 macro_rules! generate_cors_preflight {

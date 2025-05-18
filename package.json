@@ -4,9 +4,9 @@
   "browserslist": "> 0.5%, last 2 versions, not dead",
   "scripts": {
     "start": "concurrently 'npm:start-web' 'npm:start-e2e'",
-    "test": "cargo test --features kube && concurrently --kill-others 'npm:start-e2e' 'npm:test-e2e'",
+    "test": "cargo test --color always --features kube && concurrently --kill-others 'npm:start-e2e' 'npm:test-e2e'",
     "test-e2e": "hurl --test --jobs 1 ./hurl",
-    "test-server": "cargo test --features e2e-test",
+    "test-server": "cargo test --color always --features e2e-test",
 
     "start-web": "concurrently 'npm:tailwind-dev' 'npm:webpack-dev'",
     "tailwind-dev": "tailwindcss --input static/css/main.css --output static/main.build.css --watch",
@@ -14,7 +14,8 @@
     "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
 
     "start-e2e": "concurrently 'npm:start-server' 'npm:e2e-server'",
-    "start-server": "CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --features e2e-test",
+    "start-server": "RUST_LOG_STYLE=always CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --color always --features e2e-test",
+    "start-test": "RUST_LOG_STYLE=always watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo test --color always --features kube",
     "e2e-server": "http-server hurl -p 8081"
   },
   "devDependencies": {

@@ -12,13 +12,13 @@ use crate::utils::get_partial;
 async fn login(
 	db: web::Data<crate::Database>,
 	browser_session_opt: Option<BrowserSessionSecret>,
-	login_redirect: web::Query<LoginLinkRedirect>,
+	web::Query(login_redirect): web::Query<LoginLinkRedirect>,
 ) -> Response {
 	// Check if the user is already logged in
 	if browser_session_opt.is_some() {
 		// Already authorized, back to the index OR redirect to the service
 		// Make sure that the redirect URL is valid (based on redirect_urls and origins)
-		let Ok(redirect_url) = login_redirect.into_inner().into_redirect_url(browser_session_opt, &db).await else {
+		let Ok(redirect_url) = login_redirect.into_redirect_url(browser_session_opt, &db).await else {
 			// If not, back to index
 			return Ok(HttpResponse::Found()
 				.append_header(("Location", "/"))

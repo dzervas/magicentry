@@ -12,11 +12,12 @@ use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_QUERY_CODE};
 
 // This should have been an enum, but bincode (used by reindeer db) doesn't support it
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LoginLinkRedirect {
 	rd: Option<url::Url>,
-	// TODO: Bincode can't save them flattened and we can't encode them within the field
+	#[serde(with = "crate::oidc::authorize_request::as_string", default)]
 	oidc: Option<crate::oidc::AuthorizeRequest>,
+	#[serde(with = "crate::saml::authn_request::as_string", default)]
 	saml: Option<crate::saml::AuthnRequest>,
 }
 

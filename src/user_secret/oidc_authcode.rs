@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::oidc::handle_authorize::AuthorizeRequest;
+use crate::oidc::authorize_request::AuthorizeRequest;
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
