@@ -3,8 +3,8 @@ use actix_web::{get, web, HttpResponse};
 use log::info;
 
 use crate::error::Response;
-use crate::user_secret::ProxySessionSecret;
-use crate::user_secret::ProxyCodeSecret;
+use crate::secret::ProxySessionSecret;
+use crate::secret::ProxyCodeSecret;
 use crate::{CONFIG, PROXY_SESSION_COOKIE};
 
 /// This endpoint is used to check weather a user is logged in from a proxy
@@ -17,7 +17,7 @@ use crate::{CONFIG, PROXY_SESSION_COOKIE};
 /// so that the cookie can't be used to access other applications.
 ///
 /// In order to use the one-time-code functionality, some setup is required,
-/// documented in https://magicentry.rs/#/installation?id=example-valuesyaml
+/// documented in [the example](https://magicentry.rs/#/installation?id=example-valuesyaml)
 #[get("/auth-url/status")]
 async fn status(
 	db: web::Data<reindeer::Db>,

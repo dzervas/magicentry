@@ -80,7 +80,7 @@ pub mod tests {
 	pub async fn db_connect() -> Db {
 		let db = reindeer::open(&CONFIG.read().await.database_url)
 			.expect("Failed to open reindeer database.");
-		crate::user_secret::register(&db).unwrap();
+		crate::secret::register(&db).unwrap();
 		crate::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 
 		db

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::error::{AppErrorKind, Response};
-use crate::user_secret::OIDCAuthCodeSecret;
+use crate::secret::OIDCAuthCodeSecret;
 use crate::{generate_cors_preflight, CONFIG};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

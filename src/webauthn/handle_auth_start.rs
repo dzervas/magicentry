@@ -5,7 +5,7 @@ use webauthn_rs::prelude::*;
 use crate::error::{AppErrorKind, Response};
 use crate::handle_login_post::LoginInfo;
 use crate::user::User;
-use crate::user_secret::WebAuthnAuthSecret;
+use crate::secret::WebAuthnAuthSecret;
 
 use super::store::PasskeyStore;
 

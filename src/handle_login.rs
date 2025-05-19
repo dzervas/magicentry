@@ -4,8 +4,8 @@ use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 
 use crate::error::Response;
-use crate::user_secret::login_link::LoginLinkRedirect;
-use crate::user_secret::BrowserSessionSecret;
+use crate::secret::login_link::LoginLinkRedirect;
+use crate::secret::BrowserSessionSecret;
 use crate::utils::get_partial;
 
 #[get("/login")]

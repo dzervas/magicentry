@@ -4,7 +4,7 @@ use reindeer::{AutoIncrementEntity, Entity};
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
-use crate::user_secret::WebAuthnRegSecret;
+use crate::secret::WebAuthnRegSecret;
 
 use super::store::PasskeyStore;
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
-use crate::user_secret::WebAuthnAuthSecret;
+use crate::secret::WebAuthnAuthSecret;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthFinishResponse {

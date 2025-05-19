@@ -2,7 +2,7 @@ use actix_web::{post, web, HttpResponse};
 use webauthn_rs::prelude::*;
 
 use crate::error::Response;
-use crate::user_secret::{BrowserSessionSecret, WebAuthnRegSecret};
+use crate::secret::{BrowserSessionSecret, WebAuthnRegSecret};
 
 #[post("/webauthn/register/start")]
 pub async fn reg_start(

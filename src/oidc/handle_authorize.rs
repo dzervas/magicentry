@@ -8,7 +8,7 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use log::info;
 
 use crate::error::{AppErrorKind, Response};
-use crate::user_secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
+use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 use crate::utils::get_partial;
 use crate::{AUTHORIZATION_COOKIE, CONFIG};
 

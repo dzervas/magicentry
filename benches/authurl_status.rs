@@ -4,8 +4,8 @@ use actix_web::dev::ServiceResponse;
 use actix_web::cookie::Cookie;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use magicentry::{CONFIG, PROXY_SESSION_COOKIE};
-use magicentry::user_secret::{BrowserSessionSecret, EmptyMetadata};
-use magicentry::user_secret::proxy_session::ProxySessionSecret;
+use magicentry::secret::{BrowserSessionSecret, EmptyMetadata};
+use magicentry::secret::proxy_session::ProxySessionSecret;
 use magicentry::user::User;
 use magicentry::config::ConfigFile;
 use magicentry::auth_url::{self};
@@ -14,7 +14,7 @@ use reindeer::{Db, Entity};
 pub async fn db_connect() -> Db {
 	let db = reindeer::open(&CONFIG.read().await.database_url)
 		.expect("Failed to open reindeer database.");
-	magicentry::user_secret::register(&db).unwrap();
+	magicentry::secret::register(&db).unwrap();
 	magicentry::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
 
 	db

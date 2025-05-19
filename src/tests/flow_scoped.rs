@@ -1,5 +1,5 @@
-use crate::user_secret::primitive::UserSecretKind;
-use crate::user_secret::proxy_code::ProxyCodeSecretKind;
+use crate::secret::primitive::UserSecretKind;
+use crate::secret::proxy_code::ProxyCodeSecretKind;
 use crate::utils::tests::db_connect;
 use crate::*;
 use actix_web::test::{call_service, TestRequest};

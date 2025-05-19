@@ -6,7 +6,7 @@ use crate::error::Error;
 use crate::error::AppErrorKind;
 use crate::oidc::handle_token::JWTData;
 use crate::user::User;
-use crate::user_secret::MetadataKind;
+use crate::secret::MetadataKind;
 use crate::CONFIG;
 
 

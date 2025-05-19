@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
 use crate::user::User;
-use crate::user_secret::login_link::LoginLinkRedirect;
-use crate::user_secret::LoginLinkSecret;
+use crate::secret::login_link::LoginLinkRedirect;
+use crate::secret::LoginLinkSecret;
 use crate::utils::get_partial;
 use crate::{SmtpTransport, CONFIG};
 

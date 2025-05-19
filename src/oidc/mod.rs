@@ -56,8 +56,8 @@ pub async fn init(db: &Db) -> RS256KeyPair {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::user_secret::login_link::LoginLinkRedirect;
-use crate::user_secret::LoginLinkSecret;
+	use crate::secret::login_link::LoginLinkRedirect;
+use crate::secret::LoginLinkSecret;
 	use crate::utils::tests::*;
 
 	use actix_web::cookie::Cookie;

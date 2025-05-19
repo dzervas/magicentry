@@ -5,7 +5,7 @@ use log::warn;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
-use crate::user_secret::BrowserSessionSecret;
+use crate::secret::BrowserSessionSecret;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogoutRequest {

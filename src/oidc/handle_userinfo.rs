@@ -2,7 +2,7 @@ use actix_web::{get, HttpResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
-use crate::user_secret::OIDCTokenSecret;
+use crate::secret::OIDCTokenSecret;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct UserInfoResponse<'a> {

@@ -3,7 +3,7 @@ use actix_web::{get, web, HttpResponse};
 use log::info;
 
 use crate::error::Response;
-use crate::user_secret::LoginLinkSecret;
+use crate::secret::LoginLinkSecret;
 
 #[get("/login/{magic}")]
 async fn magic_link(

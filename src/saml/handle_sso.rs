@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Response};
 use crate::saml::authn_request::AuthnRequest;
-use crate::user_secret::BrowserSessionSecret;
+use crate::secret::BrowserSessionSecret;
 use crate::utils::get_partial;
 use crate::CONFIG;
 

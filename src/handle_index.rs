@@ -4,7 +4,7 @@ use actix_web::http::header::ContentType;
 use actix_web::{get, HttpResponse};
 
 use crate::error::Response;
-use crate::user_secret::BrowserSessionSecret;
+use crate::secret::BrowserSessionSecret;
 use crate::utils::get_partial;
 use crate::CONFIG;
 
@@ -50,7 +50,7 @@ async fn index(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::user_secret::LoginLinkSecret;
+	use crate::secret::LoginLinkSecret;
 	use crate::utils::tests::*;
 	use crate::{handle_magic_link, SESSION_COOKIE};
 
