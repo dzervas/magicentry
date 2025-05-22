@@ -14,14 +14,14 @@ pub struct LogoutRequest {
 
 #[get("/logout")]
 async fn logout(
-	req: web::Query<LogoutRequest>,
+	web::Query(req): web::Query<LogoutRequest>,
 	db: web::Data<crate::Database>,
 	browser_session: BrowserSessionSecret,
 ) -> Response {
 	browser_session.delete(&db).await?;
 
 	// XXX: Open redirect
-	let target_url = if let Some(target) = &req.into_inner().post_logout_redirect_uri {
+	let target_url = if let Some(target) = &req.post_logout_redirect_uri {
 		urlencoding::decode(&target.clone())
 			.unwrap_or_else(|_| {
 				warn!("Invalid logout redirect URL: {}", &target);

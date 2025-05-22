@@ -1,3 +1,12 @@
+//! This module contains the kuebernetes-specific functionality of magicentry,
+//! which is feature-gated behind the `kube` feature.
+//!
+//! It provides the necessary structures and functions to manage Kubernetes Ingress
+//! resources and their associated services.
+//!
+//! The main entrypoint is the [watch] function, which is ran alongside the main
+//! actix-web server and updates the global config file in the background.
+
 use std::collections::{BTreeMap, HashMap};
 
 use futures::TryStreamExt;
@@ -11,10 +20,26 @@ use crate::error::{AppErrorKind, Result};
 use crate::service::{Service, ServiceAuthUrl};
 use crate::CONFIG;
 
+/// The prefix for all magicentry-related annotations
 const ANNOTATION_PREFIX: &str = "magicentry.rs/";
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// This struct holds the magicentry-specific configuration of a kubernetes
+/// Ingress object, based on its annotations
+///
+/// E.g. `name` is read from the `magicentry.rs/name` annotation
+///
+/// It essentially adds a new [Service] to the [ConfigFile](crate::ConfigFile)
+/// with automatically derived URL, auth-url settings, etc.
+///
+/// Ingress-specific values (e.g. [manage_ingress_nginx](IngressConfig::manage_ingress_nginx))
+/// allows for some implementation-specific behavior
+///
+/// TODO: There should be a way to track kube-generated services to be able to
+/// delete them and avoid updating services defined by the config file
+// TODO: Can we use serde instead of the manual from/to btreemap?
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IngressConfig {
+	pub enable: bool,
 	pub name: String,
 	pub auth_url: bool,
 	pub realms: Vec<String>,
@@ -24,50 +49,12 @@ pub struct IngressConfig {
 }
 
 impl IngressConfig {
-	pub fn from_map(map: &BTreeMap<String, String>) -> Option<Self> {
-		let filtered_map = map
-			.iter()
-			.filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
-			.map(|(k, v)| {
-				(
-					k.replace(ANNOTATION_PREFIX, "").replace("-", "_"),
-					v.as_str(),
-				)
-			})
-			.collect::<HashMap<String, &str>>();
-
-		// TODO: Use the whole service struct
-		Some(Self {
-			name: filtered_map
-				.get("name")
-				.map(|v| v.to_string())
-				.unwrap_or_default(),
-			auth_url: filtered_map
-				.get("auth_url")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
-			realms: filtered_map
-				.get("realms")
-				.map(|v| v.split(",").map(|v| v.to_string()).collect())?,
-			manage_ingress_nginx: filtered_map
-				.get("manage_ingress_nginx")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
-		})
-	}
-
-	pub fn to_map(&self) -> BTreeMap<String, String> {
-		let mut map = BTreeMap::new();
-		map.insert("name".to_string(), self.name.to_string());
-		map.insert("auth_url".to_string(), self.auth_url.to_string());
-		map.insert("realms".to_string(), self.realms.join(",").to_string());
-		map.insert(
-			"manage_ingress_nginx".to_string(),
-			self.manage_ingress_nginx.to_string(),
-		);
-		map
-	}
-
+	/// Takes an ingress reference and creates a new [Service] object
+	/// based on the ingress spec and adds it to the global [static@CONFIG]
+	///
+	/// Due to the global static mutex, the main actix-web code should pick
+	/// up the changes automatically but it might block config reads
+	/// for the duration of the write - should be extremely fast
 	pub async fn process(&self, ingress: &Ingress) -> Result<()> {
 		let no_name = String::new();
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
@@ -117,10 +104,13 @@ impl IngressConfig {
 			} else {
 				None
 			},
+			// TODO: Support OIDC & SAML config
 			oidc: None,
 			saml: None,
 		};
 
+		// Take the write lock at the last possible moment and drop it
+		// as soon as possible to avoid blocking other threads/contexts
 		let mut config = CONFIG.write().await;
 		if config.services.get(name).is_none() {
 			log::info!("Adding service {} to config", name);
@@ -135,32 +125,71 @@ impl IngressConfig {
 
 		Ok(())
 	}
+}
 
-	pub async fn from_ingress(ingress: &Ingress) -> Option<Self> {
-		let annotations = get_ingress_annotations(ingress).await;
-		Self::from_map(&annotations)
+impl From<&BTreeMap<String, String>> for IngressConfig {
+	fn from(value: &BTreeMap<String, String>) -> Self {
+		let filtered_map = value
+			.iter()
+			.filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
+			.map(|(k, v)| {
+				(
+					k.replace(ANNOTATION_PREFIX, "").replace("-", "_"),
+					v.as_str(),
+				)
+			})
+			.collect::<HashMap<String, &str>>();
+
+		Self {
+			enable: filtered_map
+				.get("enable")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
+			name: filtered_map
+				.get("name")
+				.map(|v| v.to_string())
+				.unwrap_or_default(),
+			auth_url: filtered_map
+				.get("auth_url")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
+			realms: filtered_map
+				.get("realms")
+				.map(|v| v.split(",").map(|v| v.to_string()).collect())
+				.unwrap_or_default(),
+			manage_ingress_nginx: filtered_map
+				.get("manage_ingress_nginx")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
+		}
 	}
 }
 
-async fn get_ingress_annotations(ingress: &Ingress) -> BTreeMap<String, String> {
-	ingress
-		.metadata
-		.annotations
-		.as_ref()
-		.unwrap_or(&BTreeMap::new())
-		.iter()
-		.filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
-		.map(|(k, v)| (k.clone(), v.clone()))
-		.collect()
+impl From<&Ingress> for IngressConfig {
+	fn from(ingress: &Ingress) -> Self {
+		let map: &BTreeMap<String, String> = &ingress.metadata.annotations
+			.as_ref()
+			.unwrap_or(&BTreeMap::new())
+			.iter()
+			.filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
+			.map(|(k, v)| (k.clone(), v.clone()))
+			.collect();
+
+		map.into()
+	}
 }
 
+/// Takes an ingress resource, tries to cast it to an IngressConfig
+/// and then process it with the [IngressConfig::process] method
 async fn process_ingress(ingress: &Ingress) {
 	let name = ingress.metadata.name.clone().unwrap_or_default();
-
 	log::debug!("Inspecting ingress resource {}", name);
-	let Some(ingress_config) = IngressConfig::from_ingress(&ingress).await else {
+
+	let ingress_config: IngressConfig = ingress.into();
+	if !ingress_config.enable || ingress_config.name.is_empty() {
+		log::debug!("Ingress {} is disabled", name);
 		return;
-	};
+	}
 
 	log::info!("Discovered ingress {}", name);
 	ingress_config.process(&ingress).await.unwrap_or_else(|e| {
@@ -168,6 +197,11 @@ async fn process_ingress(ingress: &Ingress) {
 	});
 }
 
+/// A kubernetes resource watcher, aimed to watch for ingress resources
+/// and update the global config accordingly
+///
+/// This function is asynchronously ran alongside the main actix-web server
+/// and will update the config file in the background
 pub async fn watch() -> Result<()> {
 	let client = Client::try_default().await?;
 	let ingresses: Api<Ingress> = Api::all(client);

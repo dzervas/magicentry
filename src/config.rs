@@ -1,3 +1,9 @@
+//! This module holds the structs for managing the config file - `config.yaml`
+//! by default
+//!
+//! YAML was chosen because the main target group are devops-adjacent people,
+//! but serde makes sure that we're not married to that choice.
+
 use std::path::Path;
 
 use chrono::Duration;
@@ -9,8 +15,15 @@ use crate::service::Services;
 use crate::user::User;
 use crate::{CONFIG, CONFIG_FILE};
 
+/// The actual, deserialized config data
+///
+/// To see what each field represents check out the [config.sample.yaml](https://github.com/dzervas/magicentry/blob/main/config.sample.yaml) file
+///
+/// TODO: Move the comments from here to the config.sample.yaml so the code
+/// is the source of truth
+// TODO: Generate a validation schema
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ConfigFile {
 	pub database_url: String,
 
@@ -109,6 +122,10 @@ impl Default for ConfigFile {
 }
 
 impl ConfigFile {
+	/// This function returns the base URL that magicentry was accessed from
+	///
+	/// Useful to return correct links for proxied requests that do not abide
+	/// by the [external_url](ConfigFile::external_url) host
 	pub fn url_from_request(&self, request: &actix_web::HttpRequest) -> String {
 		let conn = request.connection_info();
 		let host = conn.host();
@@ -127,14 +144,20 @@ impl ConfigFile {
 		format!("{}://{}{}", scheme, host, path_prefix)
 	}
 
+	/// Read the config file as dictated by the CONFIG_FILE variable
+	/// and replace the current contents
+	///
+	/// Note that live-updating the CONFIG_FILE environment variable
+	/// is **NOT** supported
 	pub async fn reload() -> crate::error::Result<()> {
 		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-		*config =
-			serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
+		*config = serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
 		Ok(())
 	}
 
+	/// Set up a file watcher that fires the [reload](ConfigFile::reload) method so
+	/// that config file changes get automatically picked up
 	pub fn watch() -> PollWatcher {
 		let watcher_config = notify::Config::default()
 			.with_compare_contents(true)
@@ -158,6 +181,8 @@ impl ConfigFile {
 		watcher
 	}
 
+	/// Read the SAML certificate from the [saml_cert_pem_path](ConfigFile::saml_cert_pem_path)
+	/// filepath
 	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_cert_pem_path)?;
 		Ok(data
@@ -167,6 +192,8 @@ impl ConfigFile {
 			.replace("\n", ""))
 	}
 
+	/// Read the SAML private key from the [saml_key_pem_path](ConfigFile::saml_key_pem_path)
+	/// filepath
 	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
 		Ok(data
@@ -177,7 +204,29 @@ impl ConfigFile {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Basic key-value store database schema for some minor config values,
+/// JWT private key for example
+///
+/// Uses the [ConfigKeys] enum for the keys as there should ever be only one
+/// of each type
+#[derive(Entity, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[entity(name = "config", id = "key")]
+pub struct ConfigKV {
+	pub key: ConfigKeys,
+	pub value: Option<String>,
+}
+
+impl ConfigKV {
+	/// Set the provided key to the provided value - overwrites any previous values
+	pub fn set(key: ConfigKeys, value: Option<String>, db: &Db) -> Result<(), reindeer::Error> {
+		let config = Self { key, value };
+
+		config.save(db)
+	}
+}
+
+/// The available keys for the [ConfigKV]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum ConfigKeys {
 	Secret,
@@ -187,20 +236,5 @@ pub enum ConfigKeys {
 impl AsBytes for ConfigKeys {
 	fn as_bytes(&self) -> Vec<u8> {
 		vec![self.clone() as u8]
-	}
-}
-
-#[derive(Entity, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[entity(name = "config", id = "key")]
-pub struct ConfigKV {
-	pub key: ConfigKeys,
-	pub value: Option<String>,
-}
-
-impl ConfigKV {
-	pub fn set(key: ConfigKeys, value: Option<String>, db: &Db) -> Result<(), reindeer::Error> {
-		let config = Self { key, value };
-
-		config.save(db)
 	}
 }

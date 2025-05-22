@@ -1,3 +1,20 @@
+//! The login form submission handler - used to handle the login form
+//! showed by the [handle_login](crate::handle_login) endpoint
+//!
+//! It handles the magic link generation, sending it to the user (email/webhook)
+//! and saving any redirection-related data so that when the user clicks the link,
+//! they can be redirected to the right place - used for auth-url/OIDC/SAML
+//!
+//!
+//!
+//! <span class="warning">
+//! WARNING:
+//! When the <span class="stab">e2e-test</span> feature is enabled,
+//! the magic link will be saved to a file in the `hurl` directory,
+//!
+//! so that it can be used for end-to-end testing purposes
+//! </span>
+
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;
@@ -19,6 +36,7 @@ use crate::{SmtpTransport, CONFIG};
 #[cfg(feature = "e2e-test")]
 use std::io::Write;
 
+/// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {
 	pub email: String,

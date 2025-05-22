@@ -1,3 +1,9 @@
+//! The login page endpoint handler - used to show the login page so that
+//! unauthenticated users can log in using either a login link or webauthn
+//!
+//! If the user is already logged in, they'll get redirected to the index page
+//! or the [LoginLinkRedirect], mainly used to handle auth-url/OIDC/SAML cases
+
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;

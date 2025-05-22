@@ -1,3 +1,7 @@
+//! The index endpoint handler, used to render some basic data that regard the user
+//!
+//! It also shows the services that the user has access to
+
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;
@@ -10,14 +14,8 @@ use crate::CONFIG;
 
 #[get("/")]
 async fn index(
-	browser_session_opt: Option<BrowserSessionSecret>,
+	browser_session: BrowserSessionSecret,
 ) -> Response {
-	let Some(browser_session) = browser_session_opt else {
-		return Ok(HttpResponse::Found()
-			.append_header(("Location", "/login"))
-			.finish());
-	};
-
 	// Render the index page
 	let config = CONFIG.read().await;
 	let mut index_data = BTreeMap::new();
