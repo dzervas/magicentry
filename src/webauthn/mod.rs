@@ -7,7 +7,8 @@ pub mod handle_auth_start;
 pub mod handle_reg_finish;
 pub mod handle_reg_start;
 
-pub const WEBAUTHN_COOKIE: &str = "webauthn_registration";
+pub const WEBAUTHN_AUTH_COOKIE: &str = "webauthn_authentication";
+pub const WEBAUTHN_REG_COOKIE: &str = "webauthn_registration";
 
 pub fn init(title: String, external_url: String) -> WebauthnResult<Webauthn> {
 	let rp_origin = Url::parse(&external_url).expect("Invalid webauthn URL");
