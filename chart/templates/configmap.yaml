@@ -5,6 +5,7 @@ kind: ConfigMap
 metadata:
   name: "{{ .Chart.Name }}-config"
   labels:
-    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    # .Chart.Version makes fluxcd unable to apply the chart
+    chart: "{{ .Chart.Name }}"
 data:
   config.yaml: {{ .Values.config | toYaml | quote }}
