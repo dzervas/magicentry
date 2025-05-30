@@ -9,12 +9,14 @@
         devShells.default = with nixpkgs.legacyPackages.${system}; mkShell {
           packages = [
             cargo
+            rustc
             rustup
             rust-analyzer
             openssl.dev
             pkg-config
 
             cargo-audit
+            cargo-criterion
             gnuplot # For benchmarks
             hurl
           ];

@@ -35,3 +35,6 @@ node_modules
 
 *.pem
 .link.txt
+.npmrc
+dist/
+.astro/
