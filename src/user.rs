@@ -12,17 +12,16 @@ pub struct User {
 }
 
 impl User {
-	pub async fn from_config(email: &str) -> Option<User> {
-		CONFIG
-			.read()
-			.await
-			.users
+	pub async fn from_email(email: &str) -> Option<User> {
+		CONFIG.read().await.users
 			.iter()
 			.find(|u| u.email == email).cloned()
 	}
 
 	pub fn has_any_realm(&self, realms: &[String]) -> bool {
-		self.realms.contains(&"all".to_string()) || self.realms.iter().any(|r| realms.contains(r))
+		self.realms.contains(
+			&"all".to_string()) ||
+			self.realms.iter().any(|r| realms.contains(r))
 	}
 
 	pub fn from_config_blocking(email: &str) -> Option<User> {

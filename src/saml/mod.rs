@@ -5,3 +5,5 @@ pub mod sign_response;
 
 pub mod handle_metadata;
 pub mod handle_sso;
+
+pub use authn_request::AuthnRequest;

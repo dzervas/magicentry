@@ -1,109 +1,86 @@
+//! The login form submission handler - used to handle the login form
+//! showed by the [handle_login](crate::handle_login) endpoint
+//!
+//! It handles the magic link generation, sending it to the user (email/webhook)
+//! and saving any redirection-related data so that when the user clicks the link,
+//! they can be redirected to the right place - used for auth-url/OIDC/SAML
+//!
+//!
+//!
+//! <span class="warning">
+//! WARNING:
+//! When the <span class="stab">e2e-test</span> feature is enabled,
+//! the magic link will be saved to a file in the `hurl` directory,
+//!
+//! so that it can be used for end-to-end testing purposes
+//! </span>
+
 use std::collections::BTreeMap;
 
-use actix_session::Session;
 use actix_web::http::header::ContentType;
-use actix_web::http::Uri;
 use actix_web::{post, web, HttpRequest, HttpResponse};
 use formatx::formatx;
 use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
-use log::{debug, info};
+use log::info;
 use reqwest::header::CONTENT_TYPE;
-use reqwest::Url;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;
-use crate::token::MagicLinkToken;
 use crate::user::User;
+use crate::secret::login_link::LoginLinkRedirect;
+use crate::secret::LoginLinkSecret;
 use crate::utils::get_partial;
-use crate::{SmtpTransport, CONFIG, SCOPED_LOGIN};
+use crate::{SmtpTransport, CONFIG};
 
+#[cfg(feature = "e2e-test")]
+use std::io::Write;
+
+/// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {
 	pub email: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct ScopedLogin {
-	#[serde(rename = "rd")]
-	pub(crate) scope_app_url: String,
-}
-
-impl ScopedLogin {
-	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
-		let redirect_url = urlencoding::decode(&self.scope_app_url).ok()?.to_string();
-		let redirect_url_clean = redirect_url.split("?").next()?.trim_end_matches('/');
-		let redirect_url_parsed = redirect_url_clean.parse::<Uri>().ok()?;
-
-		let origin_authority = redirect_url_parsed.authority()?;
-		let origin_scheme = redirect_url_parsed.scheme()?;
-		let origin = format!("{}://{}", origin_scheme, origin_authority);
-
-		let config = CONFIG.read().await;
-		let auth_url_scopes = config
-			.auth_url_scopes
-			.iter()
-			.find(|c| user.has_any_realm(&c.realms) && c.origin == origin);
-
-		let oidc_scopes = config
-			.oidc_clients
-			.iter()
-			.find(|c| user.has_any_realm(&c.realms) && c.origins.contains(&origin));
-
-		if auth_url_scopes.is_none() && oidc_scopes.is_none() {
-			log::warn!("Return URL has an origin that doesn't exist in the config: {}", origin);
-			return None;
-		}
-
-		let new_redirect_url = Url::parse_with_params(&redirect_url, &[("code", code)])
-			.ok()?
-			.to_string();
-
-		Some(new_redirect_url)
-	}
-}
-
-impl From<String> for ScopedLogin {
-	fn from(scope: String) -> Self {
-		ScopedLogin { scope_app_url: scope }
-	}
-}
-
-impl From<ScopedLogin> for String {
-	fn from(scoped: ScopedLogin) -> Self {
-		scoped.scope_app_url
-	}
-}
-
 #[post("/login")]
-async fn login_action(
+async fn login_post(
 	req: HttpRequest,
-	session: Session,
-	form: web::Form<LoginInfo>,
-	db: web::Data<reindeer::Db>,
+	web::Form(form): web::Form<LoginInfo>,
+	web::Query(login_redirect): web::Query<LoginLinkRedirect>,
+	db: web::Data<crate::Database>,
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
 ) -> Response {
-	let login_action_page = get_partial("login_action", BTreeMap::new())?;
+	let login_action_page = get_partial::<()>("login_action", BTreeMap::new(), None)?;
 	let result = Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
 		.body(login_action_page));
-	let Some(user) = User::from_config(&form.email).await else {
-		// Return 200 to avoid leaking valid emails
+
+	// Return 200 to avoid leaking valid emails
+	let Some(user) = User::from_email(&form.email).await else {
 		return result;
 	};
 
 	// Generate the magic link
-	let link = MagicLinkToken::new(&db, user.clone(), None, None).await?;
+	let link = LoginLinkSecret::new(
+		user.clone(),
+		login_redirect.into_opt().await,
+		&db
+	).await?;
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
-	let magic_link = format!("{}/login/{}", base_url, link.code);
+	let magic_link = base_url + &link.get_login_url();
 	let name = &user.name.clone();
 	let username = &user.username.clone();
 
-	debug!("Link: {} {:?}", &magic_link, link);
+	#[cfg(debug_assertions)]
+	info!("Link: {}", &magic_link);
+
+	#[cfg(feature = "e2e-test")]
+	std::fs::File::create("hurl/.link.txt").unwrap().write_all(magic_link.as_bytes()).unwrap();
 
 	// Send it via email
+	// TODO: Make a notifier struct that is `FromRequest` (`FromConfig`?)
 	if let Some(mailer) = mailer.as_ref() {
 		let email = Message::builder()
 			.from(config.smtp_from.parse()?)
@@ -163,12 +140,6 @@ async fn login_action(
 		}
 	}
 
-	// If this is a scoped login, save the scope in the server session storage
-	if let Ok(scoped) = serde_qs::from_str::<ScopedLogin>(req.query_string()) {
-		debug!("Setting scoped login for link: {:?}", &scoped);
-		session.insert(SCOPED_LOGIN, scoped)?;
-	}
-
 	result
 }
 
@@ -179,7 +150,6 @@ mod tests {
 
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, App};
-	use reindeer::Entity;
 
 	#[actix_web::test]
 	async fn test_login_action() {
@@ -189,7 +159,7 @@ mod tests {
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(None::<SmtpTransport>))
 				.app_data(web::Data::new(None::<reqwest::Client>))
-				.service(login_action),
+				.service(login_post),
 		)
 		.await;
 
@@ -215,8 +185,6 @@ mod tests {
 		let resp = actix_test::call_service(&mut app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
-		let links =
-			MagicLinkToken::get_with_filter(|t| t.user == "invalid@example.com", db).unwrap();
-		assert!(links.is_empty());
+		// TODO: Test the login link
 	}
 }

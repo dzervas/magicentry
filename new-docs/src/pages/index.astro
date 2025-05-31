@@ -1,0 +1,24 @@
+---
+import Layout from "../layouts/Layout.astro";
+import HeroImage from "../../../web/components/HeroImage.astro";
+import FeatureList from "../../../web/components/FeatureList.astro";
+
+const features = [
+	{ icon: "address-book", title: "Robust", text: "Lorem ipsum" }
+];
+---
+<Layout>
+	<HeroImage
+		header="Single Sign-on for human beings"
+		text="An identity provider that your parent A could maintain"
+		image="#"
+
+		primaryText="Get started"
+		primaryLink="#"
+		secondaryText="Speak to Sales"
+		secondaryLink="#"
+	/>
+	<FeatureList
+		features={features}
+	/>
+</Layout>

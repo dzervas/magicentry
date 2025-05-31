@@ -1,34 +1,21 @@
-use actix_session::Session;
 use actix_web::web::Json;
 use actix_web::{post, web, HttpResponse};
 use reindeer::{AutoIncrementEntity, Entity};
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
-use crate::token::WebauthnToken;
+use crate::secret::WebAuthnRegSecret;
 
 use super::store::PasskeyStore;
-use super::WEBAUTHN_COOKIE;
 
 #[post("/webauthn/register/finish")]
 pub async fn reg_finish(
-	session: Session,
-	db: web::Data<reindeer::Db>,
+	reg: WebAuthnRegSecret,
+	db: web::Data<crate::Database>,
 	webauthn: web::Data<Webauthn>,
 	req: Json<RegisterPublicKeyCredential>,
 ) -> Response {
-	// Since we trust the registration token and it holds the user, we treat it as an authentication token as well
-	let reg_state_code = session
-		.remove_as::<String>(WEBAUTHN_COOKIE)
-		.ok_or(AppErrorKind::TokenNotFound)??;
-	let reg_state_token = WebauthnToken::from_code(&db, &reg_state_code).await?;
-	let reg_state = serde_json::from_str(
-		&reg_state_token
-			.metadata
-			.ok_or(AppErrorKind::TokenNotFound)?,
-	)?;
-
-	let sk = webauthn.finish_passkey_registration(&req, &reg_state)?;
+	let sk = webauthn.finish_passkey_registration(&req, reg.metadata())?;
 
 	if !PasskeyStore::get_with_filter(|p| p.passkey.cred_id() == sk.cred_id(), &db)?.is_empty() {
 		return Err(AppErrorKind::PasskeyAlreadyRegistered.into());
@@ -36,7 +23,7 @@ pub async fn reg_finish(
 
 	let passkey = PasskeyStore {
 		id: PasskeyStore::get_next_key(&db)?,
-		user: reg_state_token.user,
+		user: reg.user().clone(),
 		passkey: sk,
 	};
 	passkey.save(&db)?;

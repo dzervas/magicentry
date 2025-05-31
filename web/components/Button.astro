@@ -1,0 +1,11 @@
+---
+interface Props {
+	value: string;
+	isForm?: boolean;
+}
+
+const { value, isForm = false } = Astro.props;
+---
+
+<input type="submit" value={value} data-modal-toggle="successListModal"
+	class="py-2 px-3 text-sm font-medium text-center text-white rounded-lg bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-hidden focus:ring-primary-300 dark:focus:ring-primary-900" />
