@@ -2,6 +2,7 @@
   "name": "magicentry",
   "source": "src/main.css",
   "browserslist": "> 0.5%, last 2 versions, not dead",
+  "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "concurrently 'npm:start-web' 'npm:start-e2e'",
     "test": "cargo test --color always --features kube && concurrently --kill-others 'npm:start-e2e' 'npm:test-e2e'",

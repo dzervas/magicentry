@@ -19,6 +19,8 @@
             cargo-criterion
             gnuplot # For benchmarks
             hurl
+
+            yarn
           ];
         };
       });
