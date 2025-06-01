@@ -66,3 +66,33 @@ impl AuthnRequest {
 		Ok(quick_xml::de::from_str::<Self>(&xml_str)?)
 	}
 }
+
+pub mod as_string {
+	use super::*;
+
+	pub fn serialize<S: serde::Serializer>(
+		req: &Option<AuthnRequest>,
+		serializer: S,
+	) -> std::result::Result<S::Ok, S::Error> {
+		use serde::ser::Error;
+		if let Some(value) = req {
+			let json = serde_json::to_string(value).map_err(Error::custom)?;
+			serializer.serialize_str(&json)
+		} else {
+			serializer.serialize_none()
+		}
+	}
+
+	pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+		deserializer: D,
+	) -> std::result::Result<Option<AuthnRequest>, D::Error> {
+		use serde::de::Error;
+		let opt_json = Option::<String>::deserialize(deserializer)?;
+
+		if let Some(json) = &opt_json {
+			serde_json::from_str(&json).map(Some).map_err(Error::custom)
+		} else {
+			Ok(None)
+		}
+	}
+}

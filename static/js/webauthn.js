@@ -1,8 +1,10 @@
 import { create, get, parseCreationOptionsFromJSON, parseRequestOptionsFromJSON, supported } from "@github/webauthn-json/browser-ponyfill";
 
-document.addEventListener('DOMContentLoaded', function() {
-	if (!supported())
+document.addEventListener('DOMContentLoaded', function () {
+	if (!supported()) {
+		console.log('WebAuthn not supported, disabling Passkey button');
 		return;
+	}
 
 	const register_btn = document.getElementById('webauthn-register');
 	const auth_btn = document.getElementById('webauthn-auth');

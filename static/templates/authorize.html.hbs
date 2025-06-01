@@ -6,7 +6,7 @@
 			Log-in to
 			<span class="text-3xl sm:text-3xl text-gray-400 dark:text-gray-500"
 				style="position: relative; bottom: -2px">{</span>
-			{{ client }}
+			{{ data.client }}
 			<span class="text-3xl sm:text-3xl text-gray-400 dark:text-gray-500"
 				style="position: relative; bottom: -2px">}</span>
 		</h3>
@@ -21,7 +21,7 @@
 						clip-rule="evenodd"></path>
 				</svg>
 				<span class="text-gray-500 dark:text-gray-400">Full Name:</span>
-				<p>{{ name }}</p>
+				<p>{{ data.name }}</p>
 			</li>
 			<li class="flex items-center space-x-2 text-gray-900 dark:text-white">
 				<svg aria-hidden="true" class="shrink-0 w-4 h-4 text-green-400 dark:text-green-500" fill="currentColor"
@@ -31,7 +31,7 @@
 						clip-rule="evenodd"></path>
 				</svg>
 				<span class="text-gray-500 dark:text-gray-400">Username:</span>
-				<p>{{ username }}</p>
+				<p>{{ data.username }}</p>
 			</li>
 			<li class="flex items-center space-x-2 text-gray-900 dark:text-white">
 				<svg aria-hidden="true" class="shrink-0 w-4 h-4 text-green-400 dark:text-green-500" fill="currentColor"
@@ -41,18 +41,18 @@
 						clip-rule="evenodd"></path>
 				</svg>
 				<span class="text-gray-500 dark:text-gray-400">E-Mail:</span>
-				<p>{{ email }}</p>
+				<p>{{ data.email }}</p>
 			</li>
 		</ul>
 		{{#if samlResponseData}}
-			<form method="post" action="{{ samlACS }}" id="SAMLResponseForm">
-				<input type="hidden" name="SAMLResponse" value="{{ samlResponseData }}" />
-				<input type="hidden" name="RelayState" value="{{ samlRelayState }}" />
+			<form method="post" action="{{{ data.samlACS }}}" id="SAMLResponseForm">
+				<input type="hidden" name="SAMLResponse" value="{{ data.samlResponseData }}" />
+				<input type="hidden" name="RelayState" value="{{ data.samlRelayState }}" />
 				<input type="submit" value="Continue" data-modal-toggle="successListModal"
 					class="py-2 px-3 text-sm font-medium text-center text-white rounded-lg bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-hidden focus:ring-primary-300 dark:focus:ring-primary-900" />
 			</form>
 		{{else}}
-			<a href="{{ link }}" type="button" data-modal-toggle="successListModal"
+			<a href="{{{ data.link }}}" type="button" data-modal-toggle="successListModal"
 				class="py-2 px-3 text-sm font-medium text-center text-white rounded-lg bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:outline-hidden focus:ring-primary-300 dark:focus:ring-primary-900">
 				Continue
 			</a>

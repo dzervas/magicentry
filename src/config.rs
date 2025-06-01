@@ -1,3 +1,9 @@
+//! This module holds the structs for managing the config file - `config.yaml`
+//! by default
+//!
+//! YAML was chosen because the main target group are devops-adjacent people,
+//! but serde makes sure that we're not married to that choice.
+
 use std::path::Path;
 
 use chrono::Duration;
@@ -5,11 +11,19 @@ use notify::{PollWatcher, Watcher};
 use reindeer::{AsBytes, Db, Entity};
 use serde::{Deserialize, Serialize};
 
+use crate::service::Services;
 use crate::user::User;
 use crate::{CONFIG, CONFIG_FILE};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
-#[serde(default)]
+/// The actual, deserialized config data
+///
+/// To see what each field represents check out the [config.sample.yaml](https://github.com/dzervas/magicentry/blob/main/config.sample.yaml) file
+///
+/// TODO: Move the comments from here to the config.sample.yaml so the code
+/// is the source of truth
+// TODO: Generate a validation schema
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ConfigFile {
 	pub database_url: String,
 
@@ -31,12 +45,9 @@ pub struct ConfigFile {
 	pub auth_url_name_header: String,
 	pub auth_url_email_header: String,
 	pub auth_url_realms_header: String,
-	pub auth_url_scopes: Vec<crate::auth_url::AuthUrlScope>,
 
-	pub oidc_enable: bool,
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub oidc_code_duration: Duration,
-	pub oidc_clients: Vec<crate::oidc::client::OIDCClient>,
 
 	pub saml_cert_pem_path: String,
 	pub saml_key_pem_path: String,
@@ -55,7 +66,10 @@ pub struct ConfigFile {
 
 	pub webauthn_enable: bool,
 
+	// pub force_https_redirects: bool,
+
 	pub users: Vec<User>,
+	pub services: Services,
 }
 
 impl Default for ConfigFile {
@@ -75,15 +89,12 @@ impl Default for ConfigFile {
 			static_path: "static".to_string(),
 
 			auth_url_enable       : true,
-			auth_url_user_header  : "X-Auth-User".to_string(),
-			auth_url_email_header : "X-Auth-Email".to_string(),
-			auth_url_name_header  : "X-Auth-Name".to_string(),
-			auth_url_realms_header: "X-Auth-Realms".to_string(),
-			auth_url_scopes       : vec![],
+			auth_url_user_header  : "X-Remote-User".to_string(),
+			auth_url_email_header : "X-Remote-Email".to_string(),
+			auth_url_name_header  : "X-Remote-Name".to_string(),
+			auth_url_realms_header: "X-Remote-Realms".to_string(),
 
-			oidc_enable       : true,
 			oidc_code_duration: Duration::try_minutes(1).unwrap(),
-			oidc_clients      : vec![],
 
 			saml_cert_pem_path: "saml_cert.pem".to_string(),
 			saml_key_pem_path : "saml_key.pem".to_string(),
@@ -102,12 +113,19 @@ impl Default for ConfigFile {
 
 			webauthn_enable: true,
 
+			// force_https_redirects: true,
+
 			users: vec![],
+			services: Services(vec![]),
 		}
 	}
 }
 
 impl ConfigFile {
+	/// This function returns the base URL that magicentry was accessed from
+	///
+	/// Useful to return correct links for proxied requests that do not abide
+	/// by the [external_url](ConfigFile::external_url) host
 	pub fn url_from_request(&self, request: &actix_web::HttpRequest) -> String {
 		let conn = request.connection_info();
 		let host = conn.host();
@@ -126,14 +144,20 @@ impl ConfigFile {
 		format!("{}://{}{}", scheme, host, path_prefix)
 	}
 
+	/// Read the config file as dictated by the CONFIG_FILE variable
+	/// and replace the current contents
+	///
+	/// Note that live-updating the CONFIG_FILE environment variable
+	/// is **NOT** supported
 	pub async fn reload() -> crate::error::Result<()> {
 		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-		*config =
-			serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
+		*config = serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
 		Ok(())
 	}
 
+	/// Set up a file watcher that fires the [reload](ConfigFile::reload) method so
+	/// that config file changes get automatically picked up
 	pub fn watch() -> PollWatcher {
 		let watcher_config = notify::Config::default()
 			.with_compare_contents(true)
@@ -157,16 +181,8 @@ impl ConfigFile {
 		watcher
 	}
 
-	pub fn allowed_origins(&self) -> Vec<String> {
-		let mut allowed_origins = vec![];
-
-		for client in &self.oidc_clients {
-			allowed_origins.extend(client.origins.clone());
-		}
-
-		allowed_origins
-	}
-
+	/// Read the SAML certificate from the [saml_cert_pem_path](ConfigFile::saml_cert_pem_path)
+	/// filepath
 	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_cert_pem_path)?;
 		Ok(data
@@ -176,6 +192,8 @@ impl ConfigFile {
 			.replace("\n", ""))
 	}
 
+	/// Read the SAML private key from the [saml_key_pem_path](ConfigFile::saml_key_pem_path)
+	/// filepath
 	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
 		Ok(data
@@ -186,7 +204,29 @@ impl ConfigFile {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+/// Basic key-value store database schema for some minor config values,
+/// JWT private key for example
+///
+/// Uses the [ConfigKeys] enum for the keys as there should ever be only one
+/// of each type
+#[derive(Entity, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[entity(name = "config", id = "key")]
+pub struct ConfigKV {
+	pub key: ConfigKeys,
+	pub value: Option<String>,
+}
+
+impl ConfigKV {
+	/// Set the provided key to the provided value - overwrites any previous values
+	pub fn set(key: ConfigKeys, value: Option<String>, db: &Db) -> Result<(), reindeer::Error> {
+		let config = Self { key, value };
+
+		config.save(db)
+	}
+}
+
+/// The available keys for the [ConfigKV]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum ConfigKeys {
 	Secret,
@@ -196,20 +236,5 @@ pub enum ConfigKeys {
 impl AsBytes for ConfigKeys {
 	fn as_bytes(&self) -> Vec<u8> {
 		vec![self.clone() as u8]
-	}
-}
-
-#[derive(Entity, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[entity(name = "config", id = "key")]
-pub struct ConfigKV {
-	pub key: ConfigKeys,
-	pub value: Option<String>,
-}
-
-impl ConfigKV {
-	pub fn set(key: ConfigKeys, value: Option<String>, db: &Db) -> Result<(), reindeer::Error> {
-		let config = Self { key, value };
-
-		config.save(db)
 	}
 }
