@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import HeroImage from "../components/HeroImage.astro";
 import FeatureList from "../components/FeatureList.astro";
+import Pricing from "../components/Pricing.astro";
 import { BrickWall, ShieldCheck, HeartHandshake, Rabbit, Footprints, ImageUpscale } from '@lucide/astro';
 
 const features = [
@@ -11,6 +12,27 @@ const features = [
 	{ icon: Rabbit, title: "Fast", text: "With single instance being able to handle more than 10k requests per second, be sure that you won't have to spend truckloads to keep the service up" },
 	{ icon: Footprints, title: "Tiny", text: "Who said that you can't have a nice identity provider on your raspberry pi? With Rust excelling at tiny binary sizes and comically small resource usage, we got your back!" },
 	{ icon: ImageUpscale, title: "Scalable", text: "Due to the stateless nature of MagicEntry, you can scale it at your heart's content. Want to handle 10k users per femtosecond? Who are we to stop you?" },
+];
+
+const pricingOptions = [
+	{ name: "El' Cheapo", price: 0, text: "Free forever! No credit card required!", features: [
+		"Up to 5 users",
+		"SAML, OIDC and auth-url protocols",
+		"Unlimited groups",
+		"Unlimited services",
+		"Community support through GitHub Issues",
+	] },
+	{ name: "Professional", price: 10, text: "Perfect for serious self-hosters and small businesses", features: [
+		"Everything from the free plan",
+		"Up to 100 users",
+		"Professional support through E-Mail, Discord or Slack",
+	] },
+	{ name: "Enterprise", price: 120, text: "Perfect for serious self-hosters and small businesses", features: [
+		"Everything from the professional plan",
+		"Unlimited users",
+		"Priority support",
+		"Priority feature requests",
+	] },
 ];
 ---
 <Layout>
@@ -26,5 +48,10 @@ const features = [
 	/>
 	<FeatureList
 		features={features}
+	/>
+	<Pricing
+		title="Pricing"
+		subtitle="There's a plan for everyone!"
+		options={pricingOptions}
 	/>
 </Layout>
