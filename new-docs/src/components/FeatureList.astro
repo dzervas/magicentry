@@ -1,8 +1,8 @@
 ---
-import { Skull } from '@lucide/astro';
+import { type Icon as IconType } from '@lucide/astro';
 
 interface Feature {
-	icon: string;
+	icon: typeof IconType;
 	title: string;
 	text: string;
 }
@@ -28,7 +28,7 @@ const props = Astro.props;
         <div>
           <div class="flex justify-center items-center mb-4 w-10 h-10 rounded-full bg-primary-100 lg:h-12 lg:w-12 dark:bg-primary-900">
             <span class="w-5 h-5 text-primary-600 lg:w-6 lg:h-6 dark:text-primary-300">
-              <Skull />
+              <feat.icon />
             </span>
           </div>
           <h3 class="mb-2 text-xl font-bold dark:text-white">{feat.title}</h3>

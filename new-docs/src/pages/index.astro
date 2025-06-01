@@ -2,9 +2,15 @@
 import Layout from "../layouts/Layout.astro";
 import HeroImage from "../components/HeroImage.astro";
 import FeatureList from "../components/FeatureList.astro";
+import { BrickWall, ShieldCheck, HeartHandshake, Rabbit, Footprints, ImageUpscale } from '@lucide/astro';
 
 const features = [
-	{ icon: "infoaaa", title: "Robust", text: "Lorem ipsum" }
+	{ icon: BrickWall, title: "Robust", text: "Designed to withstand extreme corner cases, MagicEntry is able to avoid unnecessary downtimes with built-in recovery mechanisms, even in the event of a crash" },
+	{ icon: ShieldCheck, title: "Security", text: "With the limited attack surface, continuous security-focused end-to-end tests and the extended use of Rust's typesystem, you can rest assured that no nasty CVEs will creep up on you" },
+	{ icon: HeartHandshake, title: "Easy to use", text: "With extensive docs, nice UI and ergonomic configuration, we make sure that ease of use & maintenance is a first class citizen" },
+	{ icon: Rabbit, title: "Fast", text: "With single instance being able to handle more than 10k requests per second, be sure that you won't have to spend truckloads to keep the service up" },
+	{ icon: Footprints, title: "Tiny", text: "Who said that you can't have a nice identity provider on your raspberry pi? With Rust excelling at tiny binary sizes and comically small resource usage, we got your back!" },
+	{ icon: ImageUpscale, title: "Scalable", text: "Due to the stateless nature of MagicEntry, you can scale it at your heart's content. Want to handle 10k users per femtosecond? Who are we to stop you?" },
 ];
 ---
 <Layout>
