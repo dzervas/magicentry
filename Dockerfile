@@ -4,8 +4,8 @@ WORKDIR /usr/src/app
 
 COPY static static
 COPY *.js *.json ./
-RUN npm ci
-RUN npm run build
+RUN yarn install --frozen-lockfile
+RUN yarn build
 
 FROM --platform=$BUILDPLATFORM rust:1 AS builder
 WORKDIR /app
