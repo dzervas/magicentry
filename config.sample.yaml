@@ -109,3 +109,11 @@ services:
       # OIDC redirect URLs
       redirect_urls:
         - https://openidconnect.net/callback
+
+    # SAML configuration (optional)
+    saml:
+      # The entity ID that will be used by the service
+      entity_id: example
+      # SAML redirect URLs
+      redirect_urls:
+        - https://openidconnect.net/

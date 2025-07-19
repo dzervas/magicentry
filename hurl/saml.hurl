@@ -22,7 +22,7 @@ GET http://localhost:8080/saml/sso
 [Cookies]
 session_id: {{session}}
 [Query]
-request: asdf
+request: example
 HTTP 200
 [Captures]
 authcode: regex "code=(me_oidc_authcode_\\w+)&"
