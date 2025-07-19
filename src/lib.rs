@@ -100,7 +100,7 @@ pub const PROXY_SESSION_COOKIE: &str = "magicentry_session_id";
 /// String size of the generated secrets -
 /// recommended to be at least 32 but under 128 (entropy is not free)
 pub const RANDOM_STRING_LEN: usize = 32;
-// The name of the cookie to store a normal, global browser session
+/// The name of the cookie to store a normal, global browser session
 pub const SESSION_COOKIE: &str = "session_id";
 
 /// The type of the database, use it instead of the concrete type

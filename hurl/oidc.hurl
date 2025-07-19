@@ -63,6 +63,8 @@ jsonpath "$.preferred_username" == "valid"
 jsonpath "$.email_verified" == true
 
 # Test the authorization redirect
+# Clear the cookies: https://github.com/Orange-OpenSource/hurl/discussions/1740#discussioncomment-6386769
+# @cookie_storage_clear
 GET http://localhost:8080/oidc/authorize
 [Options]
 variable: redirect=https://openidconnect.net/callback

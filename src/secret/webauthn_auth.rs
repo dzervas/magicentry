@@ -1,4 +1,4 @@
-use actix_web::cookie::Cookie;
+use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use reindeer::Db;
 use serde::{Deserialize, Serialize};
@@ -43,10 +43,21 @@ impl actix_web::FromRequest for WebAuthnAuthSecret {
 
 impl Into<Cookie<'_>> for WebAuthnAuthSecret {
 	fn into(self) -> Cookie<'static> {
-		// TODO: Unset the cookie on error
-		Cookie::new(
+		Cookie::build(
 			WEBAUTHN_AUTH_COOKIE,
 			self.code().to_str_that_i_wont_print().to_owned(),
 		)
+		.http_only(true)
+		.same_site(SameSite::Lax)
+		.path("/")
+		.finish()
+	}
+}
+
+impl WebAuthnAuthSecret {
+	pub fn unset_cookie() -> Cookie<'static> {
+		let mut cookie: Cookie<'_> = Cookie::new(WEBAUTHN_AUTH_COOKIE, "");
+		cookie.make_removal();
+		cookie
 	}
 }

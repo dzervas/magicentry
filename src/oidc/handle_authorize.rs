@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use actix_web::cookie::Cookie;
+use actix_web::cookie::{Cookie, SameSite};
 use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
 use actix_web::HttpRequest;
@@ -60,9 +60,15 @@ async fn authorize(
 	authorize_data.insert("link", redirect_url.clone());
 	let authorize_page = get_partial::<()>("authorize", authorize_data, None)?;
 
+	let cookie = Cookie::build(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)?)
+		.http_only(true)
+		.same_site(SameSite::Lax)
+		.path("/")
+		.finish();
+
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
-		.cookie(Cookie::new(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)?))
+		.cookie(cookie)
 		.body(authorize_page))
 	// Either send to ?code=<code>&state=<state>
 	// TODO: Or send to ?error=<error>&error_description=<error_description>&state=<state>

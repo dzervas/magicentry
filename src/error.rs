@@ -6,6 +6,7 @@ use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error as DeriveError};
 use reqwest::header::ToStrError;
 
+use crate::secret::{BrowserSessionSecret, WebAuthnAuthSecret, WebAuthnRegSecret};
 use crate::utils::get_partial;
 
 pub type Response = std::result::Result<HttpResponse, Error>;
@@ -164,6 +165,9 @@ impl ResponseError for Error {
 			|| self.app_error == Some(AppErrorKind::NotLoggedIn)
 		{
 			HttpResponse::build(status)
+				.cookie(BrowserSessionSecret::unset_cookie())
+				.cookie(WebAuthnRegSecret::unset_cookie())
+				.cookie(WebAuthnAuthSecret::unset_cookie())
 				.append_header((header::LOCATION, "/login"))
 				.finish()
 		} else {

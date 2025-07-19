@@ -46,7 +46,6 @@ async fn status(
 	} else {
 		let mut remove_cookie = Cookie::new(PROXY_SESSION_COOKIE, "");
 		remove_cookie.make_removal();
-		remove_cookie.set_http_only(true);
 
 		return Ok(HttpResponse::Unauthorized()
 			.cookie(remove_cookie)
