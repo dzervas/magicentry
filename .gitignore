@@ -34,3 +34,8 @@ node_modules
 /recipe.json
 
 *.pem
+.link.txt
+.npmrc
+dist/
+.astro/
+.aider*

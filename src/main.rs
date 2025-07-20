@@ -1,9 +1,7 @@
-use magicentry::config::{ConfigFile, ConfigKV, ConfigKeys};
+#![forbid(unsafe_code)]
+use magicentry::config::ConfigFile;
 pub use magicentry::*;
 
-use actix_session::storage::CookieSessionStore;
-use actix_session::SessionMiddleware;
-use actix_web::cookie::{Key, SameSite};
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::extractors::basic;
@@ -17,6 +15,10 @@ use tokio::select;
 pub async fn main() -> std::io::Result<()> {
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
+
+	#[cfg(feature = "e2e-test")]
+	log::warn!("Running in E2E Tests mode, all magic links will written to disk in the `.link.txt` file.");
+
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 
@@ -25,12 +27,6 @@ pub async fn main() -> std::io::Result<()> {
 		.expect("Failed to load config file");
 
 	let config = CONFIG.read().await;
-	let cookie_duration = config
-		.session_duration
-		.clone()
-		.to_std()
-		.expect("Couldn't parse session_duration");
-	let oidc_enable = config.oidc_enable;
 	let webauthn_enable = config.webauthn_enable;
 	let listen_host = config.listen_host.clone();
 	let listen_port = config.listen_port;
@@ -39,26 +35,9 @@ pub async fn main() -> std::io::Result<()> {
 
 	let db = reindeer::open(config.database_url.clone().as_str())
 		.expect("Failed to open reindeer database.");
+	secret::register(&db).unwrap();
 	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-	token::register_token_kind(&db).expect("Failed to register token kinds");
 	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
-
-	let secret = if let Ok(Some(secret_kv)) = ConfigKV::get(&ConfigKeys::Secret, &db) {
-		let secret = secret_kv
-			.value
-			.expect("Failed to load secret from database");
-		let master = hex::decode(secret)
-			.expect("Failed to decode secret - is something wrong with the database?");
-		Key::from(&master)
-	} else {
-		let key = Key::generate();
-		let master = hex::encode(key.master());
-
-		ConfigKV::set(ConfigKeys::Secret, Some(master), &db)
-			.expect("Unable to set secret in the database");
-
-		key
-	};
 
 	// Mailer setup
 	let mailer: Option<SmtpTransport> = if config.smtp_enable {
@@ -95,52 +74,35 @@ pub async fn main() -> std::io::Result<()> {
 
 			// Auth routes
 			.service(handle_index::index)
-			.service(handle_login_page::login_page)
-			.service(handle_login_action::login_action)
-			.service(handle_login_link::login_link)
+			.service(handle_login::login)
+			.service(handle_login_post::login_post)
+			.service(handle_magic_link::magic_link)
 			.service(handle_logout::logout)
 			.service(handle_static::static_files)
 			.service(handle_static::favicon)
 
+			// Auth URL routes
 			.service(auth_url::handle_status::status)
 
+			// SAML routes
+			.service(saml::handle_metadata::metadata)
+			.service(saml::handle_sso::sso)
+
+			// OIDC routes
+			.app_data(web::Data::new(oidc_key.clone()))
+			.service(oidc::handle_discover::discover)
+			.service(oidc::handle_discover::discover_preflight)
+			.service(oidc::handle_authorize::authorize_get)
+			.service(oidc::handle_authorize::authorize_post)
+			.service(oidc::handle_token::token)
+			.service(oidc::handle_token::token_preflight)
+			.service(oidc::handle_jwks::jwks)
+			.service(oidc::handle_userinfo::userinfo)
+			// Handle oauth discovery too
+			.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent())
+
 			// Middleware
-			.wrap(Logger::default())
-			.wrap(
-				SessionMiddleware::builder(
-					CookieSessionStore::default(),
-					secret.clone()
-				)
-				.cookie_same_site(SameSite::Lax)
-				.session_lifecycle(
-					actix_session::config::PersistentSession::default()
-						.session_ttl(
-							actix_web::cookie::time::Duration::try_from(cookie_duration)
-							.expect("Couldn't set session_ttl - something is wrong with session_duration"))
-				)
-				.build());
-
-		// TODO: Config enable SAML
-		if true {
-			app = app
-				.service(saml::handle_metadata::metadata)
-				.service(saml::handle_sso::sso);
-		}
-
-		if oidc_enable {
-			app = app
-				.app_data(web::Data::new(oidc_key.clone()))
-				.service(oidc::handle_discover::discover)
-				.service(oidc::handle_discover::discover_preflight)
-				.service(oidc::handle_authorize::authorize_get)
-				.service(oidc::handle_authorize::authorize_post)
-				.service(oidc::handle_token::token)
-				.service(oidc::handle_token::token_preflight)
-				.service(oidc::handle_jwks::jwks)
-				.service(oidc::handle_userinfo::userinfo)
-				// Handle oauth discovery too
-				.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent());
-		}
+			.wrap(Logger::default());
 
 		if webauthn_enable {
 			let webauthn = webauthn::init(title.clone(), external_url.clone())
@@ -155,6 +117,13 @@ pub async fn main() -> std::io::Result<()> {
 		}
 
 		app
+	})
+	.workers(if cfg!(debug_assertions) || cfg!(test) || cfg!(feature = "e2e-test") {
+		1
+	} else {
+		std::thread::available_parallelism()
+			.map(|n| n.get())
+			.unwrap_or(2)
 	})
 	.bind(format!("{}:{}", listen_host, listen_port))
 	.unwrap()

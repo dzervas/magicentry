@@ -1,17 +1,12 @@
 use std::collections::BTreeMap;
 
-use actix_session::Session;
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
-use reindeer::Db;
 
 use crate::error::{AppErrorKind, Result};
-use crate::handle_login_action::ScopedLogin;
-use crate::oidc::handle_authorize::AuthorizeRequest;
-use crate::token::{ProxyCookieToken, SessionToken};
-use crate::{AUTHORIZATION_COOKIE, CONFIG, RANDOM_STRING_LEN, SCOPED_LOGIN, TEMPLATES};
+use crate::{CONFIG, RANDOM_STRING_LEN, TEMPLATES};
 
-pub fn get_partial(name: &str, mut data: BTreeMap<&str, String>) -> Result<String> {
+pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<T>) -> Result<String> {
 	let config = CONFIG.try_read()?;
 	let path_prefix = if config.path_prefix.ends_with('/') {
 		&config.path_prefix[..config.path_prefix.len() - 1]
@@ -19,12 +14,17 @@ pub fn get_partial(name: &str, mut data: BTreeMap<&str, String>) -> Result<Strin
 		&config.path_prefix
 	};
 
-	// TODO: Serialize the whole CONFIG
 	data.insert("title", config.title.clone());
 	data.insert("path_prefix", path_prefix.to_string());
 	drop(config);
 
-	let result = TEMPLATES.render(name, &data)?;
+	let json_data = serde_json::json!({
+		"data": data,
+		"state": obj,
+	});
+
+	let ctx = handlebars::Context::from(json_data);
+	let result = TEMPLATES.render_with_context(name, &ctx)?;
 
 	Ok(result.clone())
 }
@@ -67,46 +67,6 @@ pub fn random_string() -> String {
 	hex::encode(buffer)
 }
 
-pub async fn get_post_login_location(
-	db: &Db,
-	session: &Session,
-	user_session: &SessionToken,
-) -> Result<String> {
-	let oidc_authorize_req_opt = session.remove_as::<AuthorizeRequest>(AUTHORIZATION_COOKIE);
-	let scoped_login_opt = session.remove_as::<ScopedLogin>(SCOPED_LOGIN);
-
-	if let Some(Ok(oidc_auth_req)) = oidc_authorize_req_opt {
-		// let oidc_code = Token::new(&db, TokenKind::OIDCCode, &user, Some(user_session.code), Some(String::try_from(oidc_auth_req)?)).await?.code;
-		let oidc_code = oidc_auth_req
-			.generate_session_code(db, user_session.user.clone(), user_session.code.clone())
-			.await?
-			.code;
-		let redirect_url = oidc_auth_req
-			.get_redirect_url(&oidc_code, &user_session.user)
-			.await
-			.ok_or(AppErrorKind::InvalidRedirectUri)?;
-		log::info!("Redirecting to client {}", &oidc_auth_req.client_id);
-		Ok(redirect_url)
-	} else if let Some(Ok(scoped_login)) = scoped_login_opt {
-		let scoped_code = ProxyCookieToken::new(
-			db,
-			user_session.user.clone(),
-			Some(user_session.code.clone()),
-			Some(scoped_login.clone().into()),
-		)
-		.await?
-		.code;
-		let redirect_url = scoped_login
-			.get_redirect_url(&scoped_code, &user_session.user)
-			.await
-			.ok_or(AppErrorKind::InvalidRedirectUri)?;
-		log::info!("Redirecting to scope {}", &scoped_login.scope_app_url);
-		Ok(redirect_url)
-	} else {
-		Ok("/".to_string())
-	}
-}
-
 #[cfg(test)]
 pub mod tests {
 	use reindeer::Db;
@@ -120,8 +80,8 @@ pub mod tests {
 	pub async fn db_connect() -> Db {
 		let db = reindeer::open(&CONFIG.read().await.database_url)
 			.expect("Failed to open reindeer database.");
+		crate::secret::register(&db).unwrap();
 		crate::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-		crate::token::register_token_kind(&db).expect("Failed to register token kinds");
 
 		db
 	}
