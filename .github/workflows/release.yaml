@@ -27,7 +27,7 @@ jobs:
       contents: write
     outputs:
       app: ${{ steps.new_app.outputs.new_version }}
-      new_ref: ${{ steps.commit.outputs.commit_hash }}
+      new_ref: ${{ steps.commit.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,12 +51,14 @@ jobs:
 
       - name: Commit changes
         id: commit
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: iarekylew00t/verified-bot-commit@v1
         with:
-          branch: main
-          commit_message: Bump version to ${{ steps.new_app.outputs.new_version }}
-          file_pattern: Cargo.toml Cargo.lock chart/Chart.yaml
-          commit_options: --no-verify --signoff
+          files: |
+            Cargo.toml
+            Cargo.lock
+            chart/Chart.yaml
+          message: Bump version to ${{ steps.new_app.outputs.new_version }}
+          if-no-commit: error
 
   build:
     runs-on: ubuntu-latest
