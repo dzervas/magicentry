@@ -105,6 +105,7 @@ config:
 
   link_duration: 1h
   session_duration: 1mon
+  oidc_code_duration: 1m
 
   title: MagicEntry
 
@@ -113,20 +114,6 @@ config:
   auth_url_name_header: X-Auth-Name
   auth_url_email_header: X-Auth-Email
   auth_url_realms_header: X-Auth-Realms
-  auth_url_scopes: []
-  #   - origin: http://localhost:8080
-  #     realms:
-  #       - example
-
-  oidc_enable: false
-  oidc_code_duration: 1m
-  oidc_clients: []
-    # - id: my_client
-    #   secret: my_secret
-    #   redirect_uris:
-    #     - https://openidconnect.net/callback
-    #   realms:
-    #     - example
 
   smtp_enable: false
   # For the URL scheme options see https://docs.rs/lettre/latest/lettre/transport/smtp/struct.AsyncSmtpTransport.html#method.from_url
@@ -142,6 +129,25 @@ config:
   request_content_type: application/x-www-form-urlencoded
 
   webauthn_enable: true
+
+  services: []
+    # - name: example
+    #   url: https://mysvc.example.com
+    #   realms:
+    #     - example
+    #   auth_url:
+    #     origins:
+    #       - https://mysvc.example.com
+    #   valid_origins:
+    #   oidc:
+    #     client_id: my_client
+    #     client_secret: my_secret
+    #     redirect_urls:
+    #       - https://mysvc.example.com/callback
+    #   saml:
+    #     entity_id: example
+    #     redirect_urls:
+    #       - https://mysvc.example.com
 
   users: []
     # - username: valid
