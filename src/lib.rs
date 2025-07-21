@@ -94,7 +94,7 @@ pub const AUTHORIZATION_COOKIE: &str = "oidc_authorization";
 pub const PROXY_QUERY_CODE: &str = "magicentry_code";
 /// The header that the proxy sends to the auth-url endpoint that includes
 /// the original URL - used to get the [PROXY_QUERY_CODE]
-pub const PROXY_ORIGIN_HEADER: &str = "x-original-uri"; // Is it X-Original-Uri or X-Original-Url or X-Forwarded-Host or something else?
+pub const PROXY_ORIGIN_HEADER: &str = "X-Original-URL"; // Works for ingress-nginx, what about the rest?
 /// The name of the cookie used to store a long-lived session under a different domain (proxied) - for [auth_url] usage
 pub const PROXY_SESSION_COOKIE: &str = "magicentry_session_id";
 /// String size of the generated secrets -

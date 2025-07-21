@@ -96,21 +96,12 @@ pub async fn token(
 
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
-		// Client secret is not required and only the request origin should be checked
+		// Client id & secret is not required and only the request origin should be checked
 		info!("Responding to PCRE request for client {}", service.name);
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
 		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
-
-		if oidc.client_id != token_req.client_id.clone().unwrap_or_default() {
-			return Err(AppErrorKind::InvalidClientID.into());
-		}
-
-		// TODO: We require a client_secret, does that cause any issues?
-		if oidc.client_secret != token_req.client_secret.clone().unwrap_or_default() {
-			return Err(AppErrorKind::InvalidClientSecret.into());
-		}
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(AppErrorKind::InvalidCodeVerifier.into());
