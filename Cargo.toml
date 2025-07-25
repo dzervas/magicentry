@@ -60,7 +60,7 @@ k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
 actix-web-httpauth = "0.8"
 flate2 = "1.1"
 base64 = "0.22"
-quick-xml = { version = "0.37", features = ["async-tokio", "serialize"] }
+quick-xml = { version = "0.38", features = ["async-tokio", "serialize"] }
 rsa = { version = "0.9", features = ["sha2"] }
 
 [dev-dependencies]
