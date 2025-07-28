@@ -7,10 +7,17 @@
   },
   "license": "GPL-3.0-or-later",
   "dependencies": {
+    "@astrojs/react": "^4.3.0",
+    "@chakra-ui/react": "^3.19.1",
+    "@emotion/react": "^11.14.0",
     "@lucide/astro": "0",
     "@tailwindcss/vite": "4",
+    "@types/react": "^19.1.6",
+    "@types/react-dom": "^19.1.5",
     "astro": "5",
     "flowbite": "3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "tailwindcss": "4",
     "typescript": "5"
   }

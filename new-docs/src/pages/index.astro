@@ -34,6 +34,8 @@ const pricingOptions = [
 		"Priority feature requests",
 	] },
 ];
+import ChakraLayout from "../layouts/ChakraLayout.jsx";
+import { Button, HStack } from "@chakra-ui/react"
 ---
 <Layout>
 	<HeroImage
@@ -49,9 +51,17 @@ const pricingOptions = [
 	<FeatureList
 		features={features}
 	/>
-	<Pricing
-		title="Pricing"
-		subtitle="There's a plan for everyone!"
-		options={pricingOptions}
-	/>
+	<ChakraLayout>
+		<HStack>
+			<Button>Click me</Button>
+			<Button>Click me</Button>
+		</HStack>
+	</ChakraLayout>
+	{import.meta.env.DEV &&
+		<Pricing
+			title="Pricing"
+			subtitle="There's a plan for everyone!"
+			options={pricingOptions}
+		/>
+	}
 </Layout>

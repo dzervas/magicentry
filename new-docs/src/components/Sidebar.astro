@@ -1,0 +1,62 @@
+---
+// https://flowbite.com/blocks/application/sidenav/
+import { ChevronDown, Menu, type Icon as IconType } from '@lucide/astro';
+
+interface Section {
+  icon: typeof IconType;
+  name: string;
+  link: string;
+}
+
+interface SubSection {
+  icon: typeof IconType;
+  name: string;
+  sections: Section[]
+}
+
+interface Props {
+  sections: (Section|SubSection)[];
+}
+
+const props = Astro.props;
+---
+<button data-drawer-target="default-sidebar" data-drawer-toggle="default-sidebar" aria-controls="default-sidebar" type="button" class="inline-flex items-center p-2 mt-2 ml-3 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
+  <span class="sr-only">Open sidebar</span>
+  <span class="w-6 h-6">
+    <Menu />
+  </span>
+</button>
+
+<aside id="default-sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0" aria-label="Sidenav">
+  <div class="overflow-y-auto py-5 px-3 h-full bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+    <ul class="space-y-2">
+      {props.sections.map(section => (section.hasOwnProperty("link")) ?
+        <li>
+          <a href={(section as Section).link} class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+            <span class="w-6 h-6 text-gray-400 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white">
+              <section.icon />
+            </span>
+            <span class="ml-3">{section.name}</span>
+          </a>
+        </li>
+      :
+      <li>
+        <button type="button" class="flex items-center p-2 w-full text-base font-normal text-gray-900 rounded-lg transition duration-75 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700" aria-controls="dropdown-pages" data-collapse-toggle="dropdown-pages">
+          <span class="flex-shrink-0 w-6 h-6 text-gray-400 transition duration-75 group-hover:text-gray-900 dark:text-gray-400 dark:group-hover:text-white">
+            <section.icon />
+          </span>
+          <span class="flex-1 ml-3 text-left whitespace-nowrap">{section.name}</span>
+          <span class="w-6 h-6"><ChevronDown /></span>
+        </button>
+        <ul id="dropdown-pages" class="hidden py-2 space-y-2">
+          {(section as SubSection).sections.map(sub => (
+            <li>
+              <a href={sub.link} class="flex items-center p-2 pl-11 w-full text-base font-normal text-gray-900 rounded-lg transition duration-75 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">{sub.name}</a>
+            </li>
+          ))}
+        </ul>
+      </li>
+      )}
+    </ul>
+  </div>
+</aside>
