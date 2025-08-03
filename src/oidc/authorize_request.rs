@@ -10,6 +10,7 @@ use crate::secret::MetadataKind;
 use crate::CONFIG;
 
 
+/// Implementation of https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuthorizeRequest {
 	pub scope: String,
@@ -19,6 +20,10 @@ pub struct AuthorizeRequest {
 	pub state: Option<String>,
 	pub code_challenge: Option<String>,
 	pub code_challenge_method: Option<String>,
+	// String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
+	// The value is passed through unmodified from the Authentication Request to the ID Token.
+	// Sufficient entropy MUST be present in the nonce values used to prevent attackers from guessing values.
+	pub nonce: Option<String>,
 }
 
 impl AuthorizeRequest {
@@ -66,7 +71,7 @@ impl AuthorizeRequest {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
-			..JWTData::new(url).await
+			..JWTData::new(url, self.nonce.clone()).await
 		};
 		debug!("JWT Data: {:?}", jwt_data);
 

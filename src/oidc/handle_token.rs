@@ -30,6 +30,7 @@ pub struct TokenResponse {
 	pub refresh_token: Option<String>,
 }
 
+/// Implementation of https://openid.net/specs/openid-connect-core-1_0.html#IDToken
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct JWTData {
 	#[serde(rename = "sub")]
@@ -41,10 +42,20 @@ pub struct JWTData {
 	#[serde(rename = "exp")]
 	pub expires_at: u64,
 	pub iat: u64,
+
+	/// String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
+	/// The value is passed through unmodified from the Authentication Request to the ID Token.
+	/// If present in the ID Token, Clients MUST verify that the nonce Claim Value is equal to
+	/// the value of the nonce parameter sent in the Authentication Request.
+	/// If present in the Authentication Request, Authorization Servers MUST include a nonce Claim
+	/// in the ID Token with the Claim Value being the nonce value sent in the Authentication Request.
+	/// Authorization Servers SHOULD perform no other processing on nonce values used.
+	/// The nonce value is a case-sensitive string.
+	pub nonce: Option<String>,
 }
 
 impl JWTData {
-	pub async fn new(base_url: String) -> Self {
+	pub async fn new(base_url: String, nonce: Option<String>) -> Self {
 		let config = CONFIG.read().await;
 		let expiry = Utc::now() + config.session_duration;
 		JWTData {
@@ -53,6 +64,7 @@ impl JWTData {
 			from_url: base_url,
 			expires_at: expiry.timestamp() as u64,
 			iat: Utc::now().timestamp() as u64,
+			nonce,
 		}
 	}
 }

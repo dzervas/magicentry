@@ -12,7 +12,7 @@
             rustc
             rustup
             rust-analyzer
-            openssl.dev
+            openssl.dev perl
             pkg-config
 
             cargo-audit

@@ -126,6 +126,7 @@ use crate::secret::LoginLinkSecret;
 				state: Some(state.to_string()),
 				code_challenge: None,
 				code_challenge_method: None,
+				nonce: None,
 			}),
 		};
 		let token = LoginLinkSecret::new(user, Some(login_redirect), db).await.unwrap();
