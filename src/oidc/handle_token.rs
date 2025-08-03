@@ -52,6 +52,13 @@ pub struct JWTData {
 	/// Authorization Servers SHOULD perform no other processing on nonce values used.
 	/// The nonce value is a case-sensitive string.
 	pub nonce: Option<String>,
+
+	// Additional claims
+	pub name: String,
+	pub nickname: String,
+	pub email: String,
+	pub email_verified: bool,
+	pub preferred_username: String,
 }
 
 impl JWTData {
@@ -65,6 +72,12 @@ impl JWTData {
 			expires_at: expiry.timestamp() as u64,
 			iat: Utc::now().timestamp() as u64,
 			nonce,
+
+			name: String::default(),
+			nickname: String::default(),
+			email: String::default(),
+			email_verified: true,
+			preferred_username: String::default(),
 		}
 	}
 }

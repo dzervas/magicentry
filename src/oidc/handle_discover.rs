@@ -51,7 +51,7 @@ impl<'a> Discovery<'a> {
 			id_token_signing_alg_values_supported: vec!["RS256"],
 			userinfo_signing_alg_values_supported: vec!["none"],
 			token_endpoint_auth_methods_supported: vec!["client_secret_post", "client_secret_basic"],
-			claims_supported: vec!["sub", "email", "preferred_username", "name"],
+			claims_supported: vec!["sub", "email", "preferred_username", "name", "nickname", "email_verified"],
 
 			// Pairwise would require a different username per client, too much hassle
 			subject_types_supported: vec!["public"],
