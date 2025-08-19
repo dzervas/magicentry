@@ -1,5 +1,5 @@
 # Apart from oidc_clients and users, the following are the default values
-# To create a new config, just set the `users` and any other settings you want to change
+# To create a new config, just set the `users` (or point to `users_file`) and any other settings you want to change
 database_url: database.db
 
 # Host that the server will listen on
@@ -63,23 +63,14 @@ request_content_type: application/x-www-form-urlencoded
 webauthn_enable: true
 
 # List of the users that can authenticate using the service
-users:
-  - username: valid
-    name: Valid User
-    email: valid@example.com
-    realms:
-      - example
-  - username: integration
-    email: valid-integration@example.com
-    name: Integration User
-    realms:
-      - example
-      - public
-  - username: admin
-    email: admin@example.com
-    name: Admin User
-    realms:
-      - all # `all` is a special realm that gives access to all services
+# You can either list them here or load them from another file using `users_file`
+users_file: users.sample.yaml
+# users:
+#   - username: valid
+#     name: Valid User
+#     email: valid@example.com
+#     realms:
+#       - example
 
 # Services that can use magicentry
 services:
