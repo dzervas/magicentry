@@ -196,12 +196,14 @@ impl ConfigFile {
 	/// filepath
 	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
-		Ok(data
-			.lines()
-			.filter(|line| !line.contains("BEGIN CERTIFICATE") && !line.contains("END CERTIFICATE"))
-			.collect::<String>()
-			.replace("\n", ""))
-	}
+                Ok(data
+                        .lines()
+                        .filter(|line| {
+                                !line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY")
+                        })
+                        .collect::<String>()
+                        .replace("\n", ""))
+        }
 }
 
 /// Basic key-value store database schema for some minor config values,
