@@ -43,7 +43,7 @@ pub enum AppErrorKind {
 	// Proxy (auth-url) errors
 	#[display("Missing auth_url code in (query string or cookie)")]
 	MissingAuthURLCode,
-	#[display("Could not parse X-Original-URI header (it is set but not valid)")]
+	#[display("Could not parse X-Original-URL header (it is set but not valid)")]
 	CouldNotParseXOriginalURIHeader,
 	#[display("The provided return destination URL (`rd` query parameter) doesn't have a an origin that is allowed in the config")]
 	InvalidReturnDestinationUrl,

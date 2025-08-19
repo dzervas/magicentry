@@ -28,13 +28,13 @@ header "Location" startsWith "http://localhost:8081/asdf?a=b&magicentry_code=me_
 
 # Make the initial request after returning to the service
 GET http://localhost:8080/auth-url/status
-X-Original-Uri: {{proxy_link}}
+X-Original-Url: {{proxy_link}}
 HTTP 200
 [Captures]
 proxy_session: cookie "magicentry_session_id"
 
 GET http://localhost:8080/auth-url/status
-X-Original-Uri: http://localhost:8080/asdasdasdas
+X-Original-Url: http://localhost:8080/asdasdasdas
 [Cookies]
 magicentry_session_id: {{proxy_session}}
 HTTP 200
