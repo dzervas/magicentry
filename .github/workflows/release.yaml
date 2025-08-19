@@ -29,13 +29,13 @@ jobs:
       app: ${{ steps.new_app.outputs.new_version }}
       new_ref: ${{ steps.commit.outputs.commit }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Current versions
         id: version
         run: |
-          echo "app=$(grep -oP '(?<=^version = ")[\w\.]+' Cargo.toml)" >> $GITHUB_OUTPUT
-          echo "chart=$(grep -oP '(?<=^version: ).+' chart/Chart.yaml)" >> $GITHUB_OUTPUT
+          echo "app=$(grep -oP '(?<=^version = ")[\w\.]+' Cargo.toml)" >> "$GITHUB_OUTPUT"
+          echo "chart=$(grep -oP '(?<=^version: ).+' chart/Chart.yaml)" >> "$GITHUB_OUTPUT"
 
       - uses: actions-ecosystem/action-bump-semver@v1
         id: new_app
@@ -76,7 +76,7 @@ jobs:
           - default
           - kube
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.bump.outputs.new_ref }}
 
@@ -87,7 +87,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: ${{ matrix.target.triplet }}
-          cache: true # Sets up rust cache automatically
+          cache: true  # Sets up rust cache automatically
 
       - name: Compile
         run: |
@@ -141,7 +141,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ needs.bump.outputs.new_ref }}
 

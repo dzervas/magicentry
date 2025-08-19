@@ -15,7 +15,7 @@
     "tailwind-dev": "tailwindcss --input static/css/main.css --output static/main.build.css --watch",
     "webpack-dev": "webpack watch --mode development",
 
-    "start-e2e": "concurrently 'npm:start-server' 'npm:e2e-server'",
+    "start-e2e": "concurrently 'npm:start-server' 'npm:e2e-server' || exit 0",
     "start-server": "RUST_LOG_STYLE=always CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --color always --features e2e-test",
     "start-test": "RUST_LOG_STYLE=always watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo test --color always --features kube",
     "e2e-server": "http-server hurl -p 8081",
