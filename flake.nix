@@ -19,6 +19,7 @@
             cargo-criterion
             gnuplot # For benchmarks
             hurl
+            watchexec
 
             yarn
           ];

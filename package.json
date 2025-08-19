@@ -5,23 +5,27 @@
   "license": "GPL-3.0-or-later",
   "scripts": {
     "start": "concurrently 'npm:start-web' 'npm:start-e2e'",
+    "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
+
     "test": "cargo test --color always --features kube && concurrently --kill-others 'npm:start-e2e' 'npm:test-e2e'",
-    "test-e2e": "hurl --test --jobs 1 ./hurl",
+    "test-e2e": "until curl -sSf http://localhost:8080 >/dev/null; do sleep 1; done; hurl --test --jobs 1 ./hurl",
     "test-server": "cargo test --color always --features e2e-test",
+
     "start-web": "concurrently 'npm:tailwind-dev' 'npm:webpack-dev'",
     "tailwind-dev": "tailwindcss --input static/css/main.css --output static/main.build.css --watch",
     "webpack-dev": "webpack watch --mode development",
-    "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
+
     "start-e2e": "concurrently 'npm:start-server' 'npm:e2e-server'",
     "start-server": "RUST_LOG_STYLE=always CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --color always --features e2e-test",
     "start-test": "RUST_LOG_STYLE=always watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo test --color always --features kube",
     "e2e-server": "http-server hurl -p 8081",
+
     "start-server-docs": "concurrently 'watchexec --debounce 2 --watch ./Cargo.toml --watch ./src cargo doc --color always --lib --features kube' 'browser-sync start --server ./target/doc --startPath magicentry --reload-delay 5000 --watch'"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4",
     "browser-sync": "*",
-    "concurrently": "9",
+    "concurrently": "*",
     "http-server": "*",
     "tailwindcss": "4",
     "webpack": "5",

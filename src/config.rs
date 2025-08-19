@@ -112,15 +112,16 @@ impl Default for ConfigFile {
 			request_data        : Some("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string()),
 			request_content_type: "application/x-www-form-urlencoded".to_string(),
 
-                        webauthn_enable: true,
+			webauthn_enable: true,
 
-                        // force_https_redirects: true,
+			// force_https_redirects: true,
 
-                        users_file: None,
-                        users: vec![],
-                        services: Services(vec![]),
-                }
+			users_file: None,
+			users: vec![],
+
+			services: Services(vec![]),
         }
+    }
 }
 
 impl ConfigFile {
@@ -152,17 +153,17 @@ impl ConfigFile {
 	/// Note that live-updating the CONFIG_FILE environment variable
 	/// is **NOT** supported
 	pub async fn reload() -> crate::error::Result<()> {
-                let mut config = CONFIG.write().await;
-                log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-                let mut new_config =
-                        serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
-                if let Some(users_file) = &new_config.users_file {
-                        new_config.users =
-                                serde_yaml::from_str::<Vec<User>>(&std::fs::read_to_string(users_file)?)?;
-                }
-                *config = new_config;
-                Ok(())
-        }
+		let mut config = CONFIG.write().await;
+		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
+		let mut new_config =
+		serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
+		if let Some(users_file) = &new_config.users_file {
+			new_config.users =
+				serde_yaml::from_str::<Vec<User>>(&std::fs::read_to_string(users_file)?)?;
+		}
+		*config = new_config;
+		Ok(())
+	}
 
 	/// Set up a file watcher that fires the [reload](ConfigFile::reload) method so
 	/// that config file changes get automatically picked up
@@ -180,24 +181,24 @@ impl ConfigFile {
 				}
 			})
 		}, watcher_config)
-		.expect("Failed to create watcher for the config file");
+			.expect("Failed to create watcher for the config file");
 
-                watcher
-                        .watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
-                        .expect("Failed to watch config file for changes");
+		watcher
+			.watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
+			.expect("Failed to watch config file for changes");
 
-                if let Some(users_file) = CONFIG
-                        .try_read()
-                        .ok()
-                        .and_then(|c| c.users_file.clone())
-                {
-                        watcher
-                                .watch(Path::new(&users_file), notify::RecursiveMode::NonRecursive)
-                                .expect("Failed to watch users file for changes");
-                }
+		if let Some(users_file) = CONFIG
+			.try_read()
+			.ok()
+			.and_then(|c| c.users_file.clone())
+		{
+			watcher
+				.watch(Path::new(&users_file), notify::RecursiveMode::NonRecursive)
+				.expect("Failed to watch users file for changes");
+		}
 
-                watcher
-        }
+		watcher
+	}
 
 	/// Read the SAML certificate from the [saml_cert_pem_path](ConfigFile::saml_cert_pem_path)
 	/// filepath
@@ -214,14 +215,14 @@ impl ConfigFile {
 	/// filepath
 	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
-                Ok(data
-                        .lines()
-                        .filter(|line| {
-                                !line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY")
-                        })
-                        .collect::<String>()
-                        .replace("\n", ""))
-        }
+		Ok(data
+			.lines()
+			.filter(|line| {
+				!line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY")
+			})
+			.collect::<String>()
+			.replace("\n", ""))
+	}
 }
 
 /// Basic key-value store database schema for some minor config values,
