@@ -1,0 +1,16 @@
+- username: valid
+  name: Valid User
+  email: valid@example.com
+  realms:
+    - example
+- username: integration
+  email: valid-integration@example.com
+  name: Integration User
+  realms:
+    - example
+    - public
+- username: admin
+  email: admin@example.com
+  name: Admin User
+  realms:
+    - all # `all` is a special realm that gives access to all services

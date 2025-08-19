@@ -62,14 +62,15 @@ pub struct ConfigFile {
 	pub request_url: String,
 	pub request_method: String,
 	pub request_data: Option<String>,
-	pub request_content_type: String,
+        pub request_content_type: String,
 
-	pub webauthn_enable: bool,
+        pub webauthn_enable: bool,
 
-	// pub force_https_redirects: bool,
-
-	pub users: Vec<User>,
-	pub services: Services,
+        // pub force_https_redirects: bool,
+        /// Path to a file containing the user definitions
+        pub users_file: Option<String>,
+        pub users: Vec<User>,
+        pub services: Services,
 }
 
 impl Default for ConfigFile {
@@ -111,14 +112,15 @@ impl Default for ConfigFile {
 			request_data        : Some("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string()),
 			request_content_type: "application/x-www-form-urlencoded".to_string(),
 
-			webauthn_enable: true,
+                        webauthn_enable: true,
 
-			// force_https_redirects: true,
+                        // force_https_redirects: true,
 
-			users: vec![],
-			services: Services(vec![]),
-		}
-	}
+                        users_file: None,
+                        users: vec![],
+                        services: Services(vec![]),
+                }
+        }
 }
 
 impl ConfigFile {
@@ -150,11 +152,17 @@ impl ConfigFile {
 	/// Note that live-updating the CONFIG_FILE environment variable
 	/// is **NOT** supported
 	pub async fn reload() -> crate::error::Result<()> {
-		let mut config = CONFIG.write().await;
-		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-		*config = serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
-		Ok(())
-	}
+                let mut config = CONFIG.write().await;
+                log::info!("Reloading config from {}", CONFIG_FILE.as_str());
+                let mut new_config =
+                        serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
+                if let Some(users_file) = &new_config.users_file {
+                        new_config.users =
+                                serde_yaml::from_str::<Vec<User>>(&std::fs::read_to_string(users_file)?)?;
+                }
+                *config = new_config;
+                Ok(())
+        }
 
 	/// Set up a file watcher that fires the [reload](ConfigFile::reload) method so
 	/// that config file changes get automatically picked up
@@ -174,12 +182,22 @@ impl ConfigFile {
 		}, watcher_config)
 		.expect("Failed to create watcher for the config file");
 
-		watcher
-			.watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
-			.expect("Failed to watch config file for changes");
+                watcher
+                        .watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
+                        .expect("Failed to watch config file for changes");
 
-		watcher
-	}
+                if let Some(users_file) = CONFIG
+                        .try_read()
+                        .ok()
+                        .and_then(|c| c.users_file.clone())
+                {
+                        watcher
+                                .watch(Path::new(&users_file), notify::RecursiveMode::NonRecursive)
+                                .expect("Failed to watch users file for changes");
+                }
+
+                watcher
+        }
 
 	/// Read the SAML certificate from the [saml_cert_pem_path](ConfigFile::saml_cert_pem_path)
 	/// filepath

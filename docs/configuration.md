@@ -34,3 +34,23 @@ users:
       - example
       - public
 ```
+
+Alternatively, you can reference the users from a separate file using `users_file`:
+
+`config.yaml`
+
+```yaml
+listen_host: 0.0.0.0
+request_enable: true
+users_file: users.yaml
+```
+
+`users.yaml`
+
+```yaml
+- username: admin
+  name: Admin User
+  email: admin@example.com
+  realms:
+    - all
+```

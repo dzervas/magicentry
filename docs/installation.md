@@ -84,6 +84,7 @@ config:
     realms:
     - myservice
 
+  # Users allowed to authenticate (can also be provided via `users_file`)
   users:
   - name: My Awesome Name
     email: awesome@example.com
