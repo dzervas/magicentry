@@ -41,10 +41,21 @@ const ANNOTATION_PREFIX: &str = "magicentry.rs/";
 pub struct IngressConfig {
 	pub enable: bool,
 	pub name: String,
-	pub auth_url: bool,
 	pub realms: Vec<String>,
+	pub auth_url: bool,
+
+	/// OIDC configuration
+	/// MagicEntry automatically creates (and maintains) a secret with the OIDC credentials
+	/// (data keys are `clientID` and `clientSecret`)
+	pub oidc_target_secret: Option<String>,
+	pub oidc_redirect_urls: Vec<url::Url>,
+
+	/// SAML configuration from within kubernetes
+	pub saml_entity_id: Option<String>,
+	pub saml_redirect_urls: Vec<url::Url>,
+
 	pub manage_ingress_nginx: bool,
-	// TODO: support ingress traefik
+	// TODO: support ingress traefik, kong, etc.
 	// pub manage_ingress_traefik: bool,
 }
 
@@ -104,8 +115,10 @@ impl IngressConfig {
 			} else {
 				None
 			},
-			// TODO: Support OIDC & SAML config
 			oidc: None,
+			// oidc: if let Some(oidc_target_secret) = self.oidc_target_secret {
+			// 	Some
+			// } else { None }
 			saml: None,
 		};
 

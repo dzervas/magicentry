@@ -7,6 +7,7 @@
 use std::path::Path;
 
 use chrono::Duration;
+use log::error;
 use notify::{PollWatcher, Watcher};
 use reindeer::{AsBytes, Db, Entity};
 use serde::{Deserialize, Serialize};
@@ -62,15 +63,15 @@ pub struct ConfigFile {
 	pub request_url: String,
 	pub request_method: String,
 	pub request_data: Option<String>,
-        pub request_content_type: String,
+	pub request_content_type: String,
 
-        pub webauthn_enable: bool,
+	pub webauthn_enable: bool,
 
-        // pub force_https_redirects: bool,
-        /// Path to a file containing the user definitions
-        pub users_file: Option<String>,
-        pub users: Vec<User>,
-        pub services: Services,
+	// pub force_https_redirects: bool,
+	/// Path to a file containing the user definitions
+	pub users_file: Option<String>,
+	pub users: Vec<User>,
+	pub services: Services,
 }
 
 impl Default for ConfigFile {
@@ -155,12 +156,23 @@ impl ConfigFile {
 	pub async fn reload() -> crate::error::Result<()> {
 		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-		let mut new_config =
-		serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
+
+		let mut new_config = serde_yaml::from_str::<ConfigFile>(
+			&std::fs::read_to_string(CONFIG_FILE.as_str())?
+		)?;
+
 		if let Some(users_file) = &new_config.users_file {
-			new_config.users =
-				serde_yaml::from_str::<Vec<User>>(&std::fs::read_to_string(users_file)?)?;
+			new_config.users.extend(
+				serde_yaml::from_str::<Vec<User>>(
+					&std::fs::read_to_string(users_file)?
+				)?
+			);
 		}
+
+		if new_config.users_file != config.users_file {
+			error!("Users file path changed, live watching new paths is not supported, please restart the server");
+		}
+
 		*config = new_config;
 		Ok(())
 	}
