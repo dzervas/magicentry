@@ -104,73 +104,73 @@ impl IngressConfig {
 			return Err(AppErrorKind::IngressHasNoHost.into());
 		};
 
-        let oidc = if let Some(secret_name) = &self.oidc_target_secret {
-                let namespace = ingress.metadata.namespace.as_deref().unwrap_or("default");
-                let client = Client::try_default().await?;
-                let secrets: Api<Secret> = Api::namespaced(client, namespace);
-        
-                let existing = secrets.get_opt(secret_name).await?;
-                let mut client_id = existing
-                        .as_ref()
-                        .and_then(|s| s.data.as_ref())
-                        .and_then(|d| d.get("clientID"))
-                        .and_then(|b| String::from_utf8(b.0.clone()).ok())
-                        .unwrap_or_else(random_string);
-                let mut client_secret = existing
-                        .as_ref()
-                        .and_then(|s| s.data.as_ref())
-                        .and_then(|d| d.get("clientSecret"))
-                        .and_then(|b| String::from_utf8(b.0.clone()).ok())
-                        .unwrap_or_else(random_string);
-        
-                let mut data = BTreeMap::new();
-                data.insert("clientID".to_string(), ByteString(client_id.clone().into_bytes()));
-                data.insert("clientSecret".to_string(), ByteString(client_secret.clone().into_bytes()));
-        
-                let annotations = BTreeMap::from([(format!("{ANNOTATION_PREFIX}part-of"), self.name.clone())]);
-        
-                let secret = Secret {
-                        metadata: ObjectMeta {
-                                name: Some(secret_name.clone()),
-                                annotations: Some(annotations),
-                                ..ObjectMeta::default()
-                        },
-                        data: Some(data),
-                        type_: Some("Opaque".to_string()),
-                        ..Secret::default()
-                };
-        
-                let pp = PatchParams::apply("magicentry").force();
-                let patch = Patch::Apply(&secret);
-                secrets.patch(secret_name, &pp, &patch).await?;
-        
-                Some(ServiceOIDC {
-                        client_id,
-                        client_secret,
-                        redirect_urls: self.oidc_redirect_urls.clone(),
-                })
-        } else {
-                None
-        };
+		let oidc = if let Some(secret_name) = &self.oidc_target_secret {
+			let namespace = ingress.metadata.namespace.as_deref().unwrap_or("default");
+			let client = Client::try_default().await?;
+			let secrets: Api<Secret> = Api::namespaced(client, namespace);
 
-        let service = Service {
-        			name: self.name.clone(),
-        			// Iterate over spec.rules[].host and see if spec.tls[].hosts contains the host
-        			url: service_url,
-        			realms: self.realms.clone(),
-        			auth_url: if self.auth_url {
-        				Some(ServiceAuthUrl {
-        					origins: urls
-        						.iter()
-        						.map(|url| url.to_string())
-        						.collect(),
-        				})
-        			} else {
-        				None
-        			},
-        			oidc,
-        			saml: None,
-        		};
+			let existing = secrets.get_opt(secret_name).await?;
+			let client_id = existing
+				.as_ref()
+				.and_then(|s| s.data.as_ref())
+				.and_then(|d| d.get("clientID"))
+				.and_then(|b| String::from_utf8(b.0.clone()).ok())
+				.unwrap_or_else(random_string);
+			let client_secret = existing
+				.as_ref()
+				.and_then(|s| s.data.as_ref())
+				.and_then(|d| d.get("clientSecret"))
+				.and_then(|b| String::from_utf8(b.0.clone()).ok())
+				.unwrap_or_else(random_string);
+
+			let mut data = BTreeMap::new();
+			data.insert("clientID".to_string(), ByteString(client_id.clone().into_bytes()));
+			data.insert("clientSecret".to_string(), ByteString(client_secret.clone().into_bytes()));
+
+			let annotations = BTreeMap::from([("app.kubernetes.io/part-of".to_string(), self.name.clone())]);
+
+			let secret = Secret {
+				metadata: ObjectMeta {
+					name: Some(secret_name.clone()),
+					annotations: Some(annotations),
+					..ObjectMeta::default()
+				},
+				data: Some(data),
+				type_: Some("Opaque".to_string()),
+				..Secret::default()
+			};
+
+			let pp = PatchParams::apply("magicentry").force();
+			let patch = Patch::Apply(&secret);
+			secrets.patch(secret_name, &pp, &patch).await?;
+
+			Some(ServiceOIDC {
+				client_id,
+				client_secret,
+				redirect_urls: self.oidc_redirect_urls.clone(),
+			})
+		} else {
+			None
+		};
+
+		let service = Service {
+			name: self.name.clone(),
+			// Iterate over spec.rules[].host and see if spec.tls[].hosts contains the host
+			url: service_url,
+			realms: self.realms.clone(),
+			auth_url: if self.auth_url {
+				Some(ServiceAuthUrl {
+					origins: urls
+						.iter()
+						.map(|url| url.to_string())
+						.collect(),
+				})
+			} else {
+				None
+			},
+			oidc,
+			saml: None,
+		};
 
 		// Take the write lock at the last possible moment and drop it
 		// as soon as possible to avoid blocking other threads/contexts
@@ -212,40 +212,40 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 				.get("name")
 				.map(|v| v.to_string())
 				.unwrap_or_default(),
-                        auth_url: filtered_map
-                                .get("auth_url")
-                                .map(|v| *v == "true")
-                                .unwrap_or_default(),
-                        realms: filtered_map
-                                .get("realms")
-                                .map(|v| v.split(",").map(|v| v.to_string()).collect())
-                                .unwrap_or_default(),
-                        oidc_target_secret: filtered_map
-                                .get("oidc_target_secret")
-                                .map(|v| v.to_string()),
-                        oidc_redirect_urls: filtered_map
-                                .get("oidc_redirect_urls")
-                                .map(|v| {
-                                        v.split(",")
-                                                .filter_map(|u| url::Url::parse(u).ok())
-                                                .collect()
-                                })
-                                .unwrap_or_default(),
-                        saml_entity_id: filtered_map
-                                .get("saml_entity_id")
-                                .map(|v| v.to_string()),
-                        saml_redirect_urls: filtered_map
-                                .get("saml_redirect_urls")
-                                .map(|v| {
-                                        v.split(",")
-                                                .filter_map(|u| url::Url::parse(u).ok())
-                                                .collect()
-                                })
-                                .unwrap_or_default(),
-                        manage_ingress_nginx: filtered_map
-                                .get("manage_ingress_nginx")
-                                .map(|v| *v == "true")
-                                .unwrap_or_default(),
+			auth_url: filtered_map
+				.get("auth_url")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
+			realms: filtered_map
+				.get("realms")
+				.map(|v| v.split(",").map(|v| v.to_string()).collect())
+				.unwrap_or_default(),
+			oidc_target_secret: filtered_map
+				.get("oidc_target_secret")
+				.map(|v| v.to_string()),
+			oidc_redirect_urls: filtered_map
+				.get("oidc_redirect_urls")
+				.map(|v| {
+					v.split(",")
+						.filter_map(|u| url::Url::parse(u).ok())
+						.collect()
+				})
+				.unwrap_or_default(),
+			saml_entity_id: filtered_map
+				.get("saml_entity_id")
+				.map(|v| v.to_string()),
+			saml_redirect_urls: filtered_map
+				.get("saml_redirect_urls")
+				.map(|v| {
+					v.split(",")
+						.filter_map(|u| url::Url::parse(u).ok())
+						.collect()
+				})
+				.unwrap_or_default(),
+			manage_ingress_nginx: filtered_map
+				.get("manage_ingress_nginx")
+				.map(|v| *v == "true")
+				.unwrap_or_default(),
 		}
 	}
 }

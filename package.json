@@ -6,8 +6,8 @@
   "scripts": {
     "start": "concurrently 'yarn:start-web' 'yarn:start-e2e'",
     "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
-    "test": "cargo test --color always --features kube && yarn start-e2e & export SRVPID=$!; yarn test-e2e; export RESULT=$?; kill $SRVPID; exit $RESULT",
-    "test-e2e": "until curl -sSf http://localhost:8080 >/dev/null; do sleep 1; done; hurl --test --jobs 1 ./hurl",
+    "test": "cargo test --color always --features kube && bash -c 'yarn start-e2e & export SRVPID=$!; yarn test-e2e; export RESULT=$?; kill $SRVPID; exit $RESULT'",
+    "test-e2e": "bash -c 'until curl -sSf http://localhost:8080 >/dev/null; do sleep 1; done; hurl --test --jobs 1 ./hurl'",
     "test-server": "cargo test --color always --features e2e-test",
     "start-web": "concurrently --name tailwind,webpack 'yarn:tailwind-dev' 'yarn:webpack-dev'",
     "tailwind-dev": "tailwindcss --input static/css/main.css --output static/main.build.css --watch",
