@@ -21,7 +21,7 @@
             hurl
             watchexec
 
-            yarn
+            yarn-berry
           ];
         };
       });

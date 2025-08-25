@@ -39,3 +39,4 @@ node_modules
 dist/
 .astro/
 .aider*
+.yarn

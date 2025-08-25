@@ -6,20 +6,16 @@
   "scripts": {
     "start": "concurrently 'yarn:start-web' 'yarn:start-e2e'",
     "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
-
     "test": "cargo test --color always --features kube && yarn start-e2e & export SRVPID=$!; yarn test-e2e; export RESULT=$?; kill $SRVPID; exit $RESULT",
     "test-e2e": "until curl -sSf http://localhost:8080 >/dev/null; do sleep 1; done; hurl --test --jobs 1 ./hurl",
     "test-server": "cargo test --color always --features e2e-test",
-
     "start-web": "concurrently --name tailwind,webpack 'yarn:tailwind-dev' 'yarn:webpack-dev'",
     "tailwind-dev": "tailwindcss --input static/css/main.css --output static/main.build.css --watch",
     "webpack-dev": "webpack watch --mode development",
-
     "start-e2e": "concurrently --name magicentry,dummy --kill-others 'yarn:start-server' 'yarn:e2e-server'",
     "start-server": "RUST_LOG_STYLE=always CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --color always --features e2e-test",
     "start-test": "RUST_LOG_STYLE=always watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo test --color always --features kube",
     "e2e-server": "http-server hurl -p 8081",
-
     "start-server-docs": "concurrently 'watchexec --debounce 2 --watch ./Cargo.toml --watch ./src cargo doc --color always --lib --features kube' 'browser-sync start --server ./target/doc --startPath magicentry --reload-delay 5000 --watch'"
   },
   "devDependencies": {
