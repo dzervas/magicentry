@@ -9,18 +9,14 @@ use magicentry::secret::proxy_session::ProxySessionSecret;
 use magicentry::user::User;
 use magicentry::config::ConfigFile;
 use magicentry::auth_url::{self};
-use reindeer::{Db, Entity};
-
-pub async fn db_connect() -> Db {
-	let db = reindeer::open(&CONFIG.read().await.database_url)
-		.expect("Failed to open reindeer database.");
-	magicentry::secret::register(&db).unwrap();
-	magicentry::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-
+pub async fn db_connect() -> magicentry::Database {
+	let db = magicentry::database::init_database(&CONFIG.read().await.database_url)
+		.await
+		.expect("Failed to initialize SQLite database");
 	db
 }
 
-async fn setup_app(db: &Db) -> impl actix_web::dev::Service<
+async fn setup_app(db: &magicentry::Database) -> impl actix_web::dev::Service<
 	actix_http::Request,
 	Response = ServiceResponse,
 	Error = actix_web::Error,

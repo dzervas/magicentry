@@ -1,7 +1,7 @@
 use jwt_simple::algorithms::RS256KeyPair;
-use reindeer::{Db, Entity};
 
 use crate::config::{ConfigKV, ConfigKeys};
+use crate::database::Database;
 
 pub mod authorize_request;
 
@@ -32,12 +32,9 @@ macro_rules! generate_cors_preflight {
 	};
 }
 
-pub async fn init(db: &Db) -> RS256KeyPair {
-	if let Ok(Some(keypair)) = ConfigKV::get(&ConfigKeys::JWTKeyPair, db) {
-		let pem = keypair
-			.value
-			.expect("Failed to load JWT keypair from database");
-		RS256KeyPair::from_pem(&pem).expect("Failed to load JWT keypair from database")
+pub async fn init(db: &Database) -> RS256KeyPair {
+	if let Ok(Some(keypair_pem)) = ConfigKV::get(&ConfigKeys::JWTKeyPair, db).await {
+		RS256KeyPair::from_pem(&keypair_pem).expect("Failed to load JWT keypair from database")
 	} else {
 		log::warn!("Generating JWT keypair for RSA 4096. This is going to take some time...");
 		let keypair = RS256KeyPair::generate(4096).expect("Failed to generate RSA 4096 keypair");
@@ -45,7 +42,7 @@ pub async fn init(db: &Db) -> RS256KeyPair {
 			.to_pem()
 			.expect("Failed to convert keypair to PEM - that's super weird");
 
-		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), db)
+		ConfigKV::set(ConfigKeys::JWTKeyPair, Some(keypair_pem), db).await
 			.expect("Unable to save secret in the database");
 
 		keypair

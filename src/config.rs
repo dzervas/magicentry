@@ -9,9 +9,9 @@ use std::path::Path;
 use chrono::Duration;
 use log::error;
 use notify::{PollWatcher, Watcher};
-use reindeer::{AsBytes, Db, Entity};
 use serde::{Deserialize, Serialize};
 
+use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
 use crate::user::User;
 use crate::{CONFIG, CONFIG_FILE};
@@ -242,8 +242,7 @@ impl ConfigFile {
 ///
 /// Uses the [ConfigKeys] enum for the keys as there should ever be only one
 /// of each type
-#[derive(Entity, Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[entity(name = "config", id = "key")]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ConfigKV {
 	pub key: ConfigKeys,
 	pub value: Option<String>,
@@ -251,10 +250,23 @@ pub struct ConfigKV {
 
 impl ConfigKV {
 	/// Set the provided key to the provided value - overwrites any previous values
-	pub fn set(key: ConfigKeys, value: Option<String>, db: &Db) -> Result<(), reindeer::Error> {
-		let config = Self { key, value };
-
-		config.save(db)
+	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> crate::error::Result<()> {
+		let key_str = serde_json::to_string(&key)?;
+		let value_str = value.unwrap_or_default();
+		
+		let row = ConfigKVRow {
+			key: key_str,
+			value: value_str,
+			updated_at: None,
+		};
+		
+		row.save(db).await
+	}
+	
+	/// Get a config value by key
+	pub async fn get(key: &ConfigKeys, db: &Database) -> crate::error::Result<Option<String>> {
+		let key_str = serde_json::to_string(key)?;
+		ConfigKVRow::get(&key_str, db).await
 	}
 }
 
@@ -266,8 +278,4 @@ pub enum ConfigKeys {
 	JWTKeyPair,
 }
 
-impl AsBytes for ConfigKeys {
-	fn as_bytes(&self) -> Vec<u8> {
-		vec![self.clone() as u8]
-	}
-}
+// Remove AsBytes trait as it's no longer needed for SQLx

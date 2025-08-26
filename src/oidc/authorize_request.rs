@@ -100,7 +100,7 @@ impl AuthorizeRequest {
 }
 
 impl MetadataKind for AuthorizeRequest {
-	async fn validate(&self, _db: &reindeer::Db) -> crate::error::Result<()> {
+	async fn validate(&self, _db: &crate::Database) -> crate::error::Result<()> {
 		if let Some(code_challenge_method) = self.code_challenge_method.as_ref() {
 			// TODO: Support plain
 			if code_challenge_method != "S256" {

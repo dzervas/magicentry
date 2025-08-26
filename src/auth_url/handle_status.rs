@@ -20,7 +20,7 @@ use crate::{CONFIG, PROXY_SESSION_COOKIE};
 /// documented in [the example](https://magicentry.rs/#/installation?id=example-valuesyaml)
 #[get("/auth-url/status")]
 async fn status(
-	db: web::Data<reindeer::Db>,
+	db: web::Data<crate::Database>,
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
 ) -> Response {

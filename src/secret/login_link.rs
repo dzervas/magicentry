@@ -1,5 +1,4 @@
 use futures::future::BoxFuture;
-use reindeer::Db;
 use serde::{Deserialize, Serialize};
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -22,7 +21,7 @@ pub struct LoginLinkRedirect {
 }
 
 impl LoginLinkRedirect {
-	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &Db) -> Result<String> {
+	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &crate::Database) -> Result<String> {
 		let mut url = self.validate_internal().await?;
 
 		if self.rd.is_some() {
@@ -88,7 +87,7 @@ impl LoginLinkRedirect {
 }
 
 impl MetadataKind for LoginLinkRedirect {
-	async fn validate(&self, _: &Db) -> Result<()> {
+	async fn validate(&self, _: &crate::Database) -> Result<()> {
 		self.validate_internal().await?;
 		Ok(())
 	}
@@ -122,7 +121,7 @@ impl actix_web::FromRequest for LoginLinkSecret {
 			return Box::pin(async { Err(AppErrorKind::MissingLoginLinkCode.into()) });
 		};
 
-		let db = if let Some(db) = req.app_data::<actix_web::web::Data<Db>>() {
+		let db = if let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>() {
 			db.clone()
 		} else {
 			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });

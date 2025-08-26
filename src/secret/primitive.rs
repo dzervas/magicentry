@@ -1,7 +1,7 @@
 use chrono::{NaiveDateTime, Utc};
-use reindeer::{Db, Entity};
 use serde::{Deserialize, Serialize};
 
+use crate::database::{Database, UserSecretRow};
 use crate::error::{AppErrorKind, Result};
 use crate::user::User;
 
@@ -31,12 +31,56 @@ pub(super) struct InternalUserSecret<K: UserSecretKind> {
 	metadata: K::Metadata,
 }
 
-impl<K: UserSecretKind> Entity for InternalUserSecret<K> {
-	type Key=SecretString;
-
-	fn store_name() -> &'static str { K::PREFIX }
-	fn get_key(&self) -> &Self::Key { &self.code }
-	fn set_key(&mut self, key: &Self::Key) { self.code = key.clone(); }
+impl<K: UserSecretKind> InternalUserSecret<K> {
+	/// Save the secret to the database
+	async fn save(&self, db: &Database) -> Result<()> {
+		let user_str = serde_json::to_string(&self.user)?;
+		let metadata_str = serde_json::to_string(&self.metadata)?;
+		
+		let row = UserSecretRow {
+			id: self.code.to_str_that_i_wont_print().to_string(),
+			secret_type: K::PREFIX.to_string(),
+			user_data: user_str,
+			expires_at: self.expires_at,
+			metadata: metadata_str,
+			created_at: None,
+		};
+		
+		row.save(db).await
+	}
+	
+	/// Get a secret from the database by code
+	async fn get(code: &SecretString, db: &Database) -> Result<Option<Self>> {
+		let row = UserSecretRow::get(code.to_str_that_i_wont_print(), db).await?;
+		
+		if let Some(row) = row {
+			if row.secret_type != K::PREFIX {
+				return Ok(None);
+			}
+			
+			let user = serde_json::from_str(&row.user_data)?;
+			let metadata = serde_json::from_str(&row.metadata)?;
+			
+			Ok(Some(InternalUserSecret {
+				code: code.clone(),
+				user,
+				expires_at: row.expires_at,
+				metadata,
+			}))
+		} else {
+			Ok(None)
+		}
+	}
+	
+	/// Check if a secret exists in the database
+	async fn exists(code: &SecretString, db: &Database) -> Result<bool> {
+		UserSecretRow::exists(code.to_str_that_i_wont_print(), db).await
+	}
+	
+	/// Remove a secret from the database
+	pub async fn remove(code: &SecretString, db: &Database) -> Result<()> {
+		UserSecretRow::remove(code.to_str_that_i_wont_print(), db).await
+	}
 }
 
 #[derive(Serialize, Deserialize)]
@@ -45,7 +89,7 @@ pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 /// Basic user secret operations
 impl<K: UserSecretKind> UserSecret<K> {
 	/// Create a new user secret that is bound to a user and has some metadata
-	pub async fn new(user: User, metadata: K::Metadata, db: &Db) -> Result<Self> {
+	pub async fn new(user: User, metadata: K::Metadata, db: &Database) -> Result<Self> {
 		metadata.validate(db).await?;
 
 		let expires_at = chrono::Utc::now()
@@ -60,7 +104,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 			metadata,
 		};
 
-		internal_secret.save(db)?;
+		internal_secret.save(db).await?;
 
 		Ok(Self(internal_secret))
 	}
@@ -70,22 +114,22 @@ impl<K: UserSecretKind> UserSecret<K> {
 	///
 	/// Any failure will remove the secret from the db and return an error
 	/// This is useful for cleaning up expired secrets
-	pub async fn validate(&self, db: &Db) -> Result<()> {
-		if !self.0.code.0.starts_with(get_prefix(K::PREFIX).as_str()) {
+	pub async fn validate(&self, db: &Database) -> Result<()> {
+		if !self.0.code.to_str_that_i_wont_print().starts_with(get_prefix(K::PREFIX).as_str()) {
 			return Err(AppErrorKind::InvalidSecretType.into());
 		}
 
 		if self.0.expires_at <= Utc::now().naive_utc() {
-			InternalUserSecret::<K>::remove(&self.0.code, db)?;
+			InternalUserSecret::<K>::remove(&self.0.code, db).await?;
 			return Err(AppErrorKind::ExpiredSecret.into());
 		}
 
-		if !InternalUserSecret::<K>::exists(&self.0.code, db)? {
+		if !InternalUserSecret::<K>::exists(&self.0.code, db).await? {
 			return Err(AppErrorKind::WebAuthnSecretNotFound.into());
 		}
 
 		if self.0.metadata.validate(db).await.is_err() {
-			InternalUserSecret::<K>::remove(&self.0.code, db)?;
+			InternalUserSecret::<K>::remove(&self.0.code, db).await?;
 			return Err(AppErrorKind::InvalidSecretMetadata.into());
 		}
 
@@ -93,14 +137,14 @@ impl<K: UserSecretKind> UserSecret<K> {
 	}
 
 	/// Just delete the secret from the db
-	pub async fn delete(self, db: &Db) -> Result<()> {
-		InternalUserSecret::<K>::remove(&self.0.code, db)?;
+	pub async fn delete(self, db: &Database) -> Result<()> {
+		InternalUserSecret::<K>::remove(&self.0.code, db).await?;
 		Ok(())
 	}
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
-	pub async fn try_from_string(code: String, db: &Db) -> Result<Self> {
-		let internal_secret = InternalUserSecret::get(&code.into(), db)?.ok_or(AppErrorKind::WebAuthnSecretNotFound)?;
+	pub async fn try_from_string(code: String, db: &Database) -> Result<Self> {
+		let internal_secret = InternalUserSecret::get(&code.into(), db).await?.ok_or(AppErrorKind::WebAuthnSecretNotFound)?;
 		let user_secret = UserSecret(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)
@@ -125,7 +169,7 @@ impl<P, K, M> UserSecret<K> where
 	M : MetadataKind,
 	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 {
-	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Db) -> Result<Self> {
+	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Database) -> Result<Self> {
 		UserSecret::<K>::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await
 	}
 

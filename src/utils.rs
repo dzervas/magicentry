@@ -69,20 +69,19 @@ pub fn random_string() -> String {
 
 #[cfg(test)]
 pub mod tests {
-	use reindeer::Db;
-	use reindeer::Entity;
+	use crate::Database;
+	
 
 	use crate::config::ConfigFile;
 	use crate::user::User;
 
 	use super::*;
 
-	pub async fn db_connect() -> Db {
-		let db = reindeer::open(&CONFIG.read().await.database_url)
-			.expect("Failed to open reindeer database.");
-		crate::secret::register(&db).unwrap();
-		crate::config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-
+	pub async fn db_connect() -> Database {
+		// Use in-memory database for tests to avoid file system issues
+		let db = crate::database::init_database("sqlite::memory:")
+			.await
+			.expect("Failed to initialize SQLite database");
 		db
 	}
 

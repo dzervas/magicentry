@@ -66,6 +66,7 @@ pub mod auth_url;
 pub mod config;
 #[cfg(feature = "kube")]
 pub mod config_kube;
+pub mod database;
 pub mod error;
 pub mod oidc;
 pub mod saml;
@@ -105,7 +106,7 @@ pub const SESSION_COOKIE: &str = "session_id";
 
 /// The type of the database, use it instead of the concrete type
 /// to aid a bit on the transition to come to a new db
-pub type Database = reindeer::Db;
+pub type Database = sqlx::SqlitePool;
 
 /// The type of the [lettre](lettre::transport) SmtpTransport, defined to allow
 /// for switching between actual and stub implementations during testing

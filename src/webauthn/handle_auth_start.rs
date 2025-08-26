@@ -1,5 +1,5 @@
 use actix_web::{post, web, HttpResponse};
-use reindeer::Entity;
+
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
@@ -16,15 +16,16 @@ pub async fn auth_start(
 	db: web::Data<crate::Database>,
 ) -> Response {
 	// TODO: Handle the errors to avoid leaking (in)valid emails
-	let passkeys = PasskeyStore::get_with_filter(|p| p.user.email == form.email, &db)?
+	let user = User::from_email(&form.email)
+		.await
+		.ok_or(AppErrorKind::InvalidTargetUser)?;
+	
+	let passkey_stores = PasskeyStore::get_by_user(&user, &db).await?;
+	let passkeys = passkey_stores
 		.iter()
 		.map(|p| p.passkey.clone())
 		.collect::<Vec<_>>();
 	let (resp, auth) = webauthn.start_passkey_authentication(passkeys.as_slice())?;
-
-	let user = User::from_email(&form.email)
-		.await
-		.ok_or(AppErrorKind::InvalidTargetUser)?;
 
 	let auth = WebAuthnAuthSecret::new(user, auth, &db).await?;
 
