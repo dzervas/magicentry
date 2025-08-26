@@ -12,6 +12,8 @@ pub type Database = SqlitePool;
 /// Initialize the database connection and run migrations
 pub async fn init_database(database_url: &str) -> Result<Database> {
 	let options = SqliteConnectOptions::from_str(database_url)?
+		.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+		.shared_cache(true)
 		.create_if_missing(true);
 	
 	let pool = SqlitePool::connect_with(options).await?;

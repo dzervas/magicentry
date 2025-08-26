@@ -10,7 +10,7 @@ kube = ["dep:kube", "dep:k8s-openapi"]
 e2e-test = []
 
 [dependencies]
-actix-web = "4.10"
+actix-web = "4.11"
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0", features = ["display", "error"] }
 duration-str = "0.17"
@@ -23,13 +23,13 @@ jwt-simple = { version = "0.12", default-features = false, features = [
 	"pure-rust",
 ] }
 lazy_static = "1.5"
-lettre = { version = "0.11", features = [
+lettre = { version = "0.11", default-features = false , features = [
 	"rustls-tls",
 	"tokio1-rustls-tls",
 	"builder",
 	"pool",
 	"smtp-transport",
-], default-features = false }
+]}
 log = "0.4"
 notify = "8"
 rand = "0.9"
@@ -46,9 +46,7 @@ tokio = { version = "1", features = ["full"] }
 url = { version = "2", features = ["serde"] }
 urlencoding = "2.1"
 uuid = { version = "1.18", features = ["serde", "v4"] }
-webauthn-rs = { version = "0.5", features = [
-	"danger-allow-state-serialisation",
-] }
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 md5 = "0.8.0"
 
 # Dependency of webauthn-rs that needs to be vendored
@@ -67,7 +65,7 @@ rsa = { version = "0.9", features = ["sha2"] }
 actix-http = "3.11"
 criterion = { version = "0.7.0", features = ["async_tokio"] }
 scraper = "0.24"
-tempfile = "3.8"
+tempfile = "3.21"
 
 [[bench]]
 name = "authurl_status"

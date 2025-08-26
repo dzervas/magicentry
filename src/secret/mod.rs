@@ -38,8 +38,6 @@ impl SecretString {
 	pub fn to_str_that_i_wont_print(&self) -> &str { &self.0 }
 }
 
-// Remove AsBytes trait as it's no longer needed for SQLx
-
 impl SecretString {
 	pub fn new(prefix: &'static str) -> Self {
 		Self(format!("{}{}", get_prefix(prefix), random_string()))
