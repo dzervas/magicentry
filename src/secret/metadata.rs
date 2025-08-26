@@ -1,16 +1,16 @@
-use reindeer::Db;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::primitive::{UserSecret, UserSecretKind};
 
+use crate::database::Database;
 use crate::error::Result;
 
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
 
 pub trait MetadataKind: Serialize + DeserializeOwned {
-	async fn validate(&self, _db: &Db) -> Result<()> { Ok(()) }
+	async fn validate(&self, _db: &Database) -> Result<()> { Ok(()) }
 }
 
 impl MetadataKind for webauthn_rs::prelude::PasskeyAuthentication {}
@@ -51,7 +51,7 @@ impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
 }
 
 impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind for ChildSecretMetadata<P, M> {
-	async fn validate(&self, db: &Db) -> Result<()> {
+	async fn validate(&self, db: &Database) -> Result<()> {
 		self.metadata.validate(db).await?;
 		self.parent.validate(db).await?;
 		Ok(())

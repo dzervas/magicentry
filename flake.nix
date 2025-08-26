@@ -20,9 +20,14 @@
             gnuplot # For benchmarks
             hurl
             watchexec
+            sqlx-cli
 
             yarn-berry
           ];
+
+          shellHook = ''
+            export DATABASE_URL="sqlite://database.db"
+          '';
         };
       });
 }

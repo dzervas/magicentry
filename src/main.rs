@@ -6,7 +6,6 @@ use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::extractors::basic;
 use lettre::transport::smtp;
-use reindeer::Entity;
 #[cfg(feature = "kube")]
 use tokio::select;
 
@@ -33,11 +32,9 @@ pub async fn main() -> std::io::Result<()> {
 	let title = config.title.clone();
 	let external_url = config.external_url.clone();
 
-	let db = reindeer::open(config.database_url.clone().as_str())
-		.expect("Failed to open reindeer database.");
-	secret::register(&db).unwrap();
-	config::ConfigKV::register(&db).expect("Failed to register config_kv entity");
-	webauthn::store::PasskeyStore::register(&db).expect("Failed to register passkey store");
+	let db = database::init_database(&config.database_url)
+		.await
+		.expect("Failed to initialize SQLite database");
 
 	// Mailer setup
 	let mailer: Option<SmtpTransport> = if config.smtp_enable {

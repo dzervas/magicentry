@@ -1,0 +1,303 @@
+use chrono::{Utc, NaiveDateTime};
+use serde::{Deserialize, Serialize};
+use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
+use std::str::FromStr;
+
+use crate::error::Result;
+use crate::user::User;
+
+/// SQLite database connection pool
+pub type Database = SqlitePool;
+
+/// Initialize the database connection and run migrations
+pub async fn init_database(database_url: &str) -> Result<Database> {
+	let options = SqliteConnectOptions::from_str(database_url)?
+		.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+		.shared_cache(true)
+		.create_if_missing(true);
+	
+	let pool = SqlitePool::connect_with(options).await?;
+	
+	// Run migrations
+	sqlx::migrate!("./migrations").run(&pool).await?;
+	
+	Ok(pool)
+}
+
+/// Represents a user secret stored in the database
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserSecretRow {
+	pub id: String,
+	pub secret_type: String,
+	pub user_data: String,
+	pub expires_at: NaiveDateTime,
+	pub metadata: String,
+	pub created_at: Option<NaiveDateTime>,
+}
+
+impl UserSecretRow {
+	/// Save a user secret to the database
+	pub async fn save(&self, db: &Database) -> Result<()> {
+		sqlx::query(
+			"INSERT INTO user_secrets (id, secret_type, user_data, expires_at, metadata) VALUES (?, ?, ?, ?, ?)"
+		)
+		.bind(&self.id)
+		.bind(&self.secret_type)
+		.bind(&self.user_data)
+		.bind(&self.expires_at)
+		.bind(&self.metadata)
+		.execute(db)
+		.await?;
+		
+		Ok(())
+	}
+	
+	/// Get a user secret by ID
+	pub async fn get(id: &str, db: &Database) -> Result<Option<Self>> {
+		let row = sqlx::query_as::<_, UserSecretRow>(
+			"SELECT id, secret_type, user_data, expires_at, metadata, created_at FROM user_secrets WHERE id = ?"
+		)
+		.bind(id)
+		.fetch_optional(db)
+		.await?;
+		
+		Ok(row)
+	}
+	
+	/// Check if a user secret exists
+	pub async fn exists(id: &str, db: &Database) -> Result<bool> {
+		let count: i64 = sqlx::query_scalar(
+			"SELECT COUNT(*) FROM user_secrets WHERE id = ?"
+		)
+		.bind(id)
+		.fetch_one(db)
+		.await?;
+		
+		Ok(count > 0)
+	}
+	
+	/// Remove a user secret by ID
+	pub async fn remove(id: &str, db: &Database) -> Result<()> {
+		sqlx::query(
+			"DELETE FROM user_secrets WHERE id = ?"
+		)
+		.bind(id)
+		.execute(db)
+		.await?;
+		
+		Ok(())
+	}
+	
+	/// Clean up expired secrets
+	pub async fn cleanup_expired(db: &Database) -> Result<()> {
+		let now = Utc::now().naive_utc();
+		sqlx::query(
+			"DELETE FROM user_secrets WHERE expires_at <= ?"
+		)
+		.bind(now)
+		.execute(db)
+		.await?;
+		
+		Ok(())
+	}
+}
+
+/// Represents a passkey stored in the database
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PasskeyRow {
+	pub id: Option<i64>,
+	pub user_data: String,
+	pub passkey_data: String,
+	pub created_at: Option<NaiveDateTime>,
+}
+
+impl PasskeyRow {
+	/// Save a passkey to the database
+	pub async fn save(&mut self, db: &Database) -> Result<()> {
+		let result = sqlx::query(
+			"INSERT INTO passkeys (user_data, passkey_data) VALUES (?, ?)"
+		)
+		.bind(&self.user_data)
+		.bind(&self.passkey_data)
+		.execute(db)
+		.await?;
+		
+		self.id = Some(result.last_insert_rowid());
+		Ok(())
+	}
+	
+	/// Get all passkeys for a user
+	pub async fn get_by_user(user: &User, db: &Database) -> Result<Vec<Self>> {
+		let user_str = serde_json::to_string(user)?;
+		
+		let rows = sqlx::query_as::<_, PasskeyRow>(
+			"SELECT id, user_data, passkey_data, created_at FROM passkeys WHERE user_data = ?"
+		)
+		.bind(user_str)
+		.fetch_all(db)
+		.await?;
+		
+		Ok(rows)
+	}
+}
+
+/// Represents a config KV pair stored in the database
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ConfigKVRow {
+	pub key: String,
+	pub value: String,
+	pub updated_at: Option<NaiveDateTime>,
+}
+
+impl ConfigKVRow {
+	/// Save or update a config KV pair
+	pub async fn save(&self, db: &Database) -> Result<()> {
+		sqlx::query(
+			"INSERT INTO config_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP"
+		)
+		.bind(&self.key)
+		.bind(&self.value)
+		.bind(&self.value)
+		.execute(db)
+		.await?;
+		
+		Ok(())
+	}
+	
+	/// Get a config value by key
+	pub async fn get(key: &str, db: &Database) -> Result<Option<String>> {
+		let row: Option<(String,)> = sqlx::query_as(
+			"SELECT value FROM config_kv WHERE key = ?"
+		)
+		.bind(key)
+		.fetch_optional(db)
+		.await?;
+		
+		Ok(row.map(|(value,)| value))
+	}
+	
+	/// Remove a config KV pair by key
+	pub async fn remove(key: &str, db: &Database) -> Result<()> {
+		sqlx::query(
+			"DELETE FROM config_kv WHERE key = ?"
+		)
+		.bind(key)
+		.execute(db)
+		.await?;
+		
+		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	async fn setup_test_db() -> Result<Database> {
+		// Use in-memory database for tests
+		init_database("sqlite::memory:").await
+	}
+
+	#[tokio::test]
+	async fn test_user_secret_crud() {
+		let db = setup_test_db().await.unwrap();
+		
+		let secret = UserSecretRow {
+			id: "test_secret_123".to_string(),
+			secret_type: "login_link".to_string(),
+			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
+			expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
+			metadata: "{}".to_string(),
+			created_at: None,
+		};
+
+		// Test save
+		secret.save(&db).await.unwrap();
+
+		// Test get
+		let retrieved = UserSecretRow::get("test_secret_123", &db).await.unwrap().unwrap();
+		assert_eq!(retrieved.id, secret.id);
+		assert_eq!(retrieved.secret_type, secret.secret_type);
+		assert_eq!(retrieved.user_data, secret.user_data);
+
+		// Test exists
+		assert!(UserSecretRow::exists("test_secret_123", &db).await.unwrap());
+		assert!(!UserSecretRow::exists("nonexistent", &db).await.unwrap());
+
+		// Test remove
+		UserSecretRow::remove("test_secret_123", &db).await.unwrap();
+		assert!(!UserSecretRow::exists("test_secret_123", &db).await.unwrap());
+	}
+
+	#[tokio::test]
+	async fn test_config_kv_crud() {
+		let db = setup_test_db().await.unwrap();
+		
+		let config = ConfigKVRow {
+			key: "jwt_keypair".to_string(),
+			value: "test_keypair_value".to_string(),
+			updated_at: None,
+		};
+
+		// Test save
+		config.save(&db).await.unwrap();
+
+		// Test get
+		let value = ConfigKVRow::get("jwt_keypair", &db).await.unwrap().unwrap();
+		assert_eq!(value, "test_keypair_value");
+
+		// Test update (save again with different value)
+		let updated_config = ConfigKVRow {
+			key: "jwt_keypair".to_string(),
+			value: "updated_keypair_value".to_string(),
+			updated_at: None,
+		};
+		updated_config.save(&db).await.unwrap();
+		
+		let updated_value = ConfigKVRow::get("jwt_keypair", &db).await.unwrap().unwrap();
+		assert_eq!(updated_value, "updated_keypair_value");
+
+		// Test remove
+		ConfigKVRow::remove("jwt_keypair", &db).await.unwrap();
+		assert!(ConfigKVRow::get("jwt_keypair", &db).await.unwrap().is_none());
+	}
+
+	#[tokio::test]
+	async fn test_cleanup_expired_secrets() {
+		let db = setup_test_db().await.unwrap();
+		
+		// Create an expired secret
+		let expired_secret = UserSecretRow {
+			id: "expired_secret".to_string(),
+			secret_type: "login_link".to_string(),
+			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
+			expires_at: chrono::Utc::now().naive_utc() - chrono::Duration::hours(1), // Expired 1 hour ago
+			metadata: "{}".to_string(),
+			created_at: None,
+		};
+		
+		// Create a valid secret
+		let valid_secret = UserSecretRow {
+			id: "valid_secret".to_string(),
+			secret_type: "login_link".to_string(),
+			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
+			expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1), // Expires in 1 hour
+			metadata: "{}".to_string(),
+			created_at: None,
+		};
+
+		expired_secret.save(&db).await.unwrap();
+		valid_secret.save(&db).await.unwrap();
+
+		// Verify both secrets exist
+		assert!(UserSecretRow::exists("expired_secret", &db).await.unwrap());
+		assert!(UserSecretRow::exists("valid_secret", &db).await.unwrap());
+
+		// Clean up expired secrets
+		UserSecretRow::cleanup_expired(&db).await.unwrap();
+
+		// Verify only the valid secret remains
+		assert!(!UserSecretRow::exists("expired_secret", &db).await.unwrap());
+		assert!(UserSecretRow::exists("valid_secret", &db).await.unwrap());
+	}
+}

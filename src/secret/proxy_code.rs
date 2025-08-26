@@ -1,5 +1,4 @@
 use futures::future::BoxFuture;
-use reindeer::Db;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Result};
@@ -32,7 +31,7 @@ impl actix_web::FromRequest for ProxyCodeSecret {
 			log::warn!("Got a proxy code request with no origin");
 			return Box::pin(async { Err(AppErrorKind::MissingOriginHeader.into()) });
 		};
-		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {
+		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
 			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
 		};
 

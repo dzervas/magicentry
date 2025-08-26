@@ -23,7 +23,6 @@ pub use webauthn_auth::WebAuthnAuthSecret;
 pub use webauthn_reg::WebAuthnRegSecret;
 pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
-use reindeer::AsBytes;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::random_string;
@@ -32,31 +31,11 @@ pub fn get_prefix(prefix: &str) -> String {
 	format!("me_{}_", prefix)
 }
 
-pub fn register(db: &reindeer::Db) -> crate::error::Result<()> {
-	use reindeer::Entity;
-	use primitive::InternalUserSecret;
-
-	// Initialize the database with the secret types
-	InternalUserSecret::<browser_session::BrowserSessionSecretKind>::register(db)?;
-	InternalUserSecret::<login_link::LoginLinkSecretKind>::register(db)?;
-	InternalUserSecret::<proxy_code::ProxyCodeSecretKind>::register(db)?;
-	InternalUserSecret::<proxy_session::ProxySessionSecretKind>::register(db)?;
-	InternalUserSecret::<oidc_authcode::OIDCAuthCodeSecretKind>::register(db)?;
-	InternalUserSecret::<oidc_token::OIDCTokenSecretKind>::register(db)?;
-	InternalUserSecret::<webauthn_auth::WebAuthnAuthSecretKind>::register(db)?;
-	Ok(())
-}
-
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SecretString(String);
 
 impl SecretString {
 	pub fn to_str_that_i_wont_print(&self) -> &str { &self.0 }
-}
-
-// Needed for reindeer
-impl AsBytes for SecretString {
-	fn as_bytes(&self) -> Vec<u8> { self.0.as_bytes().to_owned() }
 }
 
 impl SecretString {

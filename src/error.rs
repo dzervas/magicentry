@@ -237,7 +237,8 @@ from_error!(lettre::transport::smtp::Error, "Lettre (SMTP transport) error: {}")
 from_error!(lettre::address::AddressError, "Lettre Address error: {}");
 from_error!(quick_xml::DeError, "Quick XML deserialization error: {}");
 from_error!(quick_xml::SeError, "Quick XML serialization error: {}");
-from_error!(reindeer::Error, "Reindeer database error: {}");
+from_error!(sqlx::Error, "SQLx database error: {}");
+from_error!(sqlx::migrate::MigrateError, "SQLx migration error: {}");
 from_error!(reqwest::Error, "Reqwest error: {}");
 from_error!(rsa::pkcs1::Error, "RSA PKCS1 error: {}");
 from_error!(url::ParseError, "URL Parse Error: {}");

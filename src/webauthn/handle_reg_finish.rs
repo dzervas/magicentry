@@ -1,6 +1,6 @@
 use actix_web::web::Json;
 use actix_web::{post, web, HttpResponse};
-use reindeer::{AutoIncrementEntity, Entity};
+
 use webauthn_rs::prelude::*;
 
 use crate::error::{AppErrorKind, Response};
@@ -17,16 +17,19 @@ pub async fn reg_finish(
 ) -> Response {
 	let sk = webauthn.finish_passkey_registration(&req, reg.metadata())?;
 
-	if !PasskeyStore::get_with_filter(|p| p.passkey.cred_id() == sk.cred_id(), &db)?.is_empty() {
+	// Check if this passkey is already registered by getting all passkeys for this user
+	// and checking if any have the same credential ID
+	let existing_passkeys = PasskeyStore::get_by_user(reg.user(), &db).await?;
+	if existing_passkeys.iter().any(|p| p.passkey.cred_id() == sk.cred_id()) {
 		return Err(AppErrorKind::PasskeyAlreadyRegistered.into());
 	}
 
-	let passkey = PasskeyStore {
-		id: PasskeyStore::get_next_key(&db)?,
+	let mut passkey = PasskeyStore {
+		id: None, // Will be set automatically when saving
 		user: reg.user().clone(),
 		passkey: sk,
 	};
-	passkey.save(&db)?;
+	passkey.save(&db).await?;
 
 	Ok(HttpResponse::Ok().finish())
 }

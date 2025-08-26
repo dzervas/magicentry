@@ -1,3 +1,4 @@
+---
 # Apart from oidc_clients and users, the following are the default values
 # To create a new config, just set the `users` (or point to `users_file`) and any other settings you want to change
 database_url: database.db
@@ -87,8 +88,8 @@ services:
       # Omit the paths, only the scheme, host and port and a leading /
       origins:
         - https://openidconnect.net
-        - http://localhost:8080 # Used in the flow_scoped.rs test
-        - http://localhost:8081 # Used in hurl
+        - http://localhost:8080  # Used in the flow_scoped.rs test
+        - http://localhost:8081  # Used in hurl
     valid_origins:
     # OIDC configuration (optional)
     # All of the settings below are tightly coupled with the service config

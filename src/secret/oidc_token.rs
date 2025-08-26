@@ -1,5 +1,4 @@
 use futures::future::BoxFuture;
-use reindeer::Db;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AppErrorKind, Result};
@@ -43,7 +42,7 @@ impl actix_web::FromRequest for OIDCTokenSecret {
 			return Box::pin(async { Err(AppErrorKind::InvalidAuthorizationHeader.into()) });
 		};
 
-		let Some(db) = req.app_data::<actix_web::web::Data<Db>>().cloned() else {
+		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
 			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
 		};
 
