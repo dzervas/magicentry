@@ -17,6 +17,9 @@ link_duration: 1h
 # How long will a global session be valid for
 session_duration: 1mon
 
+# How often to run expired secrets cleanup
+secrets_cleanup_interval: 24h
+
 # Title of the authentication service, will be shown in the web UI and emails
 title: MagicEntry
 

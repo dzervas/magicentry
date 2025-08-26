@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 use magicentry::config::ConfigFile;
+use magicentry::secret::cleanup::spawn_cleanup_job;
 pub use magicentry::*;
 
 use actix_web::middleware::Logger;
@@ -35,6 +36,8 @@ pub async fn main() -> std::io::Result<()> {
 	let db = database::init_database(&config.database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
+
+	spawn_cleanup_job(db.clone());
 
 	// Mailer setup
 	let mailer: Option<SmtpTransport> = if config.smtp_enable {

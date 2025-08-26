@@ -1,4 +1,4 @@
-use chrono::{Utc, NaiveDateTime};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
 use std::str::FromStr;
@@ -88,18 +88,6 @@ impl UserSecretRow {
 		Ok(())
 	}
 	
-	/// Clean up expired secrets
-	pub async fn cleanup_expired(db: &Database) -> Result<()> {
-		let now = Utc::now().naive_utc();
-		sqlx::query(
-			"DELETE FROM user_secrets WHERE expires_at <= ?"
-		)
-		.bind(now)
-		.execute(db)
-		.await?;
-		
-		Ok(())
-	}
 }
 
 /// Represents a passkey stored in the database
@@ -262,42 +250,4 @@ mod tests {
 		assert!(ConfigKVRow::get("jwt_keypair", &db).await.unwrap().is_none());
 	}
 
-	#[tokio::test]
-	async fn test_cleanup_expired_secrets() {
-		let db = setup_test_db().await.unwrap();
-		
-		// Create an expired secret
-		let expired_secret = UserSecretRow {
-			id: "expired_secret".to_string(),
-			secret_type: "login_link".to_string(),
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: chrono::Utc::now().naive_utc() - chrono::Duration::hours(1), // Expired 1 hour ago
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
-		
-		// Create a valid secret
-		let valid_secret = UserSecretRow {
-			id: "valid_secret".to_string(),
-			secret_type: "login_link".to_string(),
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1), // Expires in 1 hour
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
-
-		expired_secret.save(&db).await.unwrap();
-		valid_secret.save(&db).await.unwrap();
-
-		// Verify both secrets exist
-		assert!(UserSecretRow::exists("expired_secret", &db).await.unwrap());
-		assert!(UserSecretRow::exists("valid_secret", &db).await.unwrap());
-
-		// Clean up expired secrets
-		UserSecretRow::cleanup_expired(&db).await.unwrap();
-
-		// Verify only the valid secret remains
-		assert!(!UserSecretRow::exists("expired_secret", &db).await.unwrap());
-		assert!(UserSecretRow::exists("valid_secret", &db).await.unwrap());
-	}
 }

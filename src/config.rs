@@ -35,8 +35,12 @@ pub struct ConfigFile {
 
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub link_duration: Duration,
-	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-	pub session_duration: Duration,
+    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+    pub session_duration: Duration,
+
+    /// Interval for periodic cleanup of expired secrets
+    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+    pub secrets_cleanup_interval: Duration,
 
 	pub title: String,
 	pub static_path: String,
@@ -75,8 +79,8 @@ pub struct ConfigFile {
 }
 
 impl Default for ConfigFile {
-	fn default() -> Self {
-		Self {
+    fn default() -> Self {
+        Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
 
 			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
@@ -85,7 +89,9 @@ impl Default for ConfigFile {
 			external_url: "http://localhost:8080".to_string(),
 
 			link_duration   : Duration::try_hours(12).unwrap(),
-			session_duration: Duration::try_days(30).unwrap(),
+            session_duration: Duration::try_days(30).unwrap(),
+
+            secrets_cleanup_interval: Duration::try_hours(24).unwrap(),
 
 			title: "MagicEntry".to_string(),
 			static_path: "static".to_string(),

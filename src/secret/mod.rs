@@ -2,6 +2,7 @@
 pub mod primitive;
 pub mod ephemeral_primitive;
 pub mod metadata;
+pub mod cleanup;
 
 // Secret types
 pub mod browser_session;
