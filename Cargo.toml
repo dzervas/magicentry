@@ -66,7 +66,7 @@ rsa = { version = "0.9", features = ["sha2"] }
 [dev-dependencies]
 actix-http = "3.11"
 criterion = { version = "0.7.0", features = ["async_tokio"] }
-scraper = "0.23"
+scraper = "0.24"
 
 [[bench]]
 name = "authurl_status"
