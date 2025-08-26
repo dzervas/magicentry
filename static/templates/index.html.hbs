@@ -39,13 +39,39 @@
 						<div class="font-normal text-gray-500">realm</div>
 					</div>
 				</th>
-				<td class="p-6 py-4">
-					<div class="flex-shrink-0 w-6 h-6"></div>
-				</td>
-			</tr>
-			{{/each}}
-		</tbody>
-	</table>
+                                <td class="p-6 py-4">
+                                        <div class="flex-shrink-0 w-6 h-6"></div>
+                                </td>
+                        </tr>
+                        <tr class="border-b dark:border-gray-700 border-gray-200">
+                                <td colspan="2" class="px-6 py-4">
+                                        <details>
+                                                <summary>API Keys</summary>
+                                                <ul>
+{{#each api_keys}}
+<li class="my-2">
+{{this.display}} - {{#if this.expires_at}}{{this.expires_at}}{{else}}never{{/if}}
+<form method="post" action="/api_key/{{this.id}}/rotate" class="inline">
+<input type="hidden" name="service" value="{{../name}}" />
+<button class="text-sm">Rotate</button>
+</form>
+<form method="post" action="/api_key/{{this.id}}/delete" class="inline">
+<button class="text-sm">Delete</button>
+</form>
+</li>
+{{/each}}
+                                                </ul>
+                                                <form method="post" action="/api_key" class="mt-4">
+                                                        <input type="hidden" name="service" value="{{name}}" />
+                                                        <input type="number" name="expiration" placeholder="secs" class="border" />
+                                                        <button type="submit" class="text-sm">Create</button>
+                                                </form>
+                                        </details>
+                                </td>
+                        </tr>
+                        {{/each}}
+                </tbody>
+        </table>
 </div>
 
 {{> script name="webauthn" }}
