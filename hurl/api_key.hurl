@@ -28,11 +28,10 @@ service: example
 expiration: 60
 HTTP 200
 [Captures]
-created_key: xpath "//code[@id='api-key']/text()"
+created_key: xpath "string(//code[@id='api-key'])"
 
 # Use created key
 GET http://localhost:8080/auth-url/status
-[Headers]
 X-Original-URL: http://localhost:8081/
 X-Api-Key: {{created_key}}
 HTTP 200
@@ -45,18 +44,16 @@ session_id: {{session}}
 key: {{created_key}}
 HTTP 200
 [Captures]
-rotated_key: xpath "//code[@id='api-key']/text()"
+rotated_key: xpath "string(//code[@id='api-key'])"
 
 # Old key should fail
 GET http://localhost:8080/auth-url/status
-[Headers]
 X-Original-URL: http://localhost:8081/
 X-Api-Key: {{created_key}}
 HTTP 401
 
 # New key should succeed
 GET http://localhost:8080/auth-url/status
-[Headers]
 X-Original-URL: http://localhost:8081/
 X-Api-Key: {{rotated_key}}
 HTTP 200
@@ -72,7 +69,6 @@ Location: /
 
 # Deleted key should fail
 GET http://localhost:8080/auth-url/status
-[Headers]
 X-Original-URL: http://localhost:8081/
 X-Api-Key: {{rotated_key}}
 HTTP 401
