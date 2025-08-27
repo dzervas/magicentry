@@ -6,7 +6,7 @@ use crate::error::{AppErrorKind, Result};
 use crate::user::User;
 use crate::{CONFIG, PROXY_ORIGIN_HEADER};
 
-use super::primitive::{InternalUserSecret, UserSecret, UserSecretKind};
+use super::primitive::{UserSecret, UserSecretKind};
 use super::{MetadataKind, SecretString};
 use crate::database::{Database, UserSecretRow};
 
@@ -64,14 +64,20 @@ impl ApiKeySecret {
 				.checked_add_signed(final_duration)
 				.ok_or(AppErrorKind::InvalidDuration)?
 		};
-		let internal = InternalUserSecret {
-			code: SecretString::new(ApiKeySecretKind::PREFIX),
-			user,
+		let code = SecretString::new(ApiKeySecretKind::PREFIX);
+		let metadata = ApiKeyMetadata { service };
+		let user_str = serde_json::to_string(&user)?;
+		let metadata_str = serde_json::to_string(&metadata)?;
+		let row = UserSecretRow {
+			id: code.to_str_that_i_wont_print().to_string(),
+			secret_type: ApiKeySecretKind::PREFIX.to_string(),
+			user_data: user_str,
 			expires_at,
-			metadata: ApiKeyMetadata { service },
+			metadata: metadata_str,
+			created_at: None,
 		};
-		internal.save(db).await?;
-		Ok(Self(internal))
+		row.save(db).await?;
+		ApiKeySecret::try_from_string(row.id, db).await
 	}
 
 	/// List API keys for a user and service.
@@ -91,14 +97,20 @@ impl ApiKeySecret {
 			if meta.service != service {
 				continue;
 			}
-			let display = format!("{}…", &row.id[..row.id.len().min(8)]);
+			let prefix = crate::secret::get_prefix(ApiKeySecretKind::PREFIX);
+			let bare = row.id.strip_prefix(&prefix).unwrap_or(&row.id);
+			let display = if bare.len() <= 8 {
+				bare.to_string()
+			} else {
+				format!("{}…{}", &bare[..4], &bare[bare.len().saturating_sub(4)..],)
+			};
 			let expires_at = if row.expires_at == NaiveDateTime::MAX {
 				None
 			} else {
 				Some(row.expires_at)
 			};
 			keys.push(ApiKeyInfo {
-				id: row.id,
+				key: row.id,
 				display,
 				expires_at,
 			});
@@ -108,14 +120,41 @@ impl ApiKeySecret {
 
 	/// Get the associated service name.
 	pub fn service(&self) -> &str {
-		&self.0.metadata.service
+		&self.metadata().service
+	}
+
+	/// Rotate an API key if it belongs to `user`.
+	pub async fn rotate_with_user(code: String, user: &User, db: &Database) -> Result<Self> {
+		let old = Self::try_from_string(code, db).await?;
+		if old.user() != user {
+			return Err(AppErrorKind::Unauthorized.into());
+		}
+		let remaining = if old.expires_at() == NaiveDateTime::MAX {
+			Duration::seconds(0)
+		} else {
+			old.expires_at() - Utc::now().naive_utc()
+		};
+		let new_key =
+			Self::new_with_expiration(user.clone(), old.service().to_string(), remaining, db)
+				.await?;
+		old.delete(db).await?;
+		Ok(new_key)
+	}
+
+	/// Delete an API key if it belongs to `user`.
+	pub async fn delete_with_user(code: String, user: &User, db: &Database) -> Result<()> {
+		let key = Self::try_from_string(code, db).await?;
+		if key.user() != user {
+			return Err(AppErrorKind::Unauthorized.into());
+		}
+		key.delete(db).await
 	}
 }
 
 /// Public representation of an API key for listing purposes.
 #[derive(Debug, Clone, Serialize)]
 pub struct ApiKeyInfo {
-	pub id: String,
+	pub key: String,
 	pub display: String,
 	pub expires_at: Option<NaiveDateTime>,
 }
@@ -174,25 +213,16 @@ mod tests {
 		let id = key.code().to_str_that_i_wont_print().to_string();
 		let list = ApiKeySecret::list(&user, "example", &db).await.unwrap();
 		assert_eq!(list.len(), 1);
-		let fetched = ApiKeySecret::try_from_string(id.clone(), &db)
+		let rotated = ApiKeySecret::rotate_with_user(id.clone(), &user, &db)
 			.await
 			.unwrap();
-		let new_key = ApiKeySecret::new_with_expiration(
-			user.clone(),
-			"example".to_string(),
-			Duration::try_seconds(60).unwrap(),
+		ApiKeySecret::delete_with_user(
+			rotated.code().to_str_that_i_wont_print().to_string(),
+			&user,
 			&db,
 		)
 		.await
 		.unwrap();
-		fetched.delete(&db).await.unwrap();
-		let new_id = new_key.code().to_str_that_i_wont_print().to_string();
-		let list = ApiKeySecret::list(&user, "example", &db).await.unwrap();
-		assert_eq!(list.len(), 1);
-		let fetched_new = ApiKeySecret::try_from_string(new_id.clone(), &db)
-			.await
-			.unwrap();
-		fetched_new.delete(&db).await.unwrap();
 		let list = ApiKeySecret::list(&user, "example", &db).await.unwrap();
 		assert!(list.is_empty());
 	}

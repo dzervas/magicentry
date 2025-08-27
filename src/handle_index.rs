@@ -29,6 +29,10 @@ async fn index(browser_session: BrowserSessionSecret, db: web::Data<Database>) -
 	let mut index_data = BTreeMap::new();
 	index_data.insert("email", browser_session.user().email.clone());
 	let realmed_services = config.services.from_user(&browser_session.user());
+	let auth_email_header = config.auth_url_email_header.clone();
+	let auth_user_header = config.auth_url_user_header.clone();
+	let auth_name_header = config.auth_url_name_header.clone();
+	let auth_realms_header = config.auth_url_realms_header.clone();
 	drop(config);
 
 	let mut services_with_keys = Vec::new();
@@ -45,19 +49,19 @@ async fn index(browser_session: BrowserSessionSecret, db: web::Data<Database>) -
 	// Respond with the index page and set the X-Remote headers as configured
 	Ok(HttpResponse::Ok()
 		.append_header((
-			config.auth_url_email_header.as_str(),
+			auth_email_header.as_str(),
 			browser_session.user().email.clone(),
 		))
 		.append_header((
-			config.auth_url_user_header.as_str(),
+			auth_user_header.as_str(),
 			browser_session.user().username.clone(),
 		))
 		.append_header((
-			config.auth_url_name_header.as_str(),
+			auth_name_header.as_str(),
 			browser_session.user().name.clone(),
 		))
 		.append_header((
-			config.auth_url_realms_header.as_str(),
+			auth_realms_header.as_str(),
 			browser_session.user().realms.join(","),
 		))
 		.content_type(ContentType::html())

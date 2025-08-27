@@ -38,11 +38,11 @@ X-Api-Key: {{created_key}}
 HTTP 200
 
 # Rotate key
-POST http://localhost:8080/api_key/{{created_key}}/rotate
+POST http://localhost:8080/api_key/rotate
 [Cookies]
 session_id: {{session}}
 [Form]
-service: example
+key: {{created_key}}
 HTTP 200
 [Captures]
 rotated_key: xpath "//code[@id='api-key']/text()"
@@ -62,9 +62,11 @@ X-Api-Key: {{rotated_key}}
 HTTP 200
 
 # Delete new key
-POST http://localhost:8080/api_key/{{rotated_key}}/delete
+POST http://localhost:8080/api_key/delete
 [Cookies]
 session_id: {{session}}
+[Form]
+key: {{rotated_key}}
 HTTP 302
 Location: /
 

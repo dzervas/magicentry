@@ -51,11 +51,12 @@
 {{#each api_keys}}
 <li class="my-2">
 {{this.display}} - {{#if this.expires_at}}{{this.expires_at}}{{else}}never{{/if}}
-<form method="post" action="/api_key/{{this.id}}/rotate" class="inline">
-<input type="hidden" name="service" value="{{../name}}" />
+<form method="post" action="/api_key/rotate" class="inline">
+<input type="hidden" name="key" value="{{this.key}}" />
 <button class="text-sm">Rotate</button>
 </form>
-<form method="post" action="/api_key/{{this.id}}/delete" class="inline">
+<form method="post" action="/api_key/delete" class="inline">
+<input type="hidden" name="key" value="{{this.key}}" />
 <button class="text-sm">Delete</button>
 </form>
 </li>
