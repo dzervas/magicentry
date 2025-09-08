@@ -51,7 +51,7 @@ jobs:
 
       - name: Commit changes
         id: commit
-        uses: iarekylew00t/verified-bot-commit@v1
+        uses: iarekylew00t/verified-bot-commit@v2
         with:
           files: |
             Cargo.toml
