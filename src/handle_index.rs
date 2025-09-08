@@ -5,40 +5,63 @@
 use std::collections::BTreeMap;
 
 use actix_web::http::header::ContentType;
-use actix_web::{get, HttpResponse};
+use actix_web::{get, web, HttpResponse};
+use serde::Serialize;
 
+use crate::database::Database;
 use crate::error::Response;
-use crate::secret::BrowserSessionSecret;
+use crate::secret::{ApiKeyInfo, ApiKeySecret, BrowserSessionSecret};
+use crate::service::Service;
 use crate::utils::get_partial;
 use crate::CONFIG;
 
+#[derive(Serialize)]
+struct ServiceWithKeys {
+	#[serde(flatten)]
+	service: Service,
+	api_keys: Vec<ApiKeyInfo>,
+}
+
 #[get("/")]
-async fn index(
-	browser_session: BrowserSessionSecret,
-) -> Response {
+async fn index(browser_session: BrowserSessionSecret, db: web::Data<Database>) -> Response {
 	// Render the index page
 	let config = CONFIG.read().await;
 	let mut index_data = BTreeMap::new();
 	index_data.insert("email", browser_session.user().email.clone());
 	let realmed_services = config.services.from_user(&browser_session.user());
-	let index_page = get_partial("index", index_data, Some(realmed_services))?;
+	let auth_email_header = config.auth_url_email_header.clone();
+	let auth_user_header = config.auth_url_user_header.clone();
+	let auth_name_header = config.auth_url_name_header.clone();
+	let auth_realms_header = config.auth_url_realms_header.clone();
+	drop(config);
+
+	let mut services_with_keys = Vec::new();
+	for svc in realmed_services.0 {
+		let keys = ApiKeySecret::list(browser_session.user(), &svc.name, db.get_ref()).await?;
+		services_with_keys.push(ServiceWithKeys {
+			service: svc,
+			api_keys: keys,
+		});
+	}
+
+	let index_page = get_partial("index", index_data, Some(services_with_keys))?;
 
 	// Respond with the index page and set the X-Remote headers as configured
 	Ok(HttpResponse::Ok()
 		.append_header((
-			config.auth_url_email_header.as_str(),
+			auth_email_header.as_str(),
 			browser_session.user().email.clone(),
 		))
 		.append_header((
-			config.auth_url_user_header.as_str(),
+			auth_user_header.as_str(),
 			browser_session.user().username.clone(),
 		))
 		.append_header((
-			config.auth_url_name_header.as_str(),
+			auth_name_header.as_str(),
 			browser_session.user().name.clone(),
 		))
 		.append_header((
-			config.auth_url_realms_header.as_str(),
+			auth_realms_header.as_str(),
 			browser_session.user().realms.join(","),
 		))
 		.content_type(ContentType::html())
@@ -69,7 +92,7 @@ mod tests {
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(index)
-				.service(handle_magic_link::magic_link)
+				.service(handle_magic_link::magic_link),
 		)
 		.await;
 
