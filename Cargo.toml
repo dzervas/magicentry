@@ -66,6 +66,12 @@ actix-http = "3.11"
 criterion = { version = "0.7.0", features = ["async_tokio"] }
 scraper = "0.24"
 tempfile = "3.21"
+glob = "0.3"
+tiny_http = "0.12"
+# Use Hurl as a library to run E2E HTTP specs
+# We intentionally put this under dev-dependencies so it's only pulled for tests
+hurl = "*"
+hurl_core = "*"
 
 [[bench]]
 name = "authurl_status"
