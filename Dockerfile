@@ -30,7 +30,7 @@ RUN --mount=type=cache,target=/app/target/ \
 	--mount=type=cache,target=/usr/local/cargo/registry/cache/ \
 	cargo build --release --features=$FEATURES --target $(cat /.target-triplet) && cp target/$(cat /.target-triplet)/release/magicentry .
 
-FROM gcr.io/distroless/cc-debian12
+FROM gcr.io/distroless/cc-debian13
 
 COPY --from=builder /app/magicentry /usr/local/bin/
 COPY --from=frontend /usr/src/app/static /static
