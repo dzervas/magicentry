@@ -8,7 +8,7 @@ use super::oidc_token::OIDCTokenSecretKind;
 use super::primitive::UserSecretKind;
 use super::ChildSecretMetadata;
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct OIDCAuthCodeSecretKind;
 
 impl UserSecretKind for OIDCAuthCodeSecretKind {

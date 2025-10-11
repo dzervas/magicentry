@@ -30,6 +30,8 @@ pub enum AppErrorKind {
 	InvalidSecretType,
 	#[display("The provided secret has expired")]
 	ExpiredSecret,
+	#[display("The provided secret does not exist")]
+	InvalidSecret,
 	#[display("The metadata provided to the secret were invalid")]
 	InvalidSecretMetadata,
 	#[display("The request does not have a valid magic link token")]
