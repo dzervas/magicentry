@@ -17,6 +17,9 @@ link_duration: 1h
 # How long will a global session be valid for
 session_duration: 1mon
 
+# Maximum allowed API key duration (0 disables expiration limit)
+api_key_max_expiration: 365d
+
 # How often to run expired secrets cleanup
 secrets_cleanup_interval: 24h
 

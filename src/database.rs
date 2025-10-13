@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
+use sqlx::{sqlite::SqliteConnectOptions, FromRow, SqlitePool};
 use std::str::FromStr;
 
 use crate::error::Result;
@@ -15,12 +15,12 @@ pub async fn init_database(database_url: &str) -> Result<Database> {
 		.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
 		.shared_cache(true)
 		.create_if_missing(true);
-	
+
 	let pool = SqlitePool::connect_with(options).await?;
-	
+
 	// Run migrations
 	sqlx::migrate!("./migrations").run(&pool).await?;
-	
+
 	Ok(pool)
 }
 
@@ -48,10 +48,10 @@ impl UserSecretRow {
 		.bind(&self.metadata)
 		.execute(db)
 		.await?;
-		
+
 		Ok(())
 	}
-	
+
 	/// Get a user secret by ID
 	pub async fn get(id: &str, db: &Database) -> Result<Option<Self>> {
 		let row = sqlx::query_as::<_, UserSecretRow>(
@@ -60,34 +60,29 @@ impl UserSecretRow {
 		.bind(id)
 		.fetch_optional(db)
 		.await?;
-		
+
 		Ok(row)
 	}
-	
+
 	/// Check if a user secret exists
 	pub async fn exists(id: &str, db: &Database) -> Result<bool> {
-		let count: i64 = sqlx::query_scalar(
-			"SELECT COUNT(*) FROM user_secrets WHERE id = ?"
-		)
-		.bind(id)
-		.fetch_one(db)
-		.await?;
-		
+		let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_secrets WHERE id = ?")
+			.bind(id)
+			.fetch_one(db)
+			.await?;
+
 		Ok(count > 0)
 	}
-	
+
 	/// Remove a user secret by ID
 	pub async fn remove(id: &str, db: &Database) -> Result<()> {
-		sqlx::query(
-			"DELETE FROM user_secrets WHERE id = ?"
-		)
-		.bind(id)
-		.execute(db)
-		.await?;
-		
+		sqlx::query("DELETE FROM user_secrets WHERE id = ?")
+			.bind(id)
+			.execute(db)
+			.await?;
+
 		Ok(())
 	}
-	
 }
 
 /// Represents a passkey stored in the database
@@ -102,29 +97,27 @@ pub struct PasskeyRow {
 impl PasskeyRow {
 	/// Save a passkey to the database
 	pub async fn save(&mut self, db: &Database) -> Result<()> {
-		let result = sqlx::query(
-			"INSERT INTO passkeys (user_data, passkey_data) VALUES (?, ?)"
-		)
-		.bind(&self.user_data)
-		.bind(&self.passkey_data)
-		.execute(db)
-		.await?;
-		
+		let result = sqlx::query("INSERT INTO passkeys (user_data, passkey_data) VALUES (?, ?)")
+			.bind(&self.user_data)
+			.bind(&self.passkey_data)
+			.execute(db)
+			.await?;
+
 		self.id = Some(result.last_insert_rowid());
 		Ok(())
 	}
-	
+
 	/// Get all passkeys for a user
 	pub async fn get_by_user(user: &User, db: &Database) -> Result<Vec<Self>> {
 		let user_str = serde_json::to_string(user)?;
-		
+
 		let rows = sqlx::query_as::<_, PasskeyRow>(
-			"SELECT id, user_data, passkey_data, created_at FROM passkeys WHERE user_data = ?"
+			"SELECT id, user_data, passkey_data, created_at FROM passkeys WHERE user_data = ?",
 		)
 		.bind(user_str)
 		.fetch_all(db)
 		.await?;
-		
+
 		Ok(rows)
 	}
 }
@@ -148,31 +141,27 @@ impl ConfigKVRow {
 		.bind(&self.value)
 		.execute(db)
 		.await?;
-		
+
 		Ok(())
 	}
-	
+
 	/// Get a config value by key
 	pub async fn get(key: &str, db: &Database) -> Result<Option<String>> {
-		let row: Option<(String,)> = sqlx::query_as(
-			"SELECT value FROM config_kv WHERE key = ?"
-		)
-		.bind(key)
-		.fetch_optional(db)
-		.await?;
-		
+		let row: Option<(String,)> = sqlx::query_as("SELECT value FROM config_kv WHERE key = ?")
+			.bind(key)
+			.fetch_optional(db)
+			.await?;
+
 		Ok(row.map(|(value,)| value))
 	}
-	
+
 	/// Remove a config KV pair by key
 	pub async fn remove(key: &str, db: &Database) -> Result<()> {
-		sqlx::query(
-			"DELETE FROM config_kv WHERE key = ?"
-		)
-		.bind(key)
-		.execute(db)
-		.await?;
-		
+		sqlx::query("DELETE FROM config_kv WHERE key = ?")
+			.bind(key)
+			.execute(db)
+			.await?;
+
 		Ok(())
 	}
 }
@@ -189,7 +178,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_user_secret_crud() {
 		let db = setup_test_db().await.unwrap();
-		
+
 		let secret = UserSecretRow {
 			id: "test_secret_123".to_string(),
 			secret_type: "login_link".to_string(),
@@ -203,7 +192,10 @@ mod tests {
 		secret.save(&db).await.unwrap();
 
 		// Test get
-		let retrieved = UserSecretRow::get("test_secret_123", &db).await.unwrap().unwrap();
+		let retrieved = UserSecretRow::get("test_secret_123", &db)
+			.await
+			.unwrap()
+			.unwrap();
 		assert_eq!(retrieved.id, secret.id);
 		assert_eq!(retrieved.secret_type, secret.secret_type);
 		assert_eq!(retrieved.user_data, secret.user_data);
@@ -220,7 +212,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_config_kv_crud() {
 		let db = setup_test_db().await.unwrap();
-		
+
 		let config = ConfigKVRow {
 			key: "jwt_keypair".to_string(),
 			value: "test_keypair_value".to_string(),
@@ -241,13 +233,15 @@ mod tests {
 			updated_at: None,
 		};
 		updated_config.save(&db).await.unwrap();
-		
+
 		let updated_value = ConfigKVRow::get("jwt_keypair", &db).await.unwrap().unwrap();
 		assert_eq!(updated_value, "updated_keypair_value");
 
 		// Test remove
 		ConfigKVRow::remove("jwt_keypair", &db).await.unwrap();
-		assert!(ConfigKVRow::get("jwt_keypair", &db).await.unwrap().is_none());
+		assert!(ConfigKVRow::get("jwt_keypair", &db)
+			.await
+			.unwrap()
+			.is_none());
 	}
-
 }

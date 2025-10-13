@@ -15,9 +15,10 @@ use tokio::select;
 pub async fn main() -> std::io::Result<()> {
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-
 	#[cfg(feature = "e2e-test")]
-	log::warn!("Running in E2E Tests mode, all magic links will written to disk in the `.link.txt` file.");
+	log::warn!(
+		"Running in E2E Tests mode, all magic links will written to disk in the `.link.txt` file."
+	);
 
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
@@ -69,9 +70,7 @@ pub async fn main() -> std::io::Result<()> {
 			.app_data(web::Data::new(mailer.clone()))
 			.app_data(web::Data::new(http_client.clone()))
 			.app_data(basic::Config::default().realm("MagicEntry"))
-
 			.default_service(web::route().to(error::not_found))
-
 			// Auth routes
 			.service(handle_index::index)
 			.service(handle_login::login)
@@ -80,14 +79,12 @@ pub async fn main() -> std::io::Result<()> {
 			.service(handle_logout::logout)
 			.service(handle_static::static_files)
 			.service(handle_static::favicon)
-
+			.configure(handle_api_key::init)
 			// Auth URL routes
 			.service(auth_url::handle_status::status)
-
 			// SAML routes
 			.service(saml::handle_metadata::metadata)
 			.service(saml::handle_sso::sso)
-
 			// OIDC routes
 			.app_data(web::Data::new(oidc_key.clone()))
 			.service(oidc::handle_discover::discover)
@@ -99,8 +96,13 @@ pub async fn main() -> std::io::Result<()> {
 			.service(oidc::handle_jwks::jwks)
 			.service(oidc::handle_userinfo::userinfo)
 			// Handle oauth discovery too
-			.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent())
-
+			.service(
+				web::redirect(
+					"/.well-known/oauth-authorization-server",
+					"/.well-known/openid-configuration",
+				)
+				.permanent(),
+			)
 			// Middleware
 			.wrap(Logger::default());
 
@@ -118,13 +120,15 @@ pub async fn main() -> std::io::Result<()> {
 
 		app
 	})
-	.workers(if cfg!(debug_assertions) || cfg!(test) || cfg!(feature = "e2e-test") {
-		1
-	} else {
-		std::thread::available_parallelism()
-			.map(|n| n.get())
-			.unwrap_or(2)
-	})
+	.workers(
+		if cfg!(debug_assertions) || cfg!(test) || cfg!(feature = "e2e-test") {
+			1
+		} else {
+			std::thread::available_parallelism()
+				.map(|n| n.get())
+				.unwrap_or(2)
+		},
+	)
 	.bind(format!("{}:{}", listen_host, listen_port))
 	.unwrap()
 	.run();
