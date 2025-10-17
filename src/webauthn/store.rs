@@ -41,7 +41,7 @@ impl PasskeyStore {
 			let user: User = serde_json::from_str(&row.user_data)?;
 			let passkey: Passkey = serde_json::from_str(&row.passkey_data)?;
 			
-			passkeys.push(PasskeyStore {
+			passkeys.push(Self {
 				id: row.id,
 				user,
 				passkey,
@@ -53,7 +53,8 @@ impl PasskeyStore {
 }
 
 pub mod as_string {
-	use super::*;
+	use super::Passkey;
+	use serde::Deserialize;
 
 	pub fn serialize<S: serde::Serializer>(
 		passkey: &Passkey,

@@ -8,7 +8,7 @@ use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata};
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxySessionSecretKind;
 
 impl UserSecretKind for ProxySessionSecretKind {
@@ -39,9 +39,13 @@ impl actix_web::FromRequest for ProxySessionSecret {
 		let code = code.value().to_string();
 		Box::pin(async move {
 			let origin_url = url::Url::parse(origin_header.to_str()?)?;
-			let config = CONFIG.read().await;
-			let service = config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
 			let secret = Self::try_from_string(code, db.get_ref()).await?;
+			let service = {
+				let config = CONFIG.read().await;
+				config.services
+					.from_auth_url_origin(&origin_url.origin())
+					.ok_or(AppErrorKind::InvalidOriginHeader)?
+			};
 
 			if !service.is_user_allowed(secret.user()) {
 				log::warn!("User {} tried to access {} with a proxy session", secret.user().email, service.name);

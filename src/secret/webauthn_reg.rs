@@ -9,7 +9,7 @@ use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
 use super::primitive::UserSecretKind;
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebAuthnRegSecretKind;
 
 impl UserSecretKind for WebAuthnRegSecretKind {
@@ -40,11 +40,11 @@ impl actix_web::FromRequest for WebAuthnRegSecret {
 	}
 }
 
-impl Into<Cookie<'_>> for WebAuthnRegSecret {
-	fn into(self) -> Cookie<'static> {
+impl From<WebAuthnRegSecret> for Cookie<'_> {
+	fn from(val: WebAuthnRegSecret) -> Cookie<'static> {
 		Cookie::build(
 			WEBAUTHN_REG_COOKIE,
-			self.code().to_str_that_i_wont_print().to_owned(),
+			val.code().to_str_that_i_wont_print().to_owned(),
 		)
 		.http_only(true)
 		.same_site(SameSite::Lax)
@@ -54,6 +54,7 @@ impl Into<Cookie<'_>> for WebAuthnRegSecret {
 }
 
 impl WebAuthnRegSecret {
+	#[must_use]
 	pub fn unset_cookie() -> Cookie<'static> {
 		let mut cookie: Cookie<'_> = Cookie::new(WEBAUTHN_REG_COOKIE, "");
 		cookie.make_removal();

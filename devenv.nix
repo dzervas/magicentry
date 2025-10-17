@@ -12,9 +12,10 @@
     hurl
     watchexec
     sqlx-cli
-    openssl.dev perl
 
+    openssl.dev perl
     libxml2
+
     clang
   ];
 

@@ -19,9 +19,7 @@ async fn magic_link(
 	// These can be configured through either the service.<name>.auth_url.origins, service.<name>.saml.redirect_urls or service.<name>.oidc.redirect_urls
 	// redirect_url = login_secret.redirect_url(&db).await?;
 	let redirect_url = if let Some(login_redirect) = login_redirect_opt {
-		login_redirect
-			.into_redirect_url(Some(browser_session), &db).await?
-			.to_string()
+		login_redirect.into_redirect_url(Some(browser_session), &db).await?
 	} else {
 		"/".to_string()
 	};

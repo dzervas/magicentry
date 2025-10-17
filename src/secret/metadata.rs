@@ -8,7 +8,6 @@ use crate::error::Result;
 
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
-
 pub trait MetadataKind: Serialize + DeserializeOwned {
 	async fn validate(&self, _db: &Database) -> Result<()> { Ok(()) }
 }
@@ -20,13 +19,13 @@ impl MetadataKind for url::Url {}
 impl<T: MetadataKind> MetadataKind for Option<T> {}
 
 /// Zero-sized struct for empty metadata.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmptyMetadata();
 
 impl MetadataKind for EmptyMetadata {}
 
 impl From<()> for EmptyMetadata {
-	fn from(_: ()) -> Self { EmptyMetadata() }
+	fn from((): ()) -> Self { Self() }
 }
 
 /// This struct is used to denote that a secret is a child of another secret.
@@ -40,14 +39,19 @@ pub struct ChildSecretMetadata<P: UserSecretKind, M> {
 }
 
 impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
-	pub(super) fn new(parent: UserSecret<P>, metadata: M) -> Self {
+	pub(super) const fn new(parent: UserSecret<P>, metadata: M) -> Self {
 		Self { parent, metadata }
 	}
 
-	pub fn parent(&self) -> &UserSecret<P> { &self.parent }
-	pub fn metadata(&self) -> &M { &self.metadata }
+	pub const fn parent(&self) -> &UserSecret<P> { &self.parent }
+	pub const fn metadata(&self) -> &M { &self.metadata }
 
-	pub(super) fn to_empty(self) -> ChildSecretMetadata<P, EmptyMetadata> { ChildSecretMetadata { parent: self.parent, metadata: EmptyMetadata() } }
+	pub(super) fn into_empty(self) -> ChildSecretMetadata<P, EmptyMetadata> {
+		ChildSecretMetadata {
+			parent: self.parent,
+			metadata: EmptyMetadata()
+		}
+	}
 }
 
 impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind for ChildSecretMetadata<P, M> {

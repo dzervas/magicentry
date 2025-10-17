@@ -23,8 +23,10 @@ async fn authorize(
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 
 	let Some(browser_session) = browser_session_opt else {
-		let config = CONFIG.read().await;
-		let base_url = config.url_from_request(&req);
+		let base_url = {
+			let config = CONFIG.read().await;
+			config.url_from_request(&req)
+		};
 		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()
@@ -40,7 +42,7 @@ async fn authorize(
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?
 	let redirect_url = auth_req
-		.get_redirect_url(&oidc_authcode.code().to_str_that_i_wont_print(), &oidc_authcode.user())
+		.get_redirect_url(oidc_authcode.code().to_str_that_i_wont_print(), oidc_authcode.user())
 		.await
 		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 	let redirect_url_uri = redirect_url.parse::<Uri>()?;
@@ -50,14 +52,14 @@ async fn authorize(
 	let redirect_url_authority = redirect_url_uri
 		.authority()
 		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
-	let redirect_url_str = format!("{}://{}", redirect_url_scheme, redirect_url_authority);
+	let redirect_url_str = format!("{redirect_url_scheme}://{redirect_url_authority}");
 
 	let mut authorize_data = BTreeMap::new();
 	authorize_data.insert("name", oidc_authcode.user().name.clone());
 	authorize_data.insert("username", oidc_authcode.user().username.clone());
 	authorize_data.insert("email", oidc_authcode.user().email.clone());
-	authorize_data.insert("client", redirect_url_str.clone());
-	authorize_data.insert("link", redirect_url.clone());
+	authorize_data.insert("client", redirect_url_str);
+	authorize_data.insert("link", redirect_url);
 	let authorize_page = get_partial::<()>("authorize", authorize_data, None)?;
 
 	let cookie = Cookie::build(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)?)

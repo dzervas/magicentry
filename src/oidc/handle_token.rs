@@ -30,7 +30,7 @@ pub struct TokenResponse {
 	pub refresh_token: Option<String>,
 }
 
-/// Implementation of https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+/// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#IDToken>
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct JWTData {
 	#[serde(rename = "sub")]
@@ -40,8 +40,8 @@ pub struct JWTData {
 	#[serde(rename = "iss")]
 	pub from_url: String,
 	#[serde(rename = "exp")]
-	pub expires_at: u64,
-	pub iat: u64,
+	pub expires_at: i64,
+	pub iat: i64,
 
 	/// String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
 	/// The value is passed through unmodified from the Authentication Request to the ID Token.
@@ -63,14 +63,17 @@ pub struct JWTData {
 
 impl JWTData {
 	pub async fn new(base_url: String, nonce: Option<String>) -> Self {
-		let config = CONFIG.read().await;
-		let expiry = Utc::now() + config.session_duration;
-		JWTData {
+		let expiry = {
+			let config = CONFIG.read().await;
+			Utc::now() + config.session_duration
+		};
+
+		Self {
 			user: String::default(),
 			client_id: String::default(),
 			from_url: base_url,
-			expires_at: expiry.timestamp() as u64,
-			iat: Utc::now().timestamp() as u64,
+			expires_at: expiry.timestamp(),
+			iat: Utc::now().timestamp(),
 			nonce,
 
 			name: String::default(),
@@ -100,18 +103,18 @@ pub async fn token(
 ) -> Response {
 	// This is a too long function.
 	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
-	debug!("Token request: {:?}", token_req);
+	debug!("Token request: {token_req:?}");
 
 	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 
-	let config = CONFIG.read().await;
-	let client_id = if let Some(basic_creds) = basic.clone() {
-		basic_creds.user_id().to_string()
-	} else {
-		auth_req.client_id.clone()
-	};
+	let client_id = basic.clone()
+		.map_or_else(
+			|| auth_req.client_id.clone(),
+			|basic_creds| basic_creds.user_id().to_string()
+		);
 
+	let config = CONFIG.read().await;
 	let mut service = config
 		.services
 		.from_oidc_client_id(&client_id)
@@ -168,9 +171,10 @@ pub async fn token(
 		return Err(AppErrorKind::NoClientCredentialsProvided.into());
 	}
 
+
 	let base_url = config.url_from_request(&req);
 	let id_token = auth_req
-		.generate_id_token(&oidc_authcode.user(), base_url, jwt_keypair.as_ref())
+		.generate_id_token(oidc_authcode.user(), base_url, jwt_keypair.as_ref())
 		.await?;
 	let oidc_token = oidc_authcode.exchange_sibling(&db).await?;
 

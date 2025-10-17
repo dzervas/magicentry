@@ -21,7 +21,7 @@ pub fn spawn_cleanup_job(db: crate::Database) {
 	tokio::spawn(async move {
 		loop {
 			if let Err(e) = cleanup_expired(&db).await {
-				log::error!("Failed to cleanup expired secrets: {}", e);
+				log::error!("Failed to cleanup expired secrets: {e}");
 			} else {
 				log::info!("Expired secrets cleanup completed");
 			}
@@ -33,7 +33,7 @@ pub fn spawn_cleanup_job(db: crate::Database) {
 					.to_std()
 					.unwrap_or_else(|_| StdDuration::from_secs(24 * 60 * 60))
 			};
-			log::debug!("Next expired secrets cleanup in {:?}", sleep_dur);
+			log::debug!("Next expired secrets cleanup in {sleep_dur:?}");
 			tokio::time::sleep(sleep_dur).await;
 		}
 	});

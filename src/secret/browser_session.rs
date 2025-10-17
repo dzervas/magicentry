@@ -8,7 +8,7 @@ use crate::SESSION_COOKIE;
 use super::primitive::{UserSecret, UserSecretKind};
 use super::metadata::EmptyMetadata;
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct BrowserSessionSecretKind;
 
 impl UserSecretKind for BrowserSessionSecretKind {
@@ -43,11 +43,11 @@ impl actix_web::FromRequest for BrowserSessionSecret {
 // as the use-case for this implementation in [handle_magic_link](crate::handle_magic_link::magic_link)
 // requires that the structs lives after the transformation to cookie,
 // to be made into a proxy code secret, if that's the case.
-impl Into<Cookie<'_>> for &BrowserSessionSecret {
-	fn into(self) -> Cookie<'static> {
+impl From<&BrowserSessionSecret> for Cookie<'_> {
+	fn from(val: &BrowserSessionSecret) -> Cookie<'static> {
 		Cookie::build(
 			SESSION_COOKIE,
-			self.code().to_str_that_i_wont_print().to_owned(),
+			val.code().to_str_that_i_wont_print().to_owned(),
 		)
 		.http_only(true)
 		.same_site(SameSite::Lax)
@@ -57,6 +57,7 @@ impl Into<Cookie<'_>> for &BrowserSessionSecret {
 }
 
 impl BrowserSessionSecret {
+	#[must_use]
 	pub fn unset_cookie() -> Cookie<'static> {
 		let mut cookie: Cookie<'_> = Cookie::new(SESSION_COOKIE, "");
 		cookie.make_removal();

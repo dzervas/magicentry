@@ -20,8 +20,8 @@ async fn index(
 	let config = CONFIG.read().await;
 	let mut index_data = BTreeMap::new();
 	index_data.insert("email", browser_session.user().email.clone());
-	let realmed_services = config.services.from_user(&browser_session.user());
-	let index_page = get_partial("index", index_data, Some(realmed_services))?;
+	let realmed_services = config.services.from_user(browser_session.user());
+	let index_page = get_partial("index", index_data, Some(&realmed_services))?;
 
 	// Respond with the index page and set the X-Remote headers as configured
 	Ok(HttpResponse::Ok()

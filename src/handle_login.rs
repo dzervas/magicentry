@@ -2,7 +2,7 @@
 //! unauthenticated users can log in using either a login link or webauthn
 //!
 //! If the user is already logged in, they'll get redirected to the index page
-//! or the [LoginLinkRedirect], mainly used to handle auth-url/OIDC/SAML cases
+//! or the [`LoginLinkRedirect`], mainly used to handle auth-url/OIDC/SAML cases
 
 use std::collections::BTreeMap;
 
@@ -32,7 +32,7 @@ async fn login(
 		};
 
 		return Ok(HttpResponse::Found()
-			.append_header(("Location", redirect_url.to_string()))
+			.append_header(("Location", redirect_url))
 			.finish())
 	}
 
@@ -62,7 +62,7 @@ mod tests {
 
 		let req = actix_test::TestRequest::get().uri("/login").to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		assert_eq!(
 			resp.headers()

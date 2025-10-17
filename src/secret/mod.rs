@@ -28,18 +28,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::random_string;
 
+#[must_use]
 pub fn get_prefix(prefix: &str) -> String {
-	format!("me_{}_", prefix)
+	format!("me_{prefix}_")
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SecretString(String);
 
 impl SecretString {
+	#[allow(clippy::must_use_candidate)]
 	pub fn to_str_that_i_wont_print(&self) -> &str { &self.0 }
 }
 
 impl SecretString {
+	#[must_use]
 	pub fn new(prefix: &'static str) -> Self {
 		Self(format!("{}{}", get_prefix(prefix), random_string()))
 	}

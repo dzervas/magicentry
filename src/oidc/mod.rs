@@ -96,12 +96,7 @@ use crate::secret::LoginLinkSecret;
 		let state = "my_awesome_state";
 
 		let req = actix_test::TestRequest::get()
-			.uri(format!(
-				"/oidc/authorize?client_id={}&redirect_uri={}&scope=openid%20profile%20email%20phone%20address&response_type=code&state={}",
-				client_id,
-				redirect,
-				state
-			).as_str())
+			.uri(format!("/oidc/authorize?client_id={client_id}&redirect_uri={redirect}&scope=openid%20profile%20email%20phone%20address&response_type=code&state={state}").as_str())
 			.to_request();
 
 		let resp = actix_test::call_service(&mut app, req).await;
@@ -165,7 +160,7 @@ use crate::secret::LoginLinkSecret;
 			.unwrap()
 			.1
 			.to_string();
-		println!("New Code: {}", code);
+		println!("New Code: {code}");
 
 		let req = actix_test::TestRequest::post()
 			.uri("/oidc/token")
@@ -182,7 +177,7 @@ use crate::secret::LoginLinkSecret;
 		let resp = actix_test::call_service(&mut app, req).await;
 		let resp_status = resp.status();
 		let body = actix_test::read_body(resp).await;
-		println!("Body: {:?}", body);
+		println!("Body: {body:?}");
 		assert_eq!(resp_status, StatusCode::OK);
 		let resp_token = serde_json::from_slice::<TokenResponse>(&body).unwrap();
 
@@ -206,6 +201,6 @@ use crate::secret::LoginLinkSecret;
 				email_verified: true,
 				preferred_username: "valid",
 			}
-		)
+		);
 	}
 }

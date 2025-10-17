@@ -12,23 +12,24 @@ pub struct User {
 }
 
 impl User {
-	pub async fn from_email(email: &str) -> Option<User> {
+	pub async fn from_email(email: &str) -> Option<Self> {
 		CONFIG.read().await.users
 			.iter()
 			.find(|u| u.email == email).cloned()
 	}
 
+	#[must_use]
 	pub fn has_any_realm(&self, realms: &[String]) -> bool {
 		self.realms.contains(
 			&"all".to_string()) ||
 			self.realms.iter().any(|r| realms.contains(r))
 	}
 
-	pub fn from_config_blocking(email: &str) -> Option<User> {
-		CONFIG
-			.try_read()
-			.expect("Failed to lock config for reading during user lookup")
-			.users
+	pub fn from_config_blocking(email: &str) -> Option<Self> {
+		// TODO: Return an error instead of none
+		let Ok(config) = CONFIG.try_read() else { return None; };
+
+		config.users
 			.iter()
 			.find(|u| u.email == email).cloned()
 	}
@@ -48,16 +49,17 @@ impl PartialEq<&str> for User {
 
 /// MD5 is only used to generate a UUID for this user, which is not a secret,
 /// not used for authentication and not a user-provided value.
-/// webauthn-rs expects a UUIDv4 and the only hash function producing 16 bytes is MD5.
+/// webauthn-rs expects a `UUIDv4` and the only hash function producing 16 bytes is MD5.
 impl From<&User> for Uuid {
 	fn from(val: &User) -> Self {
 		let hash = md5::compute(val.email.as_bytes());
-		Uuid::from_bytes(hash.0)
+		Self::from_bytes(hash.0)
 	}
 }
 
 pub mod as_string {
-	use super::*;
+	use super::User;
+	use serde::Deserialize as _;
 
 	pub fn serialize<S: serde::Serializer>(user: &User, serializer: S) -> Result<S::Ok, S::Error> {
 		serializer.serialize_str(&user.email)
@@ -68,7 +70,7 @@ pub mod as_string {
 	) -> Result<User, D::Error> {
 		let email = String::deserialize(deserializer)?;
 		// let runtime = rt::Runtime::new().unwrap();
-		User::from_config_blocking(&email).ok_or(serde::de::Error::custom("User not found"))
+		User::from_config_blocking(&email).ok_or_else(|| serde::de::Error::custom("User not found"))
 	}
 }
 

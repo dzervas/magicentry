@@ -11,7 +11,7 @@ use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_QUERY_CODE};
 
 // This should have been an enum, but bincode (used by reindeer db) doesn't support it
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginLinkRedirect {
 	pub rd: Option<url::Url>,
 	#[serde(with = "crate::oidc::authorize_request::as_string", default)]
@@ -37,7 +37,7 @@ impl LoginLinkRedirect {
 			let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), db).await?;
 			url
 				.query_pairs_mut()
-				.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
+				.append_pair(PROXY_QUERY_CODE, proxy_code.code().to_str_that_i_wont_print());
 			Ok(url.to_string())
 		} else if let Some(oidc) = &self.oidc {
 			Ok(format!("/oidc/authorize?{}", serde_qs::to_string(oidc)?))
@@ -57,11 +57,11 @@ impl LoginLinkRedirect {
 	}
 
 	async fn validate_internal(&self) -> Result<url::Url> {
-		let config = CONFIG.read().await;
-
-		if self.rd.is_some() as u8 + self.oidc.is_some() as u8 + self.saml.is_some() as u8 > 1 {
+		if u8::from(self.rd.is_some()) + u8::from(self.oidc.is_some()) + u8::from(self.saml.is_some()) > 1 {
 			return Err(AppErrorKind::MultipleLoginLinkRedirectDefinitions.into())
 		}
+
+		let config = CONFIG.read().await;
 
 		if let Some(url) = &self.rd {
 			config.services
@@ -81,6 +81,7 @@ impl LoginLinkRedirect {
 				.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
 			Ok(url)
 		} else {
+			drop(config);
 			Err(AppErrorKind::NoLoginLinkRedirect.into())
 		}
 	}
@@ -105,6 +106,7 @@ impl UserSecretKind for LoginLinkSecretKind {
 pub type LoginLinkSecret = EphemeralUserSecret<LoginLinkSecretKind, BrowserSessionSecretKind>;
 
 impl LoginLinkSecret {
+	#[must_use]
 	pub fn get_login_url(&self) -> String {
 		format!("/login/{}", self.code().to_str_that_i_wont_print())
 	}

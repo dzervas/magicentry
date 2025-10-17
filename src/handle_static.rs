@@ -14,7 +14,7 @@ async fn static_files(filename: web::Path<String>) -> Response {
 		_ => return Ok(HttpResponse::NotFound().finish()),
 	};
 
-	let content = fs::read_to_string(format!("static/{}", file))?;
+	let content = fs::read_to_string(format!("static/{file}"))?;
 
 	Ok(HttpResponse::Ok().content_type(content_type).body(content))
 }

@@ -23,7 +23,7 @@ impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, Excha
 		self.0.validate(db).await?;
 
 		let new_secret = UserSecret::new(self.0.user().clone(), metadata, db).await?;
-		InternalUserSecret::<K>::remove(&self.0.code(), db).await?;
+		InternalUserSecret::<K>::remove(self.0.code(), db).await?;
 
 		Ok(new_secret)
 	}
@@ -31,10 +31,10 @@ impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, Excha
 	pub async fn try_from_string(code: String, db: &crate::Database) -> Result<Self> {
 		Ok(Self(UserSecret::try_from_string(code, db).await?, PhantomData))
 	}
-	pub fn code(&self) -> &SecretString { &self.0.code() }
-	pub fn user(&self) -> &User { &self.0.user() }
-	pub fn expires_at(&self) -> NaiveDateTime { self.0.expires_at() }
-	pub fn metadata(&self) -> &K::Metadata { &self.0.metadata() }
+	pub const fn code(&self) -> &SecretString { self.0.code() }
+	pub const fn user(&self) -> &User { self.0.user() }
+	pub const fn expires_at(&self) -> NaiveDateTime { self.0.expires_at() }
+	pub const fn metadata(&self) -> &K::Metadata { self.0.metadata() }
 }
 
 impl<K, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
@@ -56,7 +56,7 @@ impl<P, K, M, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 		Ok(Self(UserSecret::<K>::new_child(parent, metadata, db).await?, PhantomData))
 	}
 
-	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata().metadata() }
+	pub const fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata().metadata() }
 }
 
 impl<K, M, P, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
@@ -67,9 +67,9 @@ impl<K, M, P, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 {
 	pub async fn exchange_sibling(self, db: &crate::Database) -> Result<UserSecret<ExchangeTo>> {
 		self.0.validate(db).await?;
-		InternalUserSecret::<K>::remove(&self.0.code(), db).await?;
+		InternalUserSecret::<K>::remove(self.0.code(), db).await?;
 		let user = self.0.user().clone();
-		let metadata = self.0.take_metadata().to_empty();
+		let metadata = self.0.take_metadata().into_empty();
 
 		let new_secret = UserSecret::new(user, metadata, db).await?;
 

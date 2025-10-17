@@ -10,8 +10,8 @@ use crate::secret::MetadataKind;
 use crate::CONFIG;
 
 
-/// Implementation of https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest>
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizeRequest {
 	pub scope: String,
 	pub response_type: String,
@@ -40,6 +40,7 @@ impl AuthorizeRequest {
 			);
 			return None;
 		};
+		drop(config);
 
 		if !service.is_user_allowed(user) {
 			log::warn!(
@@ -80,19 +81,21 @@ impl AuthorizeRequest {
 
 			..JWTData::new(url, self.nonce.clone()).await
 		};
-		debug!("JWT Data: {:?}", jwt_data);
+		debug!("JWT Data: {jwt_data:?}");
 
-		let config = CONFIG.read().await;
-		let claims = Claims::with_custom_claims(
-			jwt_data,
-			Duration::from_millis(
-				config
-					.session_duration
-					.num_milliseconds()
-					.try_into()
-					.map_err(|_| AppErrorKind::InvalidDuration)?,
-			),
-		);
+		let claims = {
+			let config = CONFIG.read().await;
+			Claims::with_custom_claims(
+				jwt_data,
+				Duration::from_millis(
+					config
+						.session_duration
+						.num_milliseconds()
+						.try_into()
+						.map_err(|_| AppErrorKind::InvalidDuration)?,
+				),
+			)
+		};
 		let id_token = keypair.sign(claims)?;
 
 		Ok(id_token)
@@ -117,7 +120,8 @@ impl MetadataKind for AuthorizeRequest {
 }
 
 pub mod as_string {
-	use super::*;
+	use super::AuthorizeRequest;
+	use serde::Deserialize as _;
 
 	pub fn serialize<S: serde::Serializer>(
 		req: &Option<AuthorizeRequest>,
@@ -138,10 +142,9 @@ pub mod as_string {
 		use serde::de::Error;
 		let opt_json = Option::<String>::deserialize(deserializer)?;
 
-		if let Some(json) = &opt_json {
-			serde_json::from_str(&json).map(Some).map_err(Error::custom)
-		} else {
-			Ok(None)
-		}
+		opt_json.as_ref().map_or_else(
+			|| Ok(None),
+			|json| serde_json::from_str(json).map(Some).map_err(Error::custom)
+		)
 	}
 }

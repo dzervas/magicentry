@@ -6,7 +6,7 @@ use std::str::FromStr;
 use crate::error::Result;
 use crate::user::User;
 
-/// SQLite database connection pool
+/// `SQLite` database connection pool
 pub type Database = SqlitePool;
 
 /// Initialize the database connection and run migrations
@@ -44,7 +44,7 @@ impl UserSecretRow {
 		.bind(&self.id)
 		.bind(&self.secret_type)
 		.bind(&self.user_data)
-		.bind(&self.expires_at)
+		.bind(self.expires_at)
 		.bind(&self.metadata)
 		.execute(db)
 		.await?;
@@ -54,7 +54,7 @@ impl UserSecretRow {
 	
 	/// Get a user secret by ID
 	pub async fn get(id: &str, db: &Database) -> Result<Option<Self>> {
-		let row = sqlx::query_as::<_, UserSecretRow>(
+		let row = sqlx::query_as::<_, Self>(
 			"SELECT id, secret_type, user_data, expires_at, metadata, created_at FROM user_secrets WHERE id = ?"
 		)
 		.bind(id)
@@ -118,7 +118,7 @@ impl PasskeyRow {
 	pub async fn get_by_user(user: &User, db: &Database) -> Result<Vec<Self>> {
 		let user_str = serde_json::to_string(user)?;
 		
-		let rows = sqlx::query_as::<_, PasskeyRow>(
+		let rows = sqlx::query_as::<_, Self>(
 			"SELECT id, user_data, passkey_data, created_at FROM passkeys WHERE user_data = ?"
 		)
 		.bind(user_str)

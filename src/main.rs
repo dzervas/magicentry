@@ -105,7 +105,7 @@ pub async fn main() -> std::io::Result<()> {
 			.wrap(Logger::default());
 
 		if webauthn_enable {
-			let webauthn = webauthn::init(title.clone(), external_url.clone())
+			let webauthn = webauthn::init(&title.clone(), &external_url.clone())
 				.expect("Failed to create webauthn object");
 
 			app = app

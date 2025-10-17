@@ -57,7 +57,7 @@ impl AuthnRequest {
 		let mut inflated_data = String::new();
 
 		// Attempt to decompress
-		let xml_str = if let Ok(_) = decoder.read_to_string(&mut inflated_data) {
+		let xml_str = if decoder.read_to_string(&mut inflated_data).is_ok() {
 			inflated_data
 		} else {
 			String::from_utf8(base64_decoded)?
@@ -68,7 +68,8 @@ impl AuthnRequest {
 }
 
 pub mod as_string {
-	use super::*;
+	use super::AuthnRequest;
+	use serde::Deserialize as _;
 
 	pub fn serialize<S: serde::Serializer>(
 		req: &Option<AuthnRequest>,
@@ -89,10 +90,9 @@ pub mod as_string {
 		use serde::de::Error;
 		let opt_json = Option::<String>::deserialize(deserializer)?;
 
-		if let Some(json) = &opt_json {
-			serde_json::from_str(&json).map(Some).map_err(Error::custom)
-		} else {
-			Ok(None)
-		}
+		opt_json.as_ref().map_or_else(
+			|| Ok(None),
+			|json| serde_json::from_str(json).map(Some).map_err(Error::custom)
+		)
 	}
 }

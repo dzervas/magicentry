@@ -25,6 +25,7 @@ use crate::{CONFIG, CONFIG_FILE};
 // TODO: Generate a validation schema
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ConfigFile {
 	pub database_url: String,
 
@@ -79,6 +80,7 @@ pub struct ConfigFile {
 }
 
 impl Default for ConfigFile {
+	#[allow(clippy::or_fun_call)]
     fn default() -> Self {
         Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
@@ -135,7 +137,7 @@ impl ConfigFile {
 	/// This function returns the base URL that magicentry was accessed from
 	///
 	/// Useful to return correct links for proxied requests that do not abide
-	/// by the [external_url](ConfigFile::external_url) host
+	/// by the [`external_url`](ConfigFile::external_url) host
 	pub fn url_from_request(&self, request: &actix_web::HttpRequest) -> String {
 		let conn = request.connection_info();
 		let host = conn.host();
@@ -151,19 +153,18 @@ impl ConfigFile {
 			&self.path_prefix
 		};
 
-		format!("{}://{}{}", scheme, host, path_prefix)
+		format!("{scheme}://{host}{path_prefix}")
 	}
 
-	/// Read the config file as dictated by the CONFIG_FILE variable
+	/// Read the config file as dictated by the `CONFIG_FILE` variable
 	/// and replace the current contents
 	///
-	/// Note that live-updating the CONFIG_FILE environment variable
+	/// Note that live-updating the `CONFIG_FILE` environment variable
 	/// is **NOT** supported
 	pub async fn reload() -> crate::error::Result<()> {
-		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
 
-		let mut new_config = serde_yaml::from_str::<ConfigFile>(
+		let mut new_config = serde_yaml::from_str::<Self>(
 			&std::fs::read_to_string(CONFIG_FILE.as_str())?
 		)?;
 
@@ -175,11 +176,13 @@ impl ConfigFile {
 			);
 		}
 
+		let mut config = CONFIG.write().await;
 		if new_config.users_file != config.users_file {
 			error!("Users file path changed, live watching new paths is not supported, please restart the server");
 		}
-
 		*config = new_config;
+		drop(config);
+
 		Ok(())
 	}
 
@@ -194,10 +197,10 @@ impl ConfigFile {
 		let mut watcher = notify::PollWatcher::new(move |_| {
 			log::info!("Config file changed, reloading");
 			futures::executor::block_on(async {
-				if let Err(e) = ConfigFile::reload().await {
-					log::error!("Failed to reload config file: {}", e);
+				if let Err(e) = Self::reload().await {
+					log::error!("Failed to reload config file: {e}");
 				}
-			})
+			});
 		}, watcher_config)
 			.expect("Failed to create watcher for the config file");
 
@@ -218,8 +221,9 @@ impl ConfigFile {
 		watcher
 	}
 
-	/// Read the SAML certificate from the [saml_cert_pem_path](ConfigFile::saml_cert_pem_path)
+	/// Read the SAML certificate from the [`saml_cert_pem_path`](ConfigFile::saml_cert_pem_path)
 	/// filepath
+	#[allow(clippy::single_char_pattern)]
 	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_cert_pem_path)?;
 		Ok(data
@@ -229,8 +233,9 @@ impl ConfigFile {
 			.replace("\n", ""))
 	}
 
-	/// Read the SAML private key from the [saml_key_pem_path](ConfigFile::saml_key_pem_path)
+	/// Read the SAML private key from the [`saml_key_pem_path`](ConfigFile::saml_key_pem_path)
 	/// filepath
+	#[allow(clippy::single_char_pattern)]
 	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
 		Ok(data
@@ -246,9 +251,9 @@ impl ConfigFile {
 /// Basic key-value store database schema for some minor config values,
 /// JWT private key for example
 ///
-/// Uses the [ConfigKeys] enum for the keys as there should ever be only one
+/// Uses the [`ConfigKeys`] enum for the keys as there should ever be only one
 /// of each type
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConfigKV {
 	pub key: ConfigKeys,
 	pub value: Option<String>,
@@ -276,8 +281,8 @@ impl ConfigKV {
 	}
 }
 
-/// The available keys for the [ConfigKV]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// The available keys for the [`ConfigKV`]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum ConfigKeys {
 	Secret,

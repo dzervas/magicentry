@@ -32,16 +32,16 @@ const ANNOTATION_PREFIX: &str = "magicentry.rs/";
 ///
 /// E.g. `name` is read from the `magicentry.rs/name` annotation
 ///
-/// It essentially adds a new [Service] to the [ConfigFile](crate::ConfigFile)
+/// It essentially adds a new [Service] to the [`ConfigFile`](crate::ConfigFile)
 /// with automatically derived URL, auth-url settings, etc.
 ///
-/// Ingress-specific values (e.g. [manage_ingress_nginx](IngressConfig::manage_ingress_nginx))
+/// Ingress-specific values (e.g. [`manage_ingress_nginx`](IngressConfig::manage_ingress_nginx))
 /// allows for some implementation-specific behavior
 ///
 /// TODO: There should be a way to track kube-generated services to be able to
 /// delete them and avoid updating services defined by the config file
 // TODO: Can we use serde instead of the manual from/to btreemap?
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IngressConfig {
 	pub enable: bool,
 	pub name: String,
@@ -49,7 +49,7 @@ pub struct IngressConfig {
 	pub auth_url: bool,
 
 	/// OIDC configuration
-	/// MagicEntry automatically creates (and maintains) a secret with the OIDC credentials
+	/// `MagicEntry` automatically creates (and maintains) a secret with the OIDC credentials
 	/// (data keys are `clientID` and `clientSecret`)
 	pub oidc_target_secret: Option<String>,
 	pub oidc_redirect_urls: Vec<url::Url>,
@@ -70,6 +70,7 @@ impl IngressConfig {
 	/// Due to the global static mutex, the main actix-web code should pick
 	/// up the changes automatically but it might block config reads
 	/// for the duration of the write - should be extremely fast
+	#[allow(clippy::too_many_lines)]
 	pub async fn process(&self, ingress: &Ingress) -> Result<()> {
 		let no_name = String::new();
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
@@ -81,17 +82,17 @@ impl IngressConfig {
 			.and_then(|rules| rules.first())
 			.and_then(|rule| rule.host.as_ref())
 			.map(|host| {
-				let has_tls = tls.map_or(false, |tls| {
+				let has_tls = tls.is_some_and(|tls|
 					tls.iter().any(|tls| {
 						tls.hosts
 							.as_ref()
 							.unwrap_or(&Vec::new())
 							.contains(host)
 					})
-				});
+				);
 
 				let mut url = url::Url::parse(&host).unwrap_or_else(|_| {
-					log::error!("Ingress {:?} has invalid host {}", name, host);
+					log::error!("Ingress {name:?} has invalid host {host}");
 					url::Url::parse("http://localhost").unwrap()
 				});
 				url.set_scheme(if has_tls { "https" } else { "http" }).unwrap();
@@ -100,7 +101,7 @@ impl IngressConfig {
 			})
 			.iter().cloned().collect::<Vec<_>>();
 		let Some(service_url) = urls.get(0).cloned() else {
-			log::warn!("Ingress {} has no host", name);
+			log::warn!("Ingress {name} has no host");
 			return Err(AppErrorKind::IngressHasNoHost.into());
 		};
 
@@ -162,7 +163,7 @@ impl IngressConfig {
 				Some(ServiceAuthUrl {
 					origins: urls
 						.iter()
-						.map(|url| url.to_string())
+						.map(ToString::to_string)
 						.collect(),
 				})
 			} else {
@@ -176,13 +177,11 @@ impl IngressConfig {
 		// as soon as possible to avoid blocking other threads/contexts
 		let mut config = CONFIG.write().await;
 		if config.services.get(name).is_none() {
-			log::info!("Adding service {} to config", name);
+			log::info!("Adding service {name} to config");
 			config.services.0.push(service.clone());
-		} else if let Some(existing_service) = config.services.get_mut(name) {
-			if existing_service != &service {
-				log::info!("Updating service {} in config", name);
-				*existing_service = service.clone();
-			}
+		} else if let Some(existing_service) = config.services.get_mut(name) && existing_service != &service  {
+			log::info!("Updating service {name} in config");
+			*existing_service = service.clone();
 		}
 		drop(config);
 
@@ -191,6 +190,7 @@ impl IngressConfig {
 }
 
 impl From<&BTreeMap<String, String>> for IngressConfig {
+	#[allow(clippy::single_char_pattern)]
 	fn from(value: &BTreeMap<String, String>) -> Self {
 		let filtered_map = value
 			.iter()
@@ -206,23 +206,21 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 		Self {
 			enable: filtered_map
 				.get("enable")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
+				.is_some_and(|v| *v == "true"),
 			name: filtered_map
 				.get("name")
-				.map(|v| v.to_string())
+				.map(|v| (*v).to_string())
 				.unwrap_or_default(),
 			auth_url: filtered_map
 				.get("auth_url")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
+				.is_some_and(|v| *v == "true"),
 			realms: filtered_map
 				.get("realms")
-				.map(|v| v.split(",").map(|v| v.to_string()).collect())
+				.map(|v| v.split(",").map(ToString::to_string).collect())
 				.unwrap_or_default(),
 			oidc_target_secret: filtered_map
 				.get("oidc_target_secret")
-				.map(|v| v.to_string()),
+				.map(|v| (*v).to_string()),
 			oidc_redirect_urls: filtered_map
 				.get("oidc_redirect_urls")
 				.map(|v| {
@@ -233,7 +231,7 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 				.unwrap_or_default(),
 			saml_entity_id: filtered_map
 				.get("saml_entity_id")
-				.map(|v| v.to_string()),
+				.map(|v| (*v).to_string()),
 			saml_redirect_urls: filtered_map
 				.get("saml_redirect_urls")
 				.map(|v| {
@@ -244,8 +242,7 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 				.unwrap_or_default(),
 			manage_ingress_nginx: filtered_map
 				.get("manage_ingress_nginx")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
+				.is_some_and(|v| *v == "true"),
 		}
 	}
 }
@@ -264,21 +261,21 @@ impl From<&Ingress> for IngressConfig {
 	}
 }
 
-/// Takes an ingress resource, tries to cast it to an IngressConfig
-/// and then process it with the [IngressConfig::process] method
+/// Takes an ingress resource, tries to cast it to an `IngressConfig`
+/// and then process it with the [`IngressConfig::process`] method
 async fn process_ingress(ingress: &Ingress) {
 	let name = ingress.metadata.name.clone().unwrap_or_default();
-	log::debug!("Inspecting ingress resource {}", name);
+	log::debug!("Inspecting ingress resource {name}");
 
 	let ingress_config: IngressConfig = ingress.into();
 	if !ingress_config.enable || ingress_config.name.is_empty() {
-		log::debug!("Ingress {} is disabled", name);
+		log::debug!("Ingress {name} is disabled");
 		return;
 	}
 
-	log::info!("Discovered ingress {}", name);
-	ingress_config.process(&ingress).await.unwrap_or_else(|e| {
-		log::error!("Failed to process ingress {}: {:?}", name, e);
+	log::info!("Discovered ingress {name}");
+	ingress_config.process(ingress).await.unwrap_or_else(|e| {
+		log::error!("Failed to process ingress {name}: {e:?}");
 	});
 }
 
@@ -294,14 +291,13 @@ pub async fn watch() -> Result<()> {
 	log::info!("Watching for Ingresses");
 
 	loop {
-		watcher::watcher(ingresses.clone(), Default::default())
+		watcher::watcher(ingresses.clone(), watcher::Config::default())
 			.try_for_each(|event| async move {
 				match event {
-					Event::Apply(ingress) => process_ingress(&ingress).await,
-					Event::InitApply(ingress) => process_ingress(&ingress).await,
+					Event::Apply(ingress) | Event::InitApply(ingress) => process_ingress(&ingress).await,
 					Event::Delete(ingress) => {
 						// TODO: Take care of deleted events too
-						log::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.clone().unwrap_or_default());
+						log::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.unwrap_or_default());
 					}
 					_ => {}
 				}
@@ -311,7 +307,7 @@ pub async fn watch() -> Result<()> {
 		)
 		.await
 		.unwrap_or_else(|e| {
-			log::error!("Ingress watch stream ended unexpectedly: {:?}", e);
+			log::error!("Ingress watch stream ended unexpectedly: {e:?}");
 		});
 
 		log::warn!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");

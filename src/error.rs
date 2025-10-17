@@ -12,6 +12,7 @@ use crate::utils::get_partial;
 pub type Response = std::result::Result<HttpResponse, Error>;
 pub type Result<T> = std::result::Result<T, Error>;
 
+#[allow(clippy::unused_async)]
 pub async fn not_found() -> Response {
 	Err(AppErrorKind::NotFound.into())
 }

@@ -32,7 +32,7 @@ async fn test_global_login() {
 	let resp = call_service(
 		&app,
 		TestRequest::post()
-			.uri(format!("/login?rd={}", scope).as_str())
+			.uri(format!("/login?rd={scope}").as_str())
 			.set_form(&handle_login_post::LoginInfo {
 				email: "valid@example.com".to_string(),
 			})

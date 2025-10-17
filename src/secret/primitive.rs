@@ -61,7 +61,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 			let user = serde_json::from_str(&row.user_data)?;
 			let metadata = serde_json::from_str(&row.metadata)?;
 			
-			Ok(Some(InternalUserSecret {
+			Ok(Some(Self {
 				code: code.clone(),
 				user,
 				expires_at: row.expires_at,
@@ -95,7 +95,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
 			.checked_add_signed(K::duration().await)
-			.expect(format!("Couldn't generate expiry for {}", K::PREFIX).as_str());
+			.unwrap_or_else(|| panic!("Couldn't generate expiry for {}", K::PREFIX));
 
 		let internal_secret = InternalUserSecret {
 			code: SecretString::new(K::PREFIX),
@@ -145,15 +145,15 @@ impl<K: UserSecretKind> UserSecret<K> {
 	/// Parse and validate a secret from a string - most probably from user controlled data
 	pub async fn try_from_string(code: String, db: &Database) -> Result<Self> {
 		let internal_secret = InternalUserSecret::get(&code.into(), db).await?.ok_or(AppErrorKind::InvalidSecret)?;
-		let user_secret = UserSecret(internal_secret);
+		let user_secret = Self(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)
 	}
 
-	pub fn code(&self) -> &SecretString { &self.0.code }
-	pub fn user(&self) -> &User { &self.0.user }
-	pub fn expires_at(&self) -> NaiveDateTime { self.0.expires_at }
-	pub fn metadata(&self) -> &K::Metadata { &self.0.metadata }
+	pub const fn code(&self) -> &SecretString { &self.0.code }
+	pub const fn user(&self) -> &User { &self.0.user }
+	pub const fn expires_at(&self) -> NaiveDateTime { self.0.expires_at }
+	pub const fn metadata(&self) -> &K::Metadata { &self.0.metadata }
 	pub fn take_metadata(self) -> K::Metadata { self.0.metadata }
 }
 
@@ -170,10 +170,10 @@ impl<P, K, M> UserSecret<K> where
 	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 {
 	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Database) -> Result<Self> {
-		UserSecret::<K>::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await
+		Self::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await
 	}
 
-	pub fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
+	pub const fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
 }
 
 // TODO: Create a blanket implementation of FromRequest for UserSecret instances that implement a FromRequestAsync trait so that the async-related boilerplate can go away

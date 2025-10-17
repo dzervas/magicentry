@@ -264,7 +264,7 @@ impl AuthnResponse {
 		ser.expand_empty_elements(true);
 		self.serialize(ser)?;
 
-		debug!("SAML Response XML: {}", xml);
+		debug!("SAML Response XML: {xml}");
 
 		let encoded_response = general_purpose::STANDARD.encode(xml);
 
@@ -273,6 +273,7 @@ impl AuthnResponse {
 }
 
 impl AuthnRequest {
+	#[must_use]
 	pub fn to_response(&self, idp_metadata: &str, user: &User) -> AuthnResponse {
 		let now = Utc::now();
 		let expiry = now + chrono::Duration::hours(1);
@@ -280,15 +281,15 @@ impl AuthnRequest {
 		let assertion_id = format!("_assert-{}", Uuid::new_v4());
 		let session_id = format!("_session-{}", Uuid::new_v4());
 
-		let split_name = user.name.split_whitespace().collect::<Vec<&str>>();
-		let first_name = split_name.get(0).unwrap_or(&"").to_string();
-		let last_name = split_name.get(1).unwrap_or(&"").to_string();
+		let mut split_name = user.name.split_whitespace();
+		let first_name = split_name.next().unwrap_or_default();
+		let last_name = split_name.next().unwrap_or_default();
 
 		let attributes: Vec<Attribute> = [
 			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", vec![user.email.clone()]),
 			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn", vec![user.username.clone()]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname", vec![first_name]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname", vec![last_name])
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname", vec![first_name.to_string()]),
+			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname", vec![last_name.to_string()])
 		].into_iter()
 		.map(|(name, values)| {
 			Attribute {
@@ -296,7 +297,7 @@ impl AuthnRequest {
 				name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
 				attribute_values: values
 				.into_iter()
-				.map(|v| AttributeValue { value: v.to_string() })
+				.map(|v| AttributeValue { value: v })
 				.collect(),
 			}
 		})

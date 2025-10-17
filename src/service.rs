@@ -13,6 +13,7 @@ pub struct Service {
 }
 
 impl Service {
+	#[must_use]
 	pub fn is_user_allowed(&self, user: &User) -> bool {
 		user.has_any_realm(&self.realms)
 	}
@@ -41,6 +42,7 @@ pub struct ServiceOIDC {
 pub struct Services(pub Vec<Service>);
 
 impl Services {
+	#[must_use]
 	pub fn get(&self, name: &str) -> Option<&Service> {
 		self.0.iter()
 			.find(|s| s.name == name)
@@ -52,6 +54,7 @@ impl Services {
 	}
 
 	/// Returns all the services that the provided user has access to
+	#[must_use]
 	pub fn from_user(&self, user: &User) -> Self {
 		let res = self.0.iter()
 			.filter(|s| user.has_any_realm(&s.realms))
@@ -62,44 +65,49 @@ impl Services {
 	}
 
 	/// Returns the first service that matches the given OIDC client ID
+	#[must_use]
 	pub fn from_oidc_client_id(&self, client_id: &str) -> Option<Service> {
 		self.0.iter()
 			.find(|s| s.oidc.as_ref()
-				.map_or(false, |o| o.client_id == client_id))
+				.is_some_and(|o| o.client_id == client_id))
 			.cloned()
 	}
 
 	/// Returns the first service that matches the given OIDC redirect URL
+	#[must_use]
 	pub fn from_oidc_redirect_url(&self, redirect_url: &url::Url) -> Option<Service> {
 		self.0.iter()
 			.find(|s| s.oidc.as_ref()
-				.map_or(false, |o| o.redirect_urls.contains(&redirect_url)))
+				.is_some_and(|o| o.redirect_urls.contains(redirect_url)))
 			.cloned()
 	}
 
 	/// Returns the first service that matches the given SAML entity ID
+	#[must_use]
 	pub fn from_saml_entity_id(&self, entity_id: &str) -> Option<Service> {
 		self.0.iter()
 			.find(|s| s.saml.as_ref()
-				.map_or(false, |o| o.entity_id == entity_id))
+				.is_some_and(|o| o.entity_id == entity_id))
 			.cloned()
 	}
 
 	/// Returns the first service that matches the given redirect URL
+	#[must_use]
 	pub fn from_saml_redirect_url(&self, redirect_url: &url::Url) -> Option<Service> {
 		self.0.iter()
 			.find(|s| s.saml.as_ref()
-				.map_or(false, |o| o.redirect_urls.contains(&redirect_url)))
+				.is_some_and(|o| o.redirect_urls.contains(redirect_url)))
 			.cloned()
 	}
 
 
 	/// Returns the first service that matches the given redirect URL
+	#[must_use]
 	pub fn from_auth_url_origin(&self, origin: &url::Origin) -> Option<Service> {
 		let origin_str = origin.ascii_serialization();
 		self.0.iter()
 			.find(|s| s.auth_url.as_ref()
-				.map_or(false, |o| o.origins.contains(&origin_str)))
+				.is_some_and(|o| o.origins.contains(&origin_str)))
 			.cloned()
 	}
 }

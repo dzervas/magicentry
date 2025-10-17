@@ -7,7 +7,7 @@ use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata};
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct OIDCTokenSecretKind;
 
 impl UserSecretKind for OIDCTokenSecretKind {
@@ -46,7 +46,7 @@ impl actix_web::FromRequest for OIDCTokenSecret {
 			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
 		};
 
-		let code = code.to_string();
+		let code = (*code).to_string();
 		Box::pin(async move {
 			Self::try_from_string(code, db.get_ref()).await
 		})

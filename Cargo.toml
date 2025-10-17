@@ -1,8 +1,7 @@
 [package]
 name = "magicentry"
 version = "0.7.1"
-edition = "2021"
-rust-version = "1.77"
+edition = "2024"
 
 [features]
 default = []
@@ -22,7 +21,6 @@ hex = "0.4.3"
 jwt-simple = { version = "0.12", default-features = false, features = [
 	"pure-rust",
 ] }
-lazy_static = "1.5"
 lettre = { version = "0.11", default-features = false , features = [
 	"rustls-tls",
 	"tokio1-rustls-tls",

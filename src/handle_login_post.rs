@@ -1,5 +1,5 @@
 //! The login form submission handler - used to handle the login form
-//! showed by the [handle_login](crate::handle_login) endpoint
+//! showed by the [`handle_login`](crate::handle_login) endpoint
 //!
 //! It handles the magic link generation, sending it to the user (email/webhook)
 //! and saving any redirection-related data so that when the user clicks the link,
@@ -126,6 +126,8 @@ async fn login_post(
 				// TODO: Make this configurable
 				.header(CONTENT_TYPE, config.request_content_type.as_str())
 				.body(body);
+
+			drop(config);
 		}
 
 		info!("Sending request for user {}", &user.email);
@@ -154,7 +156,7 @@ mod tests {
 	#[actix_web::test]
 	async fn test_login_action() {
 		let db = &db_connect().await;
-		let mut app = actix_test::init_service(
+		let app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(None::<SmtpTransport>))
@@ -171,7 +173,7 @@ mod tests {
 			})
 			.to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
 		// Invalid login
@@ -182,7 +184,7 @@ mod tests {
 			})
 			.to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 
 		// TODO: Test the login link

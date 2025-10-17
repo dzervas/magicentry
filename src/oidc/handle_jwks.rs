@@ -20,7 +20,7 @@ pub struct JWKSResponseItem {
 
 impl Default for JWKSResponseItem {
 	fn default() -> Self {
-		JWKSResponseItem {
+		Self {
 			algorithm: "RSA".to_string(),
 			usage: "sig".to_string(),
 			modulus: String::default(),

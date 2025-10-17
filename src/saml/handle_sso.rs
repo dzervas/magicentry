@@ -33,10 +33,11 @@ pub async fn sso(
 	browser_session_opt: Option<BrowserSessionSecret>
 ) -> Response {
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
+	let config = CONFIG.read().await;
 
 	let Some(browser_session) = browser_session_opt else {
-		let config = CONFIG.read().await;
 		let base_url = config.url_from_request(&req);
+		drop(config);
 		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()
@@ -47,7 +48,6 @@ pub async fn sso(
 			.finish());
 	};
 
-	let config = CONFIG.read().await;
 	let service = config.services.from_saml_entity_id(&authn_request.issuer)
 		.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
 
@@ -60,7 +60,7 @@ pub async fn sso(
 
 	let mut response = authn_request.to_response(
 		&format!("{}/saml/metadata", &config.external_url),
-		&browser_session.user()
+		browser_session.user()
 	);
 
 	log::info!("Starting SAML flow for user: {}", browser_session.user().email);
@@ -69,6 +69,8 @@ pub async fn sso(
 		&config.get_saml_key()?,
 		&config.get_saml_cert()?
 	)?;
+
+	drop(config);
 
 	let mut authorize_data = BTreeMap::new();
 	authorize_data.insert("name", browser_session.user().name.clone());

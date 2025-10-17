@@ -36,15 +36,16 @@ pub struct Discovery<'a> {
 }
 
 impl<'a> Discovery<'a> {
-	pub async fn new(base: &'a str, external_url: &'a str) -> Self {
+	#[must_use]
+	pub fn new(base: &'a str, external_url: &'a str) -> Self {
 		Discovery {
 			issuer: base,
 
-			authorization_endpoint: format!("{}/oidc/authorize", external_url),
-			token_endpoint: format!("{}/oidc/token", base),
-			userinfo_endpoint: format!("{}/oidc/userinfo", base),
-			end_session_endpoint: format!("{}/logout", external_url),
-			jwks_uri: format!("{}/oidc/jwks", base),
+			authorization_endpoint: format!("{external_url}/oidc/authorize"),
+			token_endpoint: format!("{base}/oidc/token"),
+			userinfo_endpoint: format!("{base}/oidc/userinfo"),
+			end_session_endpoint: format!("{external_url}/logout"),
+			jwks_uri: format!("{base}/oidc/jwks"),
 
 			scopes_supported: vec!["openid", "profile", "email"],
 			response_types_supported: vec!["code", "id_token", "id_token token"],
@@ -70,7 +71,9 @@ pub async fn discover(req: HttpRequest) -> impl Responder {
 	let config = CONFIG.read().await;
 	let base_url = config.url_from_request(&req);
 	let external_url = config.external_url.clone();
-	let discovery = Discovery::new(&base_url, &external_url).await;
+	drop(config);
+	let discovery = Discovery::new(&base_url, &external_url);
+
 	HttpResponse::Ok()
 		.append_header(("Access-Control-Allow-Origin", "*"))
 		.append_header(("Access-Control-Allow-Methods", "GET, OPTIONS"))

@@ -12,6 +12,7 @@ pub async fn metadata() -> Response {
 	let config = CONFIG.read().await;
 	let external_url = config.external_url.clone();
 	let cert_x509 = config.get_saml_cert()?;
+	drop(config);
 
 	let discovery = EntityDescriptor::new(&external_url, &cert_x509);
 

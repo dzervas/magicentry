@@ -10,6 +10,7 @@ use rsa::sha2::Sha256;
 use sha2::{Digest, Sha256 as Sha256Hasher};
 use serde::Serialize;
 
+#[allow(clippy::wildcard_imports)]
 use super::authn_response::*;
 use crate::error::Result;
 
@@ -30,7 +31,7 @@ impl AuthnResponse {
 		self.serialize(ser)?;
 
 		// Calculate digest
-		let digest_value = Self::compute_digest(&xml)?;
+		let digest_value = Self::compute_digest(&xml);
 
 		// Create the SignedInfo element
 		let reference_uri = format!("#{}", self.id);
@@ -62,12 +63,12 @@ impl AuthnResponse {
 		let mut ser = quick_xml::se::Serializer::with_root(&mut signed_info_xml, Some("ds:SignedInfo"))?;
 		ser.expand_empty_elements(true);
 		signed_info.serialize(ser)?;
-		debug!("SignedInfo XML: {}", signed_info_xml);
+		debug!("SignedInfo XML: {signed_info_xml}");
 
 		signed_info.ds_ns = None; // Remove the namespace after signing - Signature has it already
 
 		// Sign the SignedInfo
-		let signature_value = Self::sign_data(&private_key, &signed_info_xml)?;
+		let signature_value = Self::sign_data(&private_key, &signed_info_xml);
 
 		// Create full signature structure
 		let signature = Signature {
@@ -89,20 +90,20 @@ impl AuthnResponse {
 	}
 
 	// Compute SHA-256 digest of the data and Base64 encode it
-	fn compute_digest(xml: &str) -> Result<String> {
+	fn compute_digest(xml: &str) -> String {
 		let mut hasher = Sha256Hasher::new();
 		hasher.update(xml.as_bytes());
 		let result = hasher.finalize();
-		Ok(general_purpose::STANDARD.encode(result))
+		general_purpose::STANDARD.encode(result)
 	}
 
 	// Sign data with RSA-SHA256 and Base64 encode the signature
-	fn sign_data(private_key: &RsaPrivateKey, data: &str) -> Result<String> {
+	fn sign_data(private_key: &RsaPrivateKey, data: &str) -> String {
 		use rsa::pkcs1v15::SigningKey;
 
 		let signing_key = SigningKey::<Sha256>::new(private_key.clone());
 		let signature = signing_key.sign(data.as_bytes());
-		Ok(general_purpose::STANDARD.encode(signature.to_bytes()))
+		general_purpose::STANDARD.encode(signature.to_bytes())
 	}
 
 }
