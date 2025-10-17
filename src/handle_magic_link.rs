@@ -42,7 +42,7 @@ mod tests {
 	async fn test_login_link() {
 		let db = &db_connect().await;
 		let user = get_valid_user().await;
-		let mut app = actix_test::init_service(
+		let app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(magic_link),
@@ -56,7 +56,7 @@ mod tests {
 			.uri(format!("/login/{}", token.code().to_str_that_i_wont_print()).as_str())
 			.to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/");
 
@@ -65,7 +65,7 @@ mod tests {
 			.uri("/login/invalid_magic_link")
 			.to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
@@ -74,7 +74,7 @@ mod tests {
 			.uri(format!("/login/{}", token.code().to_str_that_i_wont_print()).as_str())
 			.to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 	}

@@ -150,10 +150,10 @@ impl ResponseError for Error {
 		let mut description = self.cause.clone();
 
 		#[cfg(any(debug_assertions, test))]
-		println!("Error: {}", self);
+		println!("Error: {self}");
 
 		if status.is_server_error() {
-			log::error!("{}", self);
+			log::error!("{self}");
 
 			#[cfg(not(debug_assertions))]
 			{
@@ -161,7 +161,7 @@ impl ResponseError for Error {
 				description = "Something went very wrong from our end".to_string();
 			}
 		} else if status != StatusCode::NOT_FOUND {
-			log::warn!("{}", self);
+			log::warn!("{self}");
 		}
 
 		if self.app_error == Some(AppErrorKind::WebAuthnSecretNotFound)
@@ -178,9 +178,9 @@ impl ResponseError for Error {
 			let error_name = self.status_code().canonical_reason().unwrap_or_default();
 
 			let mut page_data = BTreeMap::new();
-			page_data.insert("code", status_code.clone());
+			page_data.insert("code", status_code);
 			page_data.insert("error", error_name.to_string());
-			page_data.insert("description", description.clone());
+			page_data.insert("description", description);
 
 			let page = get_partial::<()>("error", page_data, None).unwrap_or_else(|_| {
 				log::error!("Could not format error page");
@@ -206,7 +206,7 @@ impl From<String> for Error {
 impl From<AppErrorKind> for Error {
 	fn from(error: AppErrorKind) -> Self {
 		Self {
-			cause: format!("{}", error),
+			cause: format!("{error}"),
 			app_error: Some(error),
 		}
 	}

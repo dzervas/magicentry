@@ -91,7 +91,7 @@ impl IngressConfig {
 					})
 				);
 
-				let mut url = url::Url::parse(&host).unwrap_or_else(|_| {
+				let mut url = url::Url::parse(host).unwrap_or_else(|_| {
 					log::error!("Ingress {name:?} has invalid host {host}");
 					url::Url::parse("http://localhost").unwrap()
 				});
@@ -100,7 +100,7 @@ impl IngressConfig {
 				url
 			})
 			.iter().cloned().collect::<Vec<_>>();
-		let Some(service_url) = urls.get(0).cloned() else {
+		let Some(service_url) = urls.first().cloned() else {
 			log::warn!("Ingress {name} has no host");
 			return Err(AppErrorKind::IngressHasNoHost.into());
 		};

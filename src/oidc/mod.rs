@@ -76,7 +76,7 @@ use crate::secret::LoginLinkSecret;
 			.unwrap()
 			.with_key_id("default");
 
-		let mut app = actix_test::init_service(
+		let app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.app_data(web::Data::new(keypair))
@@ -99,7 +99,7 @@ use crate::secret::LoginLinkSecret;
 			.uri(format!("/oidc/authorize?client_id={client_id}&redirect_uri={redirect}&scope=openid%20profile%20email%20phone%20address&response_type=code&state={state}").as_str())
 			.to_request();
 
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 
 		assert_eq!(resp.status(), StatusCode::FOUND);
 
@@ -126,7 +126,7 @@ use crate::secret::LoginLinkSecret;
 		let req = actix_test::TestRequest::get()
 			.uri(&token.get_login_url())
 			.to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		println!("Headers: {:?}", resp.headers());
 		let location = resp.headers().get("Location").unwrap().to_str().unwrap();
@@ -140,7 +140,7 @@ use crate::secret::LoginLinkSecret;
 			.uri(location)
 			.cookie(parsed_cookie.clone())
 			.to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
 		let body_str = std::str::from_utf8(&body).unwrap();
@@ -174,7 +174,7 @@ use crate::secret::LoginLinkSecret;
 			})
 			.insert_header(("Origin", "https://openidconnect.net"))
 			.to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		let resp_status = resp.status();
 		let body = actix_test::read_body(resp).await;
 		println!("Body: {body:?}");
@@ -188,7 +188,7 @@ use crate::secret::LoginLinkSecret;
 				format!("Bearer {}", resp_token.access_token),
 			))
 			.to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::OK);
 		let body = actix_test::read_body(resp).await;
 		let resp_userinfo = serde_json::from_slice::<UserInfoResponse<'_>>(&body).unwrap();

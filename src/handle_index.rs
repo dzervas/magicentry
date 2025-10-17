@@ -50,9 +50,7 @@ mod tests {
 	use super::*;
 	use crate::secret::LoginLinkSecret;
 	use crate::utils::tests::*;
-	use crate::{handle_magic_link, SESSION_COOKIE};
-
-	use std::collections::HashMap;
+	use crate::{handle_magic_link};
 
 	use actix_web::cookie::Cookie;
 	use actix_web::http::StatusCode;
@@ -61,11 +59,11 @@ mod tests {
 	#[actix_web::test]
 	async fn test_index() {
 		let db = &db_connect().await;
-		let mut session_map = HashMap::new();
+		// let mut session_map = HashMap::new();
 		let user = get_valid_user().await;
-		session_map.insert(SESSION_COOKIE, "valid_session_id");
+		// session_map.insert(SESSION_COOKIE, "valid_session_id");
 
-		let mut app = actix_test::init_service(
+		let app = actix_test::init_service(
 			App::new()
 				.app_data(web::Data::new(db.clone()))
 				.service(index)
@@ -75,7 +73,7 @@ mod tests {
 
 		// Test unauthenticated request
 		let req = actix_test::TestRequest::get().uri("/").to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
@@ -86,7 +84,7 @@ mod tests {
 		let req = actix_test::TestRequest::get()
 			.uri(&login_link.get_login_url())
 			.to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/");
 
@@ -100,9 +98,9 @@ mod tests {
 			.uri("/")
 			.cookie(parsed_cookie)
 			.to_request();
-		println!("req: {:?}", req);
-		let resp = actix_test::call_service(&mut app, req).await;
-		println!("res: {:?}", resp);
+		println!("req: {req:?}");
+		let resp = actix_test::call_service(&app, req).await;
+		println!("res: {resp:?}");
 		assert_eq!(resp.status(), StatusCode::OK);
 		let config = CONFIG.read().await;
 		assert_eq!(
@@ -117,10 +115,11 @@ mod tests {
 				.unwrap(),
 			"valid@example.com"
 		);
+		drop(config);
 
 		// Test unauthenticated request again
 		let req = actix_test::TestRequest::get().uri("/").to_request();
-		let resp = actix_test::call_service(&mut app, req).await;
+		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 	}

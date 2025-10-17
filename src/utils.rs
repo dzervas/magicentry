@@ -80,10 +80,9 @@ pub mod tests {
 
 	pub async fn db_connect() -> Database {
 		// Use in-memory database for tests to avoid file system issues
-		let db = crate::database::init_database("sqlite::memory:")
+		crate::database::init_database("sqlite::memory:")
 			.await
-			.expect("Failed to initialize SQLite database");
-		db
+			.expect("Failed to initialize SQLite database")
 	}
 
 	pub async fn get_valid_user() -> User {
@@ -92,13 +91,19 @@ pub mod tests {
 			.expect("Failed to reload config file");
 		let user_email = "valid@example.com";
 		let user_realms = vec!["example".to_string()];
-		let config = CONFIG.read().await;
-		let user = config.users.iter().find(|u| u.email == user_email).unwrap();
+		let user = {
+			let config = CONFIG.read().await;
+			config.users
+				.iter()
+				.find(|u| u.email == user_email)
+				.unwrap()
+				.clone()
+		};
 
 		assert_eq!(user.email, user_email);
 		assert_eq!(user.realms, user_realms);
 
-		user.to_owned()
+		user
 	}
 
 	#[test]

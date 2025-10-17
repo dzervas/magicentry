@@ -138,6 +138,7 @@ impl ConfigFile {
 	///
 	/// Useful to return correct links for proxied requests that do not abide
 	/// by the [`external_url`](ConfigFile::external_url) host
+	#[must_use]
 	pub fn url_from_request(&self, request: &actix_web::HttpRequest) -> String {
 		let conn = request.connection_info();
 		let host = conn.host();

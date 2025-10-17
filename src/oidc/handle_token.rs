@@ -94,6 +94,7 @@ impl JWTData {
 generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 
 #[post("/oidc/token")]
+#[allow(clippy::significant_drop_tightening)] // config is used in almost all branches
 pub async fn token(
 	req: HttpRequest,
 	db: web::Data<crate::Database>,

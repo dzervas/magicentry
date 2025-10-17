@@ -120,7 +120,7 @@ async fn spawn_magicentry_server() -> actix_web::dev::Server {
             .wrap(actix_web::middleware::Logger::default());
 
         if webauthn_enable {
-            let webauthn = webauthn::init(title.clone(), external_url.clone())
+            let webauthn = webauthn::init(&title, &external_url)
                 .expect("create webauthn object");
             app = app
                 .app_data(web::Data::new(webauthn))
@@ -159,7 +159,8 @@ async fn test_e2e_hurl_specs() {
     let _ = env_logger::builder().is_test(true).try_init();
 
     // Ensure we use the sample config and test feature path
-    std::env::set_var("CONFIG_FILE", "config.sample.yaml");
+    // TODO: This is unsafe??
+    // std::env::set_var("CONFIG_FILE", "config.sample.yaml");
 
     // Spawn the tiny fixture server first (serves hurl/.link.txt on :8081)
     let _h = spawn_hurl_fixture_server();

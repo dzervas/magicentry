@@ -70,6 +70,7 @@ async fn status(
 			config.auth_url_realms_header.as_str(),
 			proxy_session.user().realms.join(","),
 		));
+	drop(config);
 
 	Ok(response.finish())
 }
