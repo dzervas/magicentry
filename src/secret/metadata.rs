@@ -8,7 +8,7 @@ use crate::error::Result;
 
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
-pub trait MetadataKind: Serialize + DeserializeOwned {
+pub trait MetadataKind: Serialize + DeserializeOwned + Send + Sync {
 	async fn validate(&self, _db: &Database) -> Result<()> { Ok(()) }
 }
 
@@ -33,7 +33,7 @@ impl From<()> for EmptyMetadata {
 ///
 /// When the parent secret is deleted, this secret will be deleted as well.
 #[derive(Serialize, Deserialize)]
-pub struct ChildSecretMetadata<P: UserSecretKind, M> {
+pub struct ChildSecretMetadata<P: UserSecretKind , M: Send + Sync> {
 	parent: UserSecret<P>,
 	metadata: M,
 }

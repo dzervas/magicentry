@@ -24,8 +24,7 @@ async fn status(
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
 ) -> Response {
-	let mut response_builder = HttpResponse::Ok();
-	let mut response = response_builder.content_type("text/plain");
+	let mut cookie = None;
 
 	let proxy_session = if let Some(proxy_session) = proxy_session_opt {
 		proxy_session
@@ -35,13 +34,7 @@ async fn status(
 			.exchange_sibling(&db)
 			.await?;
 
-		response = response.cookie(
-			Cookie::build(PROXY_SESSION_COOKIE, proxy_session.code().to_str_that_i_wont_print())
-				.path("/")
-				.http_only(true)
-				.finish(),
-		);
-
+		cookie = Some((&proxy_session).into());
 		proxy_session
 	} else {
 		let mut remove_cookie = Cookie::new(PROXY_SESSION_COOKIE, "");
@@ -53,7 +46,9 @@ async fn status(
 	};
 
 	let config = CONFIG.read().await;
-	response = response
+	let mut response_builder = HttpResponse::Ok();
+	let mut response = response_builder
+		.content_type("text/plain")
 		.insert_header((
 			config.auth_url_email_header.as_str(),
 			proxy_session.user().email.clone(),
@@ -70,6 +65,10 @@ async fn status(
 			config.auth_url_realms_header.as_str(),
 			proxy_session.user().realms.join(","),
 		));
+
+	if let Some(cookie) = cookie {
+		response = response.cookie(cookie);
+	}
 	drop(config);
 
 	Ok(response.finish())

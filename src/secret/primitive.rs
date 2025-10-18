@@ -11,7 +11,7 @@ use super::metadata::MetadataKind;
 /// This trait describes any kind of user secret.
 /// You can think of it as a "token" but I didn't use that term to avoid
 /// confusion with all the other types of tokens.
-pub trait UserSecretKind: {
+pub trait UserSecretKind: PartialEq + Send + Sync {
 	const PREFIX: &'static str;
 	type Metadata: MetadataKind;
 

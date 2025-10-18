@@ -94,6 +94,7 @@ impl MetadataKind for LoginLinkRedirect {
 	}
 }
 
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginLinkSecretKind;
 
 impl UserSecretKind for LoginLinkSecretKind {
