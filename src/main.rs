@@ -11,6 +11,7 @@ use lettre::transport::smtp;
 use tokio::select;
 
 // Do not compile in tests at all as the SmtpTransport is not available
+#[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
@@ -122,10 +123,10 @@ pub async fn main() -> std::io::Result<()> {
 		1
 	} else {
 		std::thread::available_parallelism()
-			.map(|n| n.get())
+			.map(std::num::NonZero::get)
 			.unwrap_or(2)
 	})
-	.bind(format!("{}:{}", listen_host, listen_port))
+	.bind(format!("{listen_host}:{listen_port}"))
 	.unwrap()
 	.run();
 
@@ -137,7 +138,7 @@ pub async fn main() -> std::io::Result<()> {
 
 		select! {
 			r = server => r,
-			k = kube_watcher => Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Kube watcher failed: {:?}", k))),
+			k = kube_watcher => Err(std::io::Error::other(format!("Kube watcher failed: {k:?}"))),
 		}
 	}
 

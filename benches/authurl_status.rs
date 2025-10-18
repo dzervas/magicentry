@@ -1,8 +1,13 @@
+#![allow(clippy::unwrap_used, clippy::missing_panics_doc, clippy::missing_errors_doc, clippy::future_not_send)]
+
 use actix_web::{web, App};
 use actix_web::test::{call_service, init_service, TestRequest};
 use actix_web::dev::ServiceResponse;
 use actix_web::cookie::Cookie;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
+
+use std::hint::black_box;
+
 use magicentry::{CONFIG, PROXY_SESSION_COOKIE};
 use magicentry::secret::{BrowserSessionSecret, EmptyMetadata};
 use magicentry::secret::proxy_session::ProxySessionSecret;
@@ -10,13 +15,12 @@ use magicentry::user::User;
 use magicentry::config::ConfigFile;
 use magicentry::auth_url::{self};
 pub async fn db_connect() -> magicentry::Database {
-	let db = magicentry::database::init_database(&CONFIG.read().await.database_url)
+	magicentry::database::init_database(&CONFIG.read().await.database_url)
 		.await
-		.expect("Failed to initialize SQLite database");
-	db
+		.expect("Failed to initialize SQLite database")
 }
 
-async fn setup_app(db: &magicentry::Database) -> impl actix_web::dev::Service<
+async fn setup_app(db: magicentry::Database) -> impl actix_web::dev::Service<
 	actix_http::Request,
 	Response = ServiceResponse,
 	Error = actix_web::Error,
@@ -35,12 +39,13 @@ pub async fn get_valid_user() -> User {
 	let user_email = "valid@example.com";
 	let user_realms = vec!["example".to_string()];
 	let config = CONFIG.read().await;
-	let user = config.users.iter().find(|u| u.email == user_email).unwrap();
+	let user = config.users.iter().find(|u| u.email == user_email).unwrap().clone();
+	drop(config);
 
 	assert_eq!(user.email, user_email);
 	assert_eq!(user.realms, user_realms);
 
-	user.to_owned()
+	user
 }
 
 fn bench_status_endpoint(c: &mut Criterion) {
@@ -49,7 +54,7 @@ fn bench_status_endpoint(c: &mut Criterion) {
 
 	let (app, proxy_session) = rt.block_on(async {
 		let db = db_connect().await;
-		let app = setup_app(&db).await;
+		let app = setup_app(db.clone()).await;
 		let user = get_valid_user().await;
 		let browser_session = BrowserSessionSecret::new(user, EmptyMetadata(), &db).await.unwrap();
 		let proxy_session = ProxySessionSecret::new_child(

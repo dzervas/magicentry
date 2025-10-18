@@ -81,6 +81,7 @@ pub struct ConfigFile {
 
 impl Default for ConfigFile {
 	#[allow(clippy::or_fun_call)]
+	#[allow(clippy::unwrap_used)] // All the cases are either const or on start (e.g. port)
     fn default() -> Self {
         Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),

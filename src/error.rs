@@ -123,25 +123,21 @@ pub struct Error {
 
 impl ResponseError for Error {
 	fn status_code(&self) -> StatusCode {
-		if let Some(app_error) = &self.app_error {
-			match app_error {
-				AppErrorKind::NotLoggedIn
-				| AppErrorKind::ExpiredSecret
-				| AppErrorKind::WebAuthnSecretNotFound => StatusCode::FOUND,
-				AppErrorKind::Unauthorized
-				| AppErrorKind::InvalidOIDCCode
-				| AppErrorKind::InvalidClientID
-				| AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
-				AppErrorKind::NotFound => StatusCode::NOT_FOUND,
-				AppErrorKind::InvalidTargetUser | AppErrorKind::InvalidParentToken => {
-					StatusCode::INTERNAL_SERVER_ERROR
-				}
-
-				_ => StatusCode::BAD_REQUEST,
+		self.app_error.as_ref().map_or(StatusCode::INTERNAL_SERVER_ERROR, |app_error| match app_error {
+			AppErrorKind::NotLoggedIn
+			| AppErrorKind::ExpiredSecret
+			| AppErrorKind::WebAuthnSecretNotFound => StatusCode::FOUND,
+			AppErrorKind::Unauthorized
+			| AppErrorKind::InvalidOIDCCode
+			| AppErrorKind::InvalidClientID
+			| AppErrorKind::InvalidClientSecret => StatusCode::UNAUTHORIZED,
+			AppErrorKind::NotFound => StatusCode::NOT_FOUND,
+			AppErrorKind::InvalidTargetUser | AppErrorKind::InvalidParentToken => {
+				StatusCode::INTERNAL_SERVER_ERROR
 			}
-		} else {
-			StatusCode::INTERNAL_SERVER_ERROR
-		}
+
+			_ => StatusCode::BAD_REQUEST,
+		})
 	}
 
 	fn error_response(&self) -> HttpResponse {

@@ -93,8 +93,10 @@ impl IngressConfig {
 
 				let mut url = url::Url::parse(host).unwrap_or_else(|_| {
 					log::error!("Ingress {name:?} has invalid host {host}");
+					#[allow(clippy::unwrap_used)] // const
 					url::Url::parse("http://localhost").unwrap()
 				});
+				#[allow(clippy::unwrap_used)] // const
 				url.set_scheme(if has_tls { "https" } else { "http" }).unwrap();
 
 				url
