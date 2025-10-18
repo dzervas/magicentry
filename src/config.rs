@@ -6,6 +6,7 @@
 
 use std::path::Path;
 
+use actix_web::dev::ConnectionInfo;
 use chrono::Duration;
 use log::error;
 use notify::{PollWatcher, Watcher};
@@ -135,27 +136,26 @@ impl Default for ConfigFile {
 }
 
 impl ConfigFile {
-	/// This function returns the base URL that magicentry was accessed from
+	/// Return the base URL that magicentry was accessed from
 	///
 	/// Useful to return correct links for proxied requests that do not abide
 	/// by the [`external_url`](ConfigFile::external_url) host
 	#[must_use]
-	pub fn url_from_request(&self, request: &actix_web::HttpRequest) -> String {
-		let conn = request.connection_info();
-		let host = conn.host();
-		let scheme = if conn.scheme() == "http" {
-			"http"
+	pub async fn url_from_request(conn: ConnectionInfo) -> String {
+		let origin = format!("{}://{}",
+			if conn.scheme() == "http" { "http" } else { "https" },
+			conn.host()
+		);
+
+		let config = CONFIG.read().await;
+
+		let path_prefix = if config.path_prefix.ends_with('/') {
+			&config.path_prefix[..config.path_prefix.len() - 1]
 		} else {
-			"https"
+			&config.path_prefix
 		};
 
-		let path_prefix = if self.path_prefix.ends_with('/') {
-			&self.path_prefix[..self.path_prefix.len() - 1]
-		} else {
-			&self.path_prefix
-		};
-
-		format!("{scheme}://{host}{path_prefix}")
+		format!("{origin}/{path_prefix}")
 	}
 
 	/// Read the config file as dictated by the `CONFIG_FILE` variable

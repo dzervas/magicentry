@@ -17,8 +17,9 @@
 
 use std::collections::BTreeMap;
 
+use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
-use actix_web::{post, web, HttpRequest, HttpResponse};
+use actix_web::{post, web, HttpResponse};
 use formatx::formatx;
 use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
@@ -26,6 +27,7 @@ use log::info;
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
+use crate::config::ConfigFile;
 use crate::error::Response;
 use crate::user::User;
 use crate::secret::login_link::LoginLinkRedirect;
@@ -44,7 +46,7 @@ pub struct LoginInfo {
 
 #[post("/login")]
 async fn login_post(
-	req: HttpRequest,
+	conn: ConnectionInfo,
 	web::Form(form): web::Form<LoginInfo>,
 	web::Query(login_redirect): web::Query<LoginLinkRedirect>,
 	db: web::Data<crate::Database>,
@@ -52,13 +54,12 @@ async fn login_post(
 	http_client: web::Data<Option<reqwest::Client>>,
 ) -> Response {
 	let login_action_page = get_partial::<()>("login_action", BTreeMap::new(), None)?;
-	let result = Ok(HttpResponse::Ok()
-		.content_type(ContentType::html())
-		.body(login_action_page));
 
 	// Return 200 to avoid leaking valid emails
 	let Some(user) = User::from_email(&form.email).await else {
-		return result;
+		return Ok(HttpResponse::Ok()
+			.content_type(ContentType::html())
+			.body(login_action_page))
 	};
 
 	// Generate the magic link
@@ -67,11 +68,11 @@ async fn login_post(
 		login_redirect.into_opt().await,
 		&db
 	).await?;
-	let config = CONFIG.read().await;
-	let base_url = config.url_from_request(&req);
+	let base_url = ConfigFile::url_from_request(conn).await;
 	let magic_link = base_url + &link.get_login_url();
 	let name = &user.name.clone();
 	let username = &user.username.clone();
+	let config = CONFIG.read().await;
 
 	#[cfg(debug_assertions)]
 	info!("Link: {}", &magic_link);
@@ -142,7 +143,9 @@ async fn login_post(
 		}
 	}
 
-	result
+	Ok(HttpResponse::Ok()
+		.content_type(ContentType::html())
+		.body(login_action_page))
 }
 
 #[cfg(test)]

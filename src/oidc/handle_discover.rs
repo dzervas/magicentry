@@ -1,7 +1,8 @@
-use actix_web::{get, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, HttpResponse, Responder};
+use actix_web::dev::ConnectionInfo;
 use serde::{Serialize, Serializer};
 
-use crate::{generate_cors_preflight, CONFIG};
+use crate::{config::ConfigFile, generate_cors_preflight, CONFIG};
 
 // Serialize a vector of strings as a space-separated string
 #[allow(clippy::ptr_arg)]
@@ -67,11 +68,12 @@ generate_cors_preflight!(
 );
 
 #[get("/.well-known/openid-configuration")]
-pub async fn discover(req: HttpRequest) -> impl Responder {
-	let config = CONFIG.read().await;
-	let base_url = config.url_from_request(&req);
-	let external_url = config.external_url.clone();
-	drop(config);
+pub async fn discover(conn: ConnectionInfo) -> impl Responder {
+	let base_url = ConfigFile::url_from_request(conn).await;
+	let external_url = {
+		let config = CONFIG.read().await;
+		config.external_url.clone()
+	};
 	let discovery = Discovery::new(&base_url, &external_url);
 
 	HttpResponse::Ok()

@@ -1,4 +1,5 @@
-use actix_web::{post, web, HttpRequest, HttpResponse};
+use actix_web::dev::ConnectionInfo;
+use actix_web::{post, web, HttpResponse};
 use actix_web_httpauth::extractors::basic::BasicAuth;
 use chrono::Utc;
 use jwt_simple::algorithms::RS256KeyPair;
@@ -7,6 +8,7 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::config::ConfigFile;
 use crate::error::{AppErrorKind, Response};
 use crate::secret::OIDCAuthCodeSecret;
 use crate::{generate_cors_preflight, CONFIG};
@@ -96,7 +98,7 @@ generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 #[post("/oidc/token")]
 #[allow(clippy::significant_drop_tightening)] // config is used in almost all branches
 pub async fn token(
-	req: HttpRequest,
+	conn: ConnectionInfo,
 	db: web::Data<crate::Database>,
 	web::Form(token_req): web::Form<TokenRequest>,
 	jwt_keypair: web::Data<RS256KeyPair>,
@@ -106,6 +108,7 @@ pub async fn token(
 	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
 	debug!("Token request: {token_req:?}");
 
+	let base_url = ConfigFile::url_from_request(conn).await;
 	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 
@@ -173,7 +176,6 @@ pub async fn token(
 	}
 
 
-	let base_url = config.url_from_request(&req);
 	let id_token = auth_req
 		.generate_id_token(oidc_authcode.user(), base_url, jwt_keypair.as_ref())
 		.await?;

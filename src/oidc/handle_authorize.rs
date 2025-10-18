@@ -1,21 +1,22 @@
 use std::collections::BTreeMap;
 
 use actix_web::cookie::{Cookie, SameSite};
+use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
-use actix_web::HttpRequest;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use log::info;
 
 use crate::error::{AppErrorKind, Response};
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 use crate::utils::get_partial;
-use crate::{AUTHORIZATION_COOKIE, CONFIG};
+use crate::config::ConfigFile;
+use crate::AUTHORIZATION_COOKIE;
 
 use super::AuthorizeRequest;
 
 async fn authorize(
-	req: HttpRequest,
+	conn: ConnectionInfo,
 	db: web::Data<crate::Database>,
 	auth_req: AuthorizeRequest,
 	browser_session_opt: Option<BrowserSessionSecret>,
@@ -23,10 +24,7 @@ async fn authorize(
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 
 	let Some(browser_session) = browser_session_opt else {
-		let base_url = {
-			let config = CONFIG.read().await;
-			config.url_from_request(&req)
-		};
+		let base_url = ConfigFile::url_from_request(conn).await;
 		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()
@@ -78,20 +76,20 @@ async fn authorize(
 
 #[get("/oidc/authorize")]
 pub async fn authorize_get(
-	req: HttpRequest,
+	conn: ConnectionInfo,
 	db: web::Data<crate::Database>,
 	data: web::Query<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
-	authorize(req, db, data.into_inner(), browser_session_opt).await
+	authorize(conn, db, data.into_inner(), browser_session_opt).await
 }
 
 #[post("/oidc/authorize")]
 pub async fn authorize_post(
-	req: HttpRequest,
+	conn: ConnectionInfo,
 	db: web::Data<crate::Database>,
 	data: web::Form<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
-	authorize(req, db, data.into_inner(), browser_session_opt).await
+	authorize(conn, db, data.into_inner(), browser_session_opt).await
 }

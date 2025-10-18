@@ -1,9 +1,11 @@
 use std::collections::BTreeMap;
 
+use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
-use actix_web::{get, web, HttpRequest, HttpResponse};
+use actix_web::{get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
+use crate::config::ConfigFile;
 use crate::error::{AppErrorKind, Response};
 use crate::saml::authn_request::AuthnRequest;
 use crate::secret::BrowserSessionSecret;
@@ -28,16 +30,14 @@ pub struct SAMLResponse {
 
 #[get("/saml/sso")]
 pub async fn sso(
-	req: HttpRequest,
+	conn: ConnectionInfo,
 	web::Query(data): web::Query<SAMLRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>
 ) -> Response {
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
-	let config = CONFIG.read().await;
 
 	let Some(browser_session) = browser_session_opt else {
-		let base_url = config.url_from_request(&req);
-		drop(config);
+		let base_url = ConfigFile::url_from_request(conn).await;
 		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()
@@ -48,6 +48,7 @@ pub async fn sso(
 			.finish());
 	};
 
+	let config = CONFIG.read().await;
 	let service = config.services.from_saml_entity_id(&authn_request.issuer)
 		.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
 
