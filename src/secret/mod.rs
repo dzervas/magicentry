@@ -141,6 +141,6 @@ impl TryFrom<String> for SecretString {
 			_ => return Err(crate::error::AppErrorKind::InvalidSecret.into()),
 		};
 
-		Ok(SecretString(kind, parts[2].to_string()))
+		Ok(Self(kind, parts[2].to_string()))
 	}
 }

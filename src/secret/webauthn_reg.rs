@@ -45,7 +45,7 @@ impl From<WebAuthnRegSecret> for Cookie<'_> {
 	fn from(val: WebAuthnRegSecret) -> Cookie<'static> {
 		Cookie::build(
 			WEBAUTHN_REG_COOKIE,
-			val.code().to_str_that_i_wont_print().to_owned(),
+			val.code().to_str_that_i_wont_print(),
 		)
 		.http_only(true)
 		.same_site(SameSite::Lax)

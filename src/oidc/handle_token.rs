@@ -182,7 +182,7 @@ pub async fn token(
 	let oidc_token = oidc_authcode.exchange_sibling(&db).await?;
 
 	let response = TokenResponse {
-		access_token: oidc_token.code().to_str_that_i_wont_print().to_owned(),
+		access_token: oidc_token.code().to_str_that_i_wont_print(),
 		token_type: "Bearer".to_string(),
 		expires_in: config.session_duration.num_seconds(),
 		id_token,

@@ -43,7 +43,8 @@ mod tests {
 	use super::*;
 	use chrono::Duration;
 
-	use crate::database::{init_database, UserSecretRow, UserSecretType};
+	use crate::secret::LoginLinkSecret;
+	use crate::database::init_database;
 
 	async fn setup_test_db() -> crate::error::Result<crate::Database> {
 		init_database("sqlite::memory:").await
@@ -53,73 +54,69 @@ mod tests {
 	async fn deletes_only_expired() {
 		let db = setup_test_db().await.unwrap();
 
-		let expired = UserSecretRow {
-			id: "expired_secret".to_string(),
-			secret_type: UserSecretType::LoginLink,
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: Utc::now().naive_utc() - Duration::hours(1),
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
+		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
+			.bind("mc_ll_expiredSecret")
+			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
+			.bind(Utc::now().naive_utc() - Duration::hours(1))
+			.bind("{}")
+			.execute(&db)
+			.await
+			.unwrap();
 
-		let valid = UserSecretRow {
-			id: "valid_secret".to_string(),
-			secret_type: UserSecretType::LoginLink,
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: Utc::now().naive_utc() + Duration::hours(1),
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
+		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
+			.bind("mc_ll_validSecret")
+			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
+			.bind(Utc::now().naive_utc() + Duration::hours(1))
+			.bind("{}")
+			.execute(&db)
+			.await
+			.unwrap();
 
-		expired.save(&db).await.unwrap();
-		valid.save(&db).await.unwrap();
-
-		assert!(UserSecretRow::exists("expired_secret", &db).await.unwrap());
-		assert!(UserSecretRow::exists("valid_secret", &db).await.unwrap());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_expiredSecret".to_string(), &db).await.is_ok());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_validSecret".to_string(), &db).await.is_ok());
 
 		cleanup_expired(&db).await.unwrap();
 
-		assert!(!UserSecretRow::exists("expired_secret", &db).await.unwrap());
-		assert!(UserSecretRow::exists("valid_secret", &db).await.unwrap());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_expiredSecret".to_string(), &db).await.is_err());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_validSecret".to_string(), &db).await.is_ok());
 	}
 
 	#[tokio::test]
 	async fn deletes_boundary_equal_now() {
 		let db = setup_test_db().await.unwrap();
 
-		let boundary = UserSecretRow {
-			id: "boundary_secret".to_string(),
-			secret_type: UserSecretType::LoginLink,
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: Utc::now().naive_utc(),
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
+		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
+			.bind("mc_ll_nowSecret")
+			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
+			.bind(Utc::now().naive_utc())
+			.bind("{}")
+			.execute(&db)
+			.await
+			.unwrap();
 
-		boundary.save(&db).await.unwrap();
-		assert!(UserSecretRow::exists("boundary_secret", &db).await.unwrap());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_ok());
 
 		cleanup_expired(&db).await.unwrap();
-		assert!(!UserSecretRow::exists("boundary_secret", &db).await.unwrap());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_err());
 	}
 
 	#[tokio::test]
 	async fn no_op_when_none_expired() {
 		let db = setup_test_db().await.unwrap();
 
-		let valid1 = UserSecretRow {
-			id: "valid1".to_string(),
-			secret_type: UserSecretType::LoginLink,
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: Utc::now().naive_utc() + Duration::hours(2),
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
-		valid1.save(&db).await.unwrap();
+		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
+			.bind("mc_ll_nowSecret")
+			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
+			.bind(Utc::now().naive_utc() + Duration::hours(1))
+			.bind("{}")
+			.execute(&db)
+			.await
+			.unwrap();
+
+		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_ok());
 
 		cleanup_expired(&db).await.unwrap();
-
-		assert!(UserSecretRow::exists("valid1", &db).await.unwrap());
+		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_ok());
 	}
 }
 

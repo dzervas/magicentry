@@ -48,7 +48,7 @@ impl From<&BrowserSessionSecret> for Cookie<'_> {
 	fn from(val: &BrowserSessionSecret) -> Cookie<'static> {
 		Cookie::build(
 			SESSION_COOKIE,
-			val.code().to_str_that_i_wont_print().to_owned(),
+			val.code().to_str_that_i_wont_print(),
 		)
 		.http_only(true)
 		.same_site(SameSite::Lax)

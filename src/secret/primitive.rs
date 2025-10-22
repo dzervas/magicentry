@@ -194,3 +194,61 @@ impl<P, K, M> UserSecret<K> where
 }
 
 // TODO: Create a blanket implementation of FromRequest for UserSecret instances that implement a FromRequestAsync trait so that the async-related boilerplate can go away
+
+#[cfg(test)]
+mod tests {
+	use crate::{database::init_database, secret::LoginLinkSecret};
+
+	use super::*;
+
+	async fn setup_test_db() -> Result<Database> {
+		// Use in-memory database for tests
+		init_database("sqlite::memory:").await
+	}
+
+	async fn db_fetch(code: SecretString, db: &Database) -> i64 {
+		sqlx::query_scalar("SELECT COUNT(*) FROM user_secrets WHERE code = ?")
+			.bind(code)
+			.fetch_one(db)
+			.await
+			.unwrap()
+	}
+
+	#[tokio::test]
+	async fn test_user_secret_crud() {
+		let db = setup_test_db().await.unwrap();
+		let user = crate::user::User {
+			email: "hello@world.com".to_string(),
+			username: "helloworld".to_string(),
+			name: "Hello World".to_string(),
+			realms: vec!["test".to_string()],
+		};
+
+		let login_link = LoginLinkSecret::new(user.clone(), None, &db).await.unwrap();
+		let login_link_code = login_link
+			.get_login_url()
+			.split('/')
+			.last()
+			.unwrap()
+			.to_string();
+
+		// Test get
+		let retrieved = LoginLinkSecret::try_from_string(login_link_code, &db).await.unwrap();
+		let retrieved_code = retrieved.code().clone();
+		assert_eq!(retrieved.user(), &user);
+
+		let db_fetched = db_fetch(retrieved.code().clone(), &db).await;
+		assert_eq!(db_fetched, 1);
+
+		let session = retrieved.exchange(&db).await.unwrap();
+		let session_code = session.code().clone();
+		let db_fetched = db_fetch(session.code().clone(), &db).await;
+		assert_eq!(db_fetched, 1);
+		let db_fetched = db_fetch(retrieved_code.clone(), &db).await;
+		assert_eq!(db_fetched, 0);
+
+		session.delete(&db).await.unwrap();
+		let db_fetched = db_fetch(session_code.clone(), &db).await;
+		assert_eq!(db_fetched, 0);
+	}
+}

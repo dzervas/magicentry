@@ -63,7 +63,7 @@ impl From<&ProxySessionSecret> for Cookie<'_> {
 	fn from(val: &ProxySessionSecret) -> Cookie<'static> {
 		Cookie::build(
 			PROXY_SESSION_COOKIE,
-			val.code().to_str_that_i_wont_print().to_owned(),
+			val.code().to_str_that_i_wont_print(),
 		)
 		.http_only(true)
 		.same_site(SameSite::Lax)

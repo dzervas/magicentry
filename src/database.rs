@@ -116,37 +116,6 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn test_user_secret_crud() {
-		let db = setup_test_db().await.unwrap();
-		
-		let secret = UserSecretRow {
-			id: "test_secret_123".to_string(),
-			secret_type: UserSecretType::LoginLink,
-			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
-			expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
-			metadata: "{}".to_string(),
-			created_at: None,
-		};
-
-		// Test save
-		secret.save(&db).await.unwrap();
-
-		// Test get
-		let retrieved = UserSecretRow::get("test_secret_123", &db).await.unwrap().unwrap();
-		assert_eq!(retrieved.id, secret.id);
-		assert_eq!(retrieved.secret_type, secret.secret_type);
-		assert_eq!(retrieved.user_data, secret.user_data);
-
-		// Test exists
-		assert!(UserSecretRow::exists("test_secret_123", &db).await.unwrap());
-		assert!(!UserSecretRow::exists("nonexistent", &db).await.unwrap());
-
-		// Test remove
-		UserSecretRow::remove("test_secret_123", &db).await.unwrap();
-		assert!(!UserSecretRow::exists("test_secret_123", &db).await.unwrap());
-	}
-
-	#[tokio::test]
 	async fn test_config_kv_crud() {
 		let db = setup_test_db().await.unwrap();
 		
