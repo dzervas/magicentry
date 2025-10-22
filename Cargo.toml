@@ -70,8 +70,6 @@ tiny_http = "0.12"
 # We intentionally put this under dev-dependencies so it's only pulled for tests
 hurl = "*"
 hurl_core = "*"
-quickcheck = "1"
-arbitrary = { version = "1.4.2", features = ["derive"] }
 
 [[bench]]
 name = "authurl_status"

@@ -9,8 +9,7 @@ use crate::error::Result;
 /// A secret is considered expired when `expires_at <= now()`.
 pub async fn cleanup_expired(db: &crate::Database) -> Result<()> {
 	let now = Utc::now().naive_utc();
-	sqlx::query("DELETE FROM user_secrets WHERE expires_at <= ?")
-		.bind(now)
+	sqlx::query!("DELETE FROM user_secrets WHERE expires_at <= ?", now)
 		.execute(db)
 	.await?;
 

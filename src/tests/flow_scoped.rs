@@ -45,7 +45,7 @@ async fn test_global_login() {
 	let login_message = &messages.first().unwrap().1;
 
 	let login_link = login_message
-		.split("http://localhost:8080")
+		.split("http://localhost:8080/")
 		.nth(1)
 		.unwrap()
 		.replace("=\r\n", "");

@@ -2,8 +2,6 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
 use std::str::FromStr;
-#[cfg(test)]
-use quickcheck::{Arbitrary, Gen};
 
 use crate::error::Result;
 use crate::user::User;
@@ -27,7 +25,6 @@ pub async fn init_database(database_url: &str) -> Result<Database> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[cfg_attr(test, derive(arbitrary::Arbitrary))]
 pub enum UserSecretType {
 	ApiKey,
 	BrowserSession,
@@ -73,14 +70,14 @@ pub struct UserSecretRow {
 impl UserSecretRow {
 	/// Save a user secret to the database
 	pub async fn save(&self, db: &Database) -> Result<()> {
-		sqlx::query(
-			"INSERT INTO user_secrets (id, secret_type, user_data, expires_at, metadata) VALUES (?, ?, ?, ?, ?)"
+		sqlx::query!(
+			"INSERT INTO user_secrets (id, secret_type, user_data, expires_at, metadata) VALUES (?, ?, ?, ?, ?)",
+			self.id,
+			self.secret_type,
+			self.user_data,
+			self.expires_at,
+			self.metadata,
 		)
-		.bind(&self.id)
-		.bind(&self.secret_type)
-		.bind(&self.user_data)
-		.bind(self.expires_at)
-		.bind(&self.metadata)
 		.execute(db)
 		.await?;
 		
@@ -89,10 +86,10 @@ impl UserSecretRow {
 	
 	/// Get a user secret by ID
 	pub async fn get(id: &str, db: &Database) -> Result<Option<Self>> {
-		let row = sqlx::query_as::<_, Self>(
-			"SELECT id, secret_type, user_data, expires_at, metadata, created_at FROM user_secrets WHERE id = ?"
+		let row = sqlx::query_as!(Self,
+			r#"SELECT id, secret_type AS "secret_type: UserSecretType", user_data, expires_at, metadata, created_at FROM user_secrets WHERE id = ?"#,
+			id
 		)
-		.bind(id)
 		.fetch_optional(db)
 		.await?;
 		
@@ -101,10 +98,7 @@ impl UserSecretRow {
 	
 	/// Check if a user secret exists
 	pub async fn exists(id: &str, db: &Database) -> Result<bool> {
-		let count: i64 = sqlx::query_scalar(
-			"SELECT COUNT(*) FROM user_secrets WHERE id = ?"
-		)
-		.bind(id)
+		let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM user_secrets WHERE id = ?", id)
 		.fetch_one(db)
 		.await?;
 		
@@ -113,10 +107,7 @@ impl UserSecretRow {
 	
 	/// Remove a user secret by ID
 	pub async fn remove(id: &str, db: &Database) -> Result<()> {
-		sqlx::query(
-			"DELETE FROM user_secrets WHERE id = ?"
-		)
-		.bind(id)
+		sqlx::query!("DELETE FROM user_secrets WHERE id = ?", id)
 		.execute(db)
 		.await?;
 		
@@ -124,23 +115,6 @@ impl UserSecretRow {
 	}
 	
 }
-
-// #[cfg(test)]
-// impl Arbitrary for UserSecretRow {
-// 	fn arbitrary(g: &mut Gen) -> Self {
-// 		let now = chrono::Utc::now().naive_utc();
-// 		let expires_at = now + chrono::Duration::seconds(i64::arbitrary(g).abs() % 10_000);
-//
-// 		UserSecretRow {
-// 			id: format!("me_{}", String::arbitrary(g)),
-// 			secret_type: <UserSecretType as arbitrary::Arbitrary>::arbitrary(g),
-// 			user_data: format!(r#"{{"email":"{}@example.com"}}"#, String::arbitrary(g)),
-// 			expires_at,
-// 			metadata: "{}".to_string(),
-// 			created_at: None,
-// 		}
-// 	}
-// }
 
 /// Represents a passkey stored in the database
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -154,11 +128,11 @@ pub struct PasskeyRow {
 impl PasskeyRow {
 	/// Save a passkey to the database
 	pub async fn save(&mut self, db: &Database) -> Result<()> {
-		let result = sqlx::query(
-			"INSERT INTO passkeys (user_data, passkey_data) VALUES (?, ?)"
+		let result = sqlx::query!(
+			"INSERT INTO passkeys (user_data, passkey_data) VALUES (?, ?)",
+			self.user_data,
+			self.passkey_data,
 		)
-		.bind(&self.user_data)
-		.bind(&self.passkey_data)
 		.execute(db)
 		.await?;
 		
@@ -170,10 +144,11 @@ impl PasskeyRow {
 	pub async fn get_by_user(user: &User, db: &Database) -> Result<Vec<Self>> {
 		let user_str = serde_json::to_string(user)?;
 		
-		let rows = sqlx::query_as::<_, Self>(
-			"SELECT id, user_data, passkey_data, created_at FROM passkeys WHERE user_data = ?"
+		let rows = sqlx::query_as!(
+			Self,
+			"SELECT id, user_data, passkey_data, created_at FROM passkeys WHERE user_data = ?",
+			user_str
 		)
-		.bind(user_str)
 		.fetch_all(db)
 		.await?;
 		
@@ -192,12 +167,12 @@ pub struct ConfigKVRow {
 impl ConfigKVRow {
 	/// Save or update a config KV pair
 	pub async fn save(&self, db: &Database) -> Result<()> {
-		sqlx::query(
-			"INSERT INTO config_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP"
+		sqlx::query!(
+			"INSERT INTO config_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP",
+			self.key,
+			self.value,
+			self.value,
 		)
-		.bind(&self.key)
-		.bind(&self.value)
-		.bind(&self.value)
 		.execute(db)
 		.await?;
 		
@@ -206,22 +181,16 @@ impl ConfigKVRow {
 	
 	/// Get a config value by key
 	pub async fn get(key: &str, db: &Database) -> Result<Option<String>> {
-		let row: Option<(String,)> = sqlx::query_as(
-			"SELECT value FROM config_kv WHERE key = ?"
-		)
-		.bind(key)
+		let row = sqlx::query!("SELECT value FROM config_kv WHERE key = ?", key)
 		.fetch_optional(db)
 		.await?;
 		
-		Ok(row.map(|(value,)| value))
+		Ok(row.map(|r| r.value))
 	}
 	
 	/// Remove a config KV pair by key
 	pub async fn remove(key: &str, db: &Database) -> Result<()> {
-		sqlx::query(
-			"DELETE FROM config_kv WHERE key = ?"
-		)
-		.bind(key)
+		sqlx::query!("DELETE FROM config_kv WHERE key = ?", key)
 		.execute(db)
 		.await?;
 		

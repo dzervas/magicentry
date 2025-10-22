@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, secret_type AS \"secret_type: UserSecretType\", user_data, expires_at, metadata, created_at FROM user_secrets WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "secret_type: UserSecretType",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "user_data",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 3,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "metadata",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 5,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "631d54b28a06107b28739d10f39e6d3e5390b386eb4112f40854b8ffa1e3d860"
+}
