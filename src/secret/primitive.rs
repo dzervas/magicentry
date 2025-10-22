@@ -1,7 +1,7 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::database::{Database, UserSecretRow};
+use crate::database::{Database, UserSecretRow, UserSecretType};
 use crate::error::{AppErrorKind, Result};
 use crate::user::User;
 
@@ -12,7 +12,7 @@ use super::metadata::MetadataKind;
 /// You can think of it as a "token" but I didn't use that term to avoid
 /// confusion with all the other types of tokens.
 pub trait UserSecretKind: PartialEq + Send + Sync {
-	const PREFIX: &'static str;
+	const PREFIX: UserSecretType;
 	type Metadata: MetadataKind;
 
 	async fn duration() -> chrono::Duration;
@@ -39,7 +39,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 		
 		let row = UserSecretRow {
 			id: self.code.to_str_that_i_wont_print().to_string(),
-			secret_type: K::PREFIX.to_string(),
+			secret_type: K::PREFIX,
 			user_data: user_str,
 			expires_at: self.expires_at,
 			metadata: metadata_str,
@@ -95,10 +95,10 @@ impl<K: UserSecretKind> UserSecret<K> {
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
 			.checked_add_signed(K::duration().await)
-			.unwrap_or_else(|| panic!("Couldn't generate expiry for {}", K::PREFIX));
+			.unwrap_or_else(|| panic!("Couldn't generate expiry for {:?}", K::PREFIX));
 
 		let internal_secret = InternalUserSecret {
-			code: SecretString::new(K::PREFIX),
+			code: SecretString::new(&K::PREFIX),
 			user,
 			expires_at,
 			metadata,
@@ -115,7 +115,8 @@ impl<K: UserSecretKind> UserSecret<K> {
 	/// Any failure will remove the secret from the db and return an error
 	/// This is useful for cleaning up expired secrets
 	pub async fn validate(&self, db: &Database) -> Result<()> {
-		if !self.0.code.to_str_that_i_wont_print().starts_with(get_prefix(K::PREFIX).as_str()) {
+		let prefix = get_prefix(K::PREFIX.as_short_str());
+		if !self.0.code.to_str_that_i_wont_print().starts_with(prefix.as_str()) {
 			return Err(AppErrorKind::InvalidSecretType.into());
 		}
 

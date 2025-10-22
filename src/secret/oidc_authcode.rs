@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::database::UserSecretType;
 use crate::oidc::authorize_request::AuthorizeRequest;
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -12,7 +13,7 @@ use super::ChildSecretMetadata;
 pub struct OIDCAuthCodeSecretKind;
 
 impl UserSecretKind for OIDCAuthCodeSecretKind {
-	const PREFIX: &'static str = "oidc_authcode";
+	const PREFIX: UserSecretType = UserSecretType::OIDCAuthCode;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, AuthorizeRequest>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }

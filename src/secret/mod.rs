@@ -26,11 +26,11 @@ pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use serde::{Deserialize, Serialize};
 
-use crate::utils::random_string;
+use crate::{database::UserSecretType, utils::random_string};
 
 #[must_use]
-pub fn get_prefix(prefix: &str) -> String {
-	format!("me_{prefix}_")
+pub fn get_prefix<S: AsRef<str>>(prefix: S) -> String {
+	format!("me_{}_", prefix.as_ref())
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -43,8 +43,10 @@ impl SecretString {
 
 impl SecretString {
 	#[must_use]
-	pub fn new(prefix: &'static str) -> Self {
-		Self(format!("{}{}", get_prefix(prefix), random_string()))
+	pub fn new(kind: &UserSecretType) -> Self {
+		let prefix = get_prefix(kind.as_short_str());
+
+		Self(format!("{prefix}{}", random_string()))
 	}
 }
 

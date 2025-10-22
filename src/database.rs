@@ -2,6 +2,8 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
 use std::str::FromStr;
+#[cfg(test)]
+use quickcheck::{Arbitrary, Gen};
 
 use crate::error::Result;
 use crate::user::User;
@@ -24,11 +26,44 @@ pub async fn init_database(database_url: &str) -> Result<Database> {
 	Ok(pool)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[cfg_attr(test, derive(arbitrary::Arbitrary))]
+pub enum UserSecretType {
+	ApiKey,
+	BrowserSession,
+	LoginLink,
+	MagicToken,
+	OIDCAuthCode,
+	OIDCToken,
+	ProxyCode,
+	ProxySession,
+	WebAuthnAuth,
+	WebAuthnReg,
+}
+
+impl UserSecretType {
+	#[must_use]
+	pub const fn as_short_str(&self) -> &'static str {
+		match self {
+			Self::ApiKey => "aa",
+			Self::BrowserSession => "bs",
+			Self::LoginLink => "ll",
+			Self::MagicToken => "mt",
+			Self::OIDCAuthCode => "oa",
+			Self::OIDCToken => "ot",
+			Self::ProxyCode => "pc",
+			Self::ProxySession => "ps",
+			Self::WebAuthnAuth => "wa",
+			Self::WebAuthnReg => "wr",
+		}
+	}
+}
+
 /// Represents a user secret stored in the database
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct UserSecretRow {
 	pub id: String,
-	pub secret_type: String,
+	pub secret_type: UserSecretType,
 	pub user_data: String,
 	pub expires_at: NaiveDateTime,
 	pub metadata: String,
@@ -89,6 +124,23 @@ impl UserSecretRow {
 	}
 	
 }
+
+// #[cfg(test)]
+// impl Arbitrary for UserSecretRow {
+// 	fn arbitrary(g: &mut Gen) -> Self {
+// 		let now = chrono::Utc::now().naive_utc();
+// 		let expires_at = now + chrono::Duration::seconds(i64::arbitrary(g).abs() % 10_000);
+//
+// 		UserSecretRow {
+// 			id: format!("me_{}", String::arbitrary(g)),
+// 			secret_type: <UserSecretType as arbitrary::Arbitrary>::arbitrary(g),
+// 			user_data: format!(r#"{{"email":"{}@example.com"}}"#, String::arbitrary(g)),
+// 			expires_at,
+// 			metadata: "{}".to_string(),
+// 			created_at: None,
+// 		}
+// 	}
+// }
 
 /// Represents a passkey stored in the database
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -192,7 +244,7 @@ mod tests {
 		
 		let secret = UserSecretRow {
 			id: "test_secret_123".to_string(),
-			secret_type: "login_link".to_string(),
+			secret_type: UserSecretType::LoginLink,
 			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
 			expires_at: chrono::Utc::now().naive_utc() + chrono::Duration::hours(1),
 			metadata: "{}".to_string(),

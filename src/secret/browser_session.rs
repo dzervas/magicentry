@@ -2,6 +2,7 @@ use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
+use crate::database::UserSecretType;
 use crate::error::{AppErrorKind, Result};
 use crate::SESSION_COOKIE;
 
@@ -12,7 +13,7 @@ use super::metadata::EmptyMetadata;
 pub struct BrowserSessionSecretKind;
 
 impl UserSecretKind for BrowserSessionSecretKind {
-	const PREFIX: &'static str = "session";
+	const PREFIX: UserSecretType = UserSecretType::BrowserSession;
 	type Metadata = EmptyMetadata;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }

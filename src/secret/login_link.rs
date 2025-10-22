@@ -7,6 +7,7 @@ use super::primitive::UserSecretKind;
 use super::proxy_code::ProxyCodeSecret;
 use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind};
 
+use crate::database::UserSecretType;
 use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_QUERY_CODE};
 
@@ -98,7 +99,7 @@ impl MetadataKind for LoginLinkRedirect {
 pub struct LoginLinkSecretKind;
 
 impl UserSecretKind for LoginLinkSecretKind {
-	const PREFIX: &'static str = "login";
+	const PREFIX: UserSecretType = UserSecretType::LoginLink;
 	type Metadata = Option<LoginLinkRedirect>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.link_duration }

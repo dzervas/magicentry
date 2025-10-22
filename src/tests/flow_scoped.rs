@@ -63,7 +63,7 @@ async fn test_global_login() {
 	assert_eq!(resp.status(), StatusCode::FOUND);
 	let location_header = resp.headers().get("Location").unwrap().to_str().unwrap();
 	println!("Location header: {}", &location_header);
-	assert!(location_header.starts_with(format!("http://localhost:8080/?{}=me_{}_", PROXY_QUERY_CODE, ProxyCodeSecretKind::PREFIX).as_str()));
+	assert!(location_header.starts_with(format!("http://localhost:8080/?{}=me_{}_", PROXY_QUERY_CODE, ProxyCodeSecretKind::PREFIX.as_short_str()).as_str()));
 
 	let resp = call_service(
 		&app,

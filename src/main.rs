@@ -14,6 +14,7 @@ use tokio::select;
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
+	// TODO: Add a log checker during test that checks for secrets and panics if it finds any
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
 

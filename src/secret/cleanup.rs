@@ -44,7 +44,7 @@ mod tests {
 	use super::*;
 	use chrono::Duration;
 
-	use crate::database::{init_database, UserSecretRow};
+	use crate::database::{init_database, UserSecretRow, UserSecretType};
 
 	async fn setup_test_db() -> crate::error::Result<crate::Database> {
 		init_database("sqlite::memory:").await
@@ -56,7 +56,7 @@ mod tests {
 
 		let expired = UserSecretRow {
 			id: "expired_secret".to_string(),
-			secret_type: "login_link".to_string(),
+			secret_type: UserSecretType::LoginLink,
 			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
 			expires_at: Utc::now().naive_utc() - Duration::hours(1),
 			metadata: "{}".to_string(),
@@ -65,7 +65,7 @@ mod tests {
 
 		let valid = UserSecretRow {
 			id: "valid_secret".to_string(),
-			secret_type: "login_link".to_string(),
+			secret_type: UserSecretType::LoginLink,
 			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
 			expires_at: Utc::now().naive_utc() + Duration::hours(1),
 			metadata: "{}".to_string(),
@@ -90,7 +90,7 @@ mod tests {
 
 		let boundary = UserSecretRow {
 			id: "boundary_secret".to_string(),
-			secret_type: "login_link".to_string(),
+			secret_type: UserSecretType::LoginLink,
 			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
 			expires_at: Utc::now().naive_utc(),
 			metadata: "{}".to_string(),
@@ -110,7 +110,7 @@ mod tests {
 
 		let valid1 = UserSecretRow {
 			id: "valid1".to_string(),
-			secret_type: "login_link".to_string(),
+			secret_type: UserSecretType::LoginLink,
 			user_data: r#"{"email":"test@example.com","username":"test","name":"Test User","realms":["test"]}"#.to_string(),
 			expires_at: Utc::now().naive_utc() + Duration::hours(2),
 			metadata: "{}".to_string(),

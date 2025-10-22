@@ -3,3 +3,6 @@ linker = "aarch64-linux-gnu-gcc"
 
 [env]
 RUST_TEST_THREADS = "1"
+
+[unstable]
+gc = true
