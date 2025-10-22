@@ -6,7 +6,6 @@ edition = "2024"
 [features]
 default = []
 kube = ["dep:kube", "dep:k8s-openapi"]
-e2e-test = []
 
 [dependencies]
 actix-web = "4.11"

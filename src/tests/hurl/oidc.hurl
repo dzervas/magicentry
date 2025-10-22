@@ -6,7 +6,7 @@ HTTP 200
 
 # Set up a temporary webserver to serve the login link
 # python3 -m http.server -d hurl 8081
-GET http://localhost:8081/.link.txt
+GET {{fixture_url}}
 HTTP 200
 [Captures]
 link: body
@@ -20,7 +20,7 @@ session: cookie "session_id"
 
 GET {{base_url}}/oidc/authorize
 [Options]
-variable: redirect=https://openidconnect.net/callback
+variable: redirect="https://openidconnect.net/callback"
 [Cookies]
 session_id: {{session}}
 [Query]
@@ -67,7 +67,7 @@ jsonpath "$.email_verified" == true
 # @cookie_storage_clear
 GET {{base_url}}/oidc/authorize
 [Options]
-variable: redirect=https://openidconnect.net/callback
+variable: redirect="https://openidconnect.net/callback"
 [Query]
 client_id: my_client
 redirect_uri: {{redirect urlEncode}}
@@ -85,7 +85,7 @@ HTTP 200
 
 # Set up a temporary webserver to serve the login link
 # python3 -m http.server -d hurl 8081
-GET http://localhost:8081/.link.txt
+GET {{fixture_url}}
 HTTP 200
 [Captures]
 link: body

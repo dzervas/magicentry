@@ -42,8 +42,8 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 			"INSERT INTO user_secrets (code, user, metadata, expires_at) VALUES (?, ?, ?, ?)",
 			self.code,
 			user,
-			self.created_at,
 			metadata,
+			self.expires_at,
 		)
 		.execute(db)
 		.await?;
@@ -228,7 +228,7 @@ mod tests {
 		let login_link_code = login_link
 			.get_login_url()
 			.split('/')
-			.last()
+			.next_back()
 			.unwrap()
 			.to_string();
 

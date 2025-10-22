@@ -12,10 +12,6 @@ pub async fn main() -> std::io::Result<()> {
 	// TODO: Add a log checker during test that checks for secrets and panics if it finds any
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
-
-	#[cfg(feature = "e2e-test")]
-	log::warn!("Running in E2E Tests mode, all magic links will written to disk in the `.link.txt` file.");
-
 	#[cfg(debug_assertions)]
 	log::warn!("Running in debug mode, all magic links will be printed to the console.");
 

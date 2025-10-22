@@ -12,7 +12,6 @@
 ## Build, Test, and Development Commands
 
 - Build server: `cargo build` (add `--release` for production).
-- Run server: `cargo run --features e2e-test` (hot reload via `yarn start-server`).
 - Frontend assets: `yarn build` (webpack + Tailwind 4 → `static/main.build.css`).
 - Unit/integration tests: `cargo test --features kube` or `yarn test-server`.
 - End‑to‑end: `yarn test` (requires `hurl` and server at `:8080`).

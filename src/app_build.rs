@@ -84,7 +84,7 @@ pub async fn build(
 
 		app
 	})
-	.workers(if cfg!(debug_assertions) || cfg!(test) || cfg!(feature = "e2e-test") {
+	.workers(if cfg!(debug_assertions) || cfg!(test) {
 		1
 	} else {
 		std::thread::available_parallelism()

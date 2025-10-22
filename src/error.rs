@@ -123,9 +123,11 @@ pub struct Error {
 
 impl ResponseError for Error {
 	fn status_code(&self) -> StatusCode {
+		eprintln!("app_error: {:?}", self.app_error);
 		self.app_error.as_ref().map_or(StatusCode::INTERNAL_SERVER_ERROR, |app_error| match app_error {
 			AppErrorKind::NotLoggedIn
 			| AppErrorKind::ExpiredSecret
+			| AppErrorKind::InvalidSecret
 			| AppErrorKind::WebAuthnSecretNotFound => StatusCode::FOUND,
 			AppErrorKind::Unauthorized
 			| AppErrorKind::InvalidOIDCCode
@@ -160,9 +162,7 @@ impl ResponseError for Error {
 			log::warn!("{self}");
 		}
 
-		if self.app_error == Some(AppErrorKind::WebAuthnSecretNotFound)
-			|| self.app_error == Some(AppErrorKind::NotLoggedIn)
-		{
+		if status == StatusCode::FOUND {
 			HttpResponse::build(status)
 				.cookie(BrowserSessionSecret::unset_cookie())
 				.cookie(WebAuthnRegSecret::unset_cookie())

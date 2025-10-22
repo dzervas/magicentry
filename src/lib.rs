@@ -44,13 +44,6 @@
 //!
 //! It should automatically watch for file changes and re-do all the tests,
 //! a nice way to fix some bugs
-//!
-//! The "tiny webserver" is required as there's no easy way to feed external
-//! dynamic data to hurl during runtime, so to give the login link to hurl
-//! (normally delivered to users via email or a webhook), magicentry writes the
-//! link to a file within the hurl dir (`./hurl/.link.txt`). This behavior of
-//! course should not be allowed in production builds so it's feature-gated
-//! behind `e2e-test`
 
 use std::sync::LazyLock;
 

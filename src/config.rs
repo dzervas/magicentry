@@ -155,14 +155,14 @@ impl ConfigFile {
 			&config.path_prefix
 		};
 
-		format!("{origin}/{path_prefix}")
+		format!("{origin}{path_prefix}")
 	}
 
 	/// Read the config file as dictated by the `CONFIG_FILE` variable
 	/// and replace the current contents
 	///
 	/// Note that live-updating the `CONFIG_FILE` environment variable
-	/// is **NOT** supported
+	/// is **NOT** supported (and is probably impossible anyway)
 	pub async fn reload() -> crate::error::Result<()> {
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
 

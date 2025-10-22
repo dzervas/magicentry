@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT code, user, expires_at, metadata, created_at FROM user_secrets WHERE code = ?",
+  "query": "SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ?",
   "describe": {
     "columns": [
       {
@@ -19,14 +19,14 @@
         "type_info": "Datetime"
       },
       {
-        "name": "metadata",
+        "name": "created_at",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Datetime"
       },
       {
-        "name": "created_at",
+        "name": "metadata",
         "ordinal": 4,
-        "type_info": "Datetime"
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -36,9 +36,9 @@
       false,
       false,
       false,
-      false,
-      true
+      true,
+      false
     ]
   },
-  "hash": "033099d1ce6830008729bcf2aed8f81a9824b3b76b7d20072e48d6a53c4254a3"
+  "hash": "d07fe9c59476705712809efab3113bfab8f8bd902ef331925b2492e9ca6c14ac"
 }
