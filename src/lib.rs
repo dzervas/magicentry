@@ -58,6 +58,7 @@ use tokio::sync::RwLock;
 
 use crate::config::ConfigFile;
 
+pub mod app_build;
 pub mod auth_url;
 pub mod config;
 #[cfg(feature = "kube")]

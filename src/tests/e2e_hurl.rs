@@ -1,4 +1,3 @@
-#![allow(clippy::unwrap_used)]
 #![cfg(feature = "e2e-test")]
 
 use std::net::{SocketAddr, TcpListener};
