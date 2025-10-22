@@ -5,9 +5,8 @@ use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
 use super::primitive::UserSecretKind;
 use super::proxy_code::ProxyCodeSecret;
-use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind};
+use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind, SecretType};
 
-use crate::database::UserSecretType;
 use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_QUERY_CODE};
 
@@ -38,7 +37,7 @@ impl LoginLinkRedirect {
 			let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), db).await?;
 			url
 				.query_pairs_mut()
-				.append_pair(PROXY_QUERY_CODE, proxy_code.code().to_str_that_i_wont_print());
+				.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
 			Ok(url.to_string())
 		} else if let Some(oidc) = &self.oidc {
 			Ok(format!("/oidc/authorize?{}", serde_qs::to_string(oidc)?))
@@ -99,7 +98,7 @@ impl MetadataKind for LoginLinkRedirect {
 pub struct LoginLinkSecretKind;
 
 impl UserSecretKind for LoginLinkSecretKind {
-	const PREFIX: UserSecretType = UserSecretType::LoginLink;
+	const PREFIX: SecretType = SecretType::LoginLink;
 	type Metadata = Option<LoginLinkRedirect>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.link_duration }

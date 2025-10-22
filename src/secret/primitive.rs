@@ -1,18 +1,18 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::database::{Database, UserSecretRow, UserSecretType};
+use crate::database::Database;
 use crate::error::{AppErrorKind, Result};
 use crate::user::User;
 
-use super::{get_prefix, ChildSecretMetadata, SecretString};
+use super::{ChildSecretMetadata, SecretString, SecretType};
 use super::metadata::MetadataKind;
 
 /// This trait describes any kind of user secret.
 /// You can think of it as a "token" but I didn't use that term to avoid
 /// confusion with all the other types of tokens.
 pub trait UserSecretKind: PartialEq + Send + Sync {
-	const PREFIX: UserSecretType;
+	const PREFIX: SecretType;
 	type Metadata: MetadataKind;
 
 	async fn duration() -> chrono::Duration;
@@ -27,6 +27,7 @@ pub(super) struct InternalUserSecret<K: UserSecretKind> {
 	user: User,
 	/// The time the token expires at
 	expires_at: NaiveDateTime,
+	created_at: NaiveDateTime,
 	/// Metadata related to the secret - could be anything to nothing
 	metadata: K::Metadata,
 }
@@ -34,52 +35,66 @@ pub(super) struct InternalUserSecret<K: UserSecretKind> {
 impl<K: UserSecretKind> InternalUserSecret<K> {
 	/// Save the secret to the database
 	async fn save(&self, db: &Database) -> Result<()> {
-		let user_str = serde_json::to_string(&self.user)?;
-		let metadata_str = serde_json::to_string(&self.metadata)?;
-		
-		let row = UserSecretRow {
-			id: self.code.to_str_that_i_wont_print().to_string(),
-			secret_type: K::PREFIX,
-			user_data: user_str,
-			expires_at: self.expires_at,
-			metadata: metadata_str,
-			created_at: None,
-		};
-		
-		row.save(db).await
+		let user = serde_json::to_string(&self.user)?;
+		let metadata = serde_json::to_string(&self.metadata)?;
+
+		sqlx::query!(
+			"INSERT INTO user_secrets (code, user, metadata, expires_at) VALUES (?, ?, ?, ?)",
+			self.code,
+			user,
+			self.created_at,
+			metadata,
+		)
+		.execute(db)
+		.await?;
+
+		Ok(())
 	}
-	
+
 	/// Get a secret from the database by code
 	async fn get(code: &SecretString, db: &Database) -> Result<Option<Self>> {
-		let row = UserSecretRow::get(code.to_str_that_i_wont_print(), db).await?;
+		let row = sqlx::query!(
+			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ?"#,
+			code
+		)
+		.fetch_optional(db)
+		.await?;
+
+		let Some(row) = row else {
+			return Ok(None);
+		};
+
+		let obj = Self {
+			code: row.code.try_into()?,
+			user: serde_json::from_str(&row.user)?,
+			expires_at: row.expires_at,
+			created_at: row.created_at.unwrap_or_default(),
+			metadata: serde_json::from_str(&row.metadata)?,
+		};
 		
-		if let Some(row) = row {
-			if row.secret_type != K::PREFIX {
-				return Ok(None);
-			}
-			
-			let user = serde_json::from_str(&row.user_data)?;
-			let metadata = serde_json::from_str(&row.metadata)?;
-			
-			Ok(Some(Self {
-				code: code.clone(),
-				user,
-				expires_at: row.expires_at,
-				metadata,
-			}))
-		} else {
-			Ok(None)
+		if obj.code.get_type() != &K::PREFIX {
+			return Ok(None);
 		}
+		
+		Ok(Some(obj))
 	}
-	
-	/// Check if a secret exists in the database
-	async fn exists(code: &SecretString, db: &Database) -> Result<bool> {
-		UserSecretRow::exists(code.to_str_that_i_wont_print(), db).await
+
+	/// Check if a user secret exists
+	pub async fn exists(code: &SecretString, db: &Database) -> Result<bool> {
+		let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM user_secrets WHERE code = ?", code)
+		.fetch_one(db)
+		.await?;
+		
+		Ok(count > 0)
 	}
-	
-	/// Remove a secret from the database
+
+	/// Remove a user secret by ID
 	pub async fn remove(code: &SecretString, db: &Database) -> Result<()> {
-		UserSecretRow::remove(code.to_str_that_i_wont_print(), db).await
+		sqlx::query!("DELETE FROM user_secrets WHERE code = ?", code)
+		.execute(db)
+		.await?;
+		
+		Ok(())
 	}
 }
 
@@ -101,6 +116,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 			code: SecretString::new(&K::PREFIX),
 			user,
 			expires_at,
+			created_at: Utc::now().naive_utc(),
 			metadata,
 		};
 
@@ -115,8 +131,8 @@ impl<K: UserSecretKind> UserSecret<K> {
 	/// Any failure will remove the secret from the db and return an error
 	/// This is useful for cleaning up expired secrets
 	pub async fn validate(&self, db: &Database) -> Result<()> {
-		let prefix = get_prefix(K::PREFIX.as_short_str());
-		if !self.0.code.to_str_that_i_wont_print().starts_with(prefix.as_str()) {
+		let prefix = K::PREFIX.as_short_str();
+		if !self.0.code.to_str_that_i_wont_print().starts_with(&format!("me_{prefix}_")) {
 			return Err(AppErrorKind::InvalidSecretType.into());
 		}
 
@@ -145,7 +161,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
 	pub async fn try_from_string(code: String, db: &Database) -> Result<Self> {
-		let internal_secret = InternalUserSecret::get(&code.into(), db).await?.ok_or(AppErrorKind::InvalidSecret)?;
+		let internal_secret = InternalUserSecret::get(&code.try_into()?, db).await?.ok_or(AppErrorKind::InvalidSecret)?;
 		let user_secret = Self(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)

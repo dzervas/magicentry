@@ -1,18 +1,17 @@
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
-use crate::database::UserSecretType;
 use crate::error::{AppErrorKind, Result};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
-use super::{ChildSecretMetadata, EmptyMetadata};
+use super::{ChildSecretMetadata, EmptyMetadata, SecretType};
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct OIDCTokenSecretKind;
 
 impl UserSecretKind for OIDCTokenSecretKind {
-	const PREFIX: UserSecretType = UserSecretType::OIDCToken;
+	const PREFIX: SecretType = SecretType::OIDCToken;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }

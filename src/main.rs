@@ -3,15 +3,12 @@ use magicentry::config::ConfigFile;
 use magicentry::secret::cleanup::spawn_cleanup_job;
 pub use magicentry::*;
 
-use actix_web::middleware::Logger;
-use actix_web::{web, App, HttpServer};
-use actix_web_httpauth::extractors::basic;
 use lettre::transport::smtp;
 
 // Do not compile in tests at all as the SmtpTransport is not available
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 #[actix_web::main]
-pub async fn main() -> std::io::Result<actix_web::dev::Server> {
+pub async fn main() -> std::io::Result<()> {
 	// TODO: Add a log checker during test that checks for secrets and panics if it finds any
 	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
@@ -49,17 +46,17 @@ pub async fn main() -> std::io::Result<actix_web::dev::Server> {
 	};
 	drop(config);
 
-	let server = crate::app_build::build(None, db.clone(), mailer, http_client);
+	let (_addrs, server) = crate::app_build::build(None, db.clone(), mailer, http_client).await;
 
 	let _config_watcher = config::ConfigFile::watch();
 	spawn_cleanup_job(db.clone());
 
 	#[cfg(feature = "kube")]
 	tokio::select! {
-		r = server => Ok(r),
+		r = server => r,
 		k = magicentry::config_kube::watch() => Err(std::io::Error::other(format!("Kube watcher failed: {k:?}"))),
 	}
 
 	#[cfg(not(feature = "kube"))]
-	Ok(server.await)
+	server.await
 }

@@ -1,5 +1,5 @@
 # Click the "login" button
-POST http://localhost:8080/login
+POST {{base_url}}/login
 [Form]
 email: valid@example.com
 HTTP 200
@@ -19,7 +19,7 @@ Location: /
 session: cookie "session_id"
 
 # TODO: Use a normal XML SAML request (b64 encoded, deflated too?)
-# GET http://localhost:8080/saml/sso
+# GET {{base_url}}/saml/sso
 # [Cookies]
 # session_id: {{session}}
 # [Query]
@@ -29,7 +29,7 @@ session: cookie "session_id"
 # authcode: regex "code=(me_oidc_authcode_\\w+)&"
 #
 # # Test the authorization redirect
-# GET http://localhost:8080/saml/sso
+# GET {{base_url}}/saml/sso
 # [Options]
 # variable: redirect=https://openidconnect.net/callback
 # [Query]
@@ -63,7 +63,7 @@ session: cookie "session_id"
 # session: cookie "session_id"
 # authorize_link: header "Location"
 #
-# GET http://localhost:8080{{authorize_link}}
+# GET {{base_url}}{{authorize_link}}
 # [Cookies]
 # session_id: {{session}}
 # HTTP 200

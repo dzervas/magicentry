@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::extractors::basic;
@@ -14,7 +16,7 @@ pub async fn build(
 	db: Database,
 	mailer: Option<SmtpTransport>,
 	http_client: Option<reqwest::Client>,
-) -> actix_web::dev::Server {
+) -> (Vec<SocketAddr>, actix_web::dev::Server) {
 	let config = CONFIG.read().await;
 	let webauthn_enable = config.webauthn_enable;
 	let title = config.title.clone();
@@ -26,7 +28,7 @@ pub async fn build(
 	});
 	drop(config);
 
-	HttpServer::new(move || {
+	let server = HttpServer::new(move || {
 		let mut app = App::new()
 			// Data
 			.app_data(web::Data::new(db.clone()))
@@ -90,6 +92,8 @@ pub async fn build(
 			.unwrap_or(2)
 	})
 	.bind(listen)
-	.unwrap()
-	.run()
+	.unwrap();
+
+
+	(server.addrs(), server.run())
 }

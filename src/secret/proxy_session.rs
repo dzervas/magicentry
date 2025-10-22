@@ -2,19 +2,18 @@ use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
-use crate::database::UserSecretType;
 use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
-use super::{ChildSecretMetadata, EmptyMetadata};
+use super::{ChildSecretMetadata, EmptyMetadata, SecretType};
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxySessionSecretKind;
 
 impl UserSecretKind for ProxySessionSecretKind {
-	const PREFIX: UserSecretType = UserSecretType::ProxySession;
+	const PREFIX: SecretType = SecretType::ProxySession;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }

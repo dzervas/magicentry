@@ -26,46 +26,121 @@ pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{database::UserSecretType, utils::random_string};
+use crate::utils::random_string;
 
-#[must_use]
-pub fn get_prefix<S: AsRef<str>>(prefix: S) -> String {
-	format!("me_{}_", prefix.as_ref())
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Encode, sqlx::Decode)]
+pub enum SecretType {
+	ApiKey,
+	BrowserSession,
+	LoginLink,
+	MagicToken,
+	OIDCAuthCode,
+	OIDCToken,
+	ProxyCode,
+	ProxySession,
+	WebAuthnAuth,
+	WebAuthnReg,
 }
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SecretString(String);
-
-impl SecretString {
-	#[allow(clippy::must_use_candidate)]
-	pub fn to_str_that_i_wont_print(&self) -> &str { &self.0 }
-}
-
-impl SecretString {
+impl SecretType {
 	#[must_use]
-	pub fn new(kind: &UserSecretType) -> Self {
-		let prefix = get_prefix(kind.as_short_str());
-
-		Self(format!("{prefix}{}", random_string()))
+	pub const fn as_short_str(&self) -> &'static str {
+		match self {
+			Self::ApiKey => "aa",
+			Self::BrowserSession => "bs",
+			Self::LoginLink => "ll",
+			Self::MagicToken => "mt",
+			Self::OIDCAuthCode => "oa",
+			Self::OIDCToken => "ot",
+			Self::ProxyCode => "pc",
+			Self::ProxySession => "ps",
+			Self::WebAuthnAuth => "wa",
+			Self::WebAuthnReg => "wr",
+		}
 	}
 }
 
-impl From<String> for SecretString {
-	fn from(s: String) -> Self {
-		Self(s)
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SecretString(SecretType, String);
+
+impl SecretString {
+	#[must_use]
+	pub fn new(kind: &SecretType) -> Self {
+		Self(kind.clone(), random_string())
+	}
+
+	#[must_use]
+	pub const fn get_type(&self) -> &SecretType { &self.0 }
+
+	#[allow(clippy::must_use_candidate)]
+	pub fn to_str_that_i_wont_print(&self) -> String { self.with_prefix() }
+
+	#[must_use]
+	fn with_prefix(&self) -> String {
+		format!("me_{}_{}", self.0.as_short_str(), self.1)
+	}
+}
+
+/// Store the secret as a normal string in the db with the prefix (e.g. `me_bs_XXXX`)
+impl sqlx::Encode<'_, sqlx::Sqlite> for SecretString {
+	fn encode_by_ref(&self, buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+		sqlx::Encode::<sqlx::Sqlite>::encode_by_ref(&self.with_prefix(), buf)
+	}
+}
+
+/// Retrieve the secret from the db as a normal string and parse it,
+/// populating its type in the process
+impl sqlx::Decode<'_, sqlx::Sqlite> for SecretString {
+	fn decode(value: <sqlx::Sqlite as sqlx::Database>::ValueRef<'_>) -> Result<Self, sqlx::error::BoxDynError> {
+		let s = <String as sqlx::Decode<'_, sqlx::Sqlite>>::decode(value)?;
+		Ok(s.try_into()?)
+	}
+}
+
+/// Forward the type info from String to `SQLx` (if String works, [`SecretString`] works)
+impl sqlx::Type<sqlx::Sqlite> for SecretString {
+	fn type_info() -> sqlx::sqlite::SqliteTypeInfo {
+		<String as sqlx::Type<sqlx::Sqlite>>::type_info()
 	}
 }
 
 #[cfg(debug_assertions)]
 impl std::fmt::Debug for SecretString {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		self.0.fmt(f)
+		self.1.fmt(f)
 	}
 }
 
 #[cfg(debug_assertions)]
 impl std::fmt::Display for SecretString {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		self.0.fmt(f)
+		self.1.fmt(f)
+	}
+}
+
+impl TryFrom<String> for SecretString {
+	type Error = crate::error::Error;
+
+	fn try_from(value: String) -> Result<Self, Self::Error> {
+		let parts: Vec<_> = value.split('_').collect();
+		if parts.len() != 3 || parts[0] != "me" {
+			return Err(crate::error::AppErrorKind::InvalidSecret.into());
+		}
+
+		let kind = match parts[1] {
+			"aa" => SecretType::ApiKey,
+			"bs" => SecretType::BrowserSession,
+			"ll" => SecretType::LoginLink,
+			"mt" => SecretType::MagicToken,
+			"oa" => SecretType::OIDCAuthCode,
+			"ot" => SecretType::OIDCToken,
+			"pc" => SecretType::ProxyCode,
+			"ps" => SecretType::ProxySession,
+			"wa" => SecretType::WebAuthnAuth,
+			"wr" => SecretType::WebAuthnReg,
+			_ => return Err(crate::error::AppErrorKind::InvalidSecret.into()),
+		};
+
+		Ok(SecretString(kind, parts[2].to_string()))
 	}
 }

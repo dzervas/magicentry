@@ -40,3 +40,4 @@ dist/
 .astro/
 .aider*
 .yarn
+/src/tests/gen_hurl_tests.rs

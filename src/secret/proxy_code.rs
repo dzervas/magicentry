@@ -1,7 +1,6 @@
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
-use crate::database::UserSecretType;
 use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_ORIGIN_HEADER, PROXY_QUERY_CODE};
 
@@ -9,13 +8,13 @@ use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
 use super::proxy_session::ProxySessionSecretKind;
 use super::primitive::UserSecretKind;
-use super::{ChildSecretMetadata, EmptyMetadata};
+use super::{ChildSecretMetadata, EmptyMetadata, SecretType};
 
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxyCodeSecretKind;
 
 impl UserSecretKind for ProxyCodeSecretKind {
-	const PREFIX: UserSecretType = UserSecretType::ProxyCode;
+	const PREFIX: SecretType = SecretType::ProxyCode;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
 	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }

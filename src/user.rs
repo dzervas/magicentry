@@ -47,6 +47,7 @@ impl PartialEq<&str> for User {
 	}
 }
 
+// XXX: Ok but what about collisions? Does it have an impact?
 /// MD5 is only used to generate a UUID for this user, which is not a secret,
 /// not used for authentication and not a user-provided value.
 /// webauthn-rs expects a `UUIDv4` and the only hash function producing 16 bytes is MD5.

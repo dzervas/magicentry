@@ -40,7 +40,7 @@ async fn authorize(
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?
 	let redirect_url = auth_req
-		.get_redirect_url(oidc_authcode.code().to_str_that_i_wont_print(), oidc_authcode.user())
+		.get_redirect_url(&oidc_authcode.code().to_str_that_i_wont_print(), oidc_authcode.user())
 		.await
 		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 	let redirect_url_uri = redirect_url.parse::<Uri>()?;

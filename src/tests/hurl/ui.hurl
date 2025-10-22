@@ -1,11 +1,11 @@
 # Visit the login page
-GET http://localhost:8080/login
+GET {{base_url}}/login
 HTTP 200
 [Asserts]
 xpath "//form[@method='post']" count == 1
 
 # Click the "login" button
-POST http://localhost:8080/login
+POST {{base_url}}/login
 [Form]
 email: valid@example.com
 HTTP 200
@@ -24,14 +24,14 @@ Location: /
 [Captures]
 session: cookie "session_id"
 
-GET http://localhost:8080/
+GET {{base_url}}/
 [Cookies]
 session_id: {{session}}
 HTTP 200
 [Asserts]
 body contains "valid@example.com"
 
-GET http://localhost:8080/logout
+GET {{base_url}}/logout
 [Cookies]
 session_id: {{session}}
 HTTP 302
@@ -45,7 +45,7 @@ HTTP 302
 Location: /login
 
 # Check that after logout, the session gets invalidated
-GET http://localhost:8080/
+GET {{base_url}}/
 [Cookies]
 session_id: {{session}}
 HTTP 302

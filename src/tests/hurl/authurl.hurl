@@ -1,5 +1,5 @@
 # Click the "Login" button in the UI that the proxy redirected us to
-POST http://localhost:8080/login?rd=http://localhost:8081/asdf?a=b
+POST {{base_url}}/login?rd=http://localhost:8081/asdf?a=b
 [Form]
 email: valid@example.com
 HTTP 200
@@ -27,14 +27,14 @@ proxy_link: header "Location"
 header "Location" startsWith "http://localhost:8081/asdf?a=b&magicentry_code=me_proxy_code_"
 
 # Make the initial request after returning to the service
-GET http://localhost:8080/auth-url/status
+GET {{base_url}}/auth-url/status
 X-Original-Url: {{proxy_link}}
 HTTP 200
 [Captures]
 proxy_session: cookie "magicentry_session_id"
 
-GET http://localhost:8080/auth-url/status
-X-Original-Url: http://localhost:8080/asdasdasdas
+GET {{base_url}}/auth-url/status
+X-Original-Url: {{base_url}}/asdasdasdas
 [Cookies]
 magicentry_session_id: {{proxy_session}}
 HTTP 200
@@ -43,7 +43,7 @@ HTTP 200
 
 # Click the "Login" button in the UI that the proxy redirected us to
 # but test an invalid return address
-POST http://localhost:8080/login?rd=http://invalid.com/
+POST {{base_url}}/login?rd=http://invalid.com/
 [Form]
 email: valid@example.com
 HTTP 200

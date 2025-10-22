@@ -1,5 +1,5 @@
 # Click the "login" button
-POST http://localhost:8080/login
+POST {{base_url}}/login
 [Form]
 email: valid@example.com
 HTTP 200
@@ -18,7 +18,7 @@ Location: /
 [Captures]
 session: cookie "session_id"
 
-GET http://localhost:8080/oidc/authorize
+GET {{base_url}}/oidc/authorize
 [Options]
 variable: redirect=https://openidconnect.net/callback
 [Cookies]
@@ -38,7 +38,7 @@ authcode: regex "code=(me_oidc_authcode_\\w+)&"
 body not contains "<hello"
 body contains "https://openidconnect.net/callback?code=me_oidc_authcode_"
 
-POST http://localhost:8080/oidc/token
+POST {{base_url}}/oidc/token
 [Form]
 grant_type: authorization_code
 code: {{authcode}}
@@ -52,7 +52,7 @@ token: jsonpath "$.access_token"
 jsonpath "$.token_type" == "Bearer"
 
 
-GET http://localhost:8080/oidc/userinfo
+GET {{base_url}}/oidc/userinfo
 Authorization: Bearer {{token}}
 HTTP 200
 [Asserts]
@@ -65,7 +65,7 @@ jsonpath "$.email_verified" == true
 # Test the authorization redirect
 # Clear the cookies: https://github.com/Orange-OpenSource/hurl/discussions/1740#discussioncomment-6386769
 # @cookie_storage_clear
-GET http://localhost:8080/oidc/authorize
+GET {{base_url}}/oidc/authorize
 [Options]
 variable: redirect=https://openidconnect.net/callback
 [Query]
@@ -99,7 +99,7 @@ header "Location" startsWith "/oidc/authorize?"
 session: cookie "session_id"
 authorize_link: header "Location"
 
-GET http://localhost:8080{{authorize_link}}
+GET {{base_url}}{{authorize_link}}
 [Cookies]
 session_id: {{session}}
 HTTP 200
