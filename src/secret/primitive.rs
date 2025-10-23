@@ -45,7 +45,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 			metadata,
 			self.expires_at,
 		)
-		.execute(db)
+			.execute(db)
 		.await?;
 
 		Ok(())
@@ -54,10 +54,10 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	/// Get a secret from the database by code
 	async fn get(code: &SecretString, db: &Database) -> Result<Option<Self>> {
 		let row = sqlx::query!(
-			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ?"#,
+			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ? AND expires_at < datetime('now')"#,
 			code
 		)
-		.fetch_optional(db)
+			.fetch_optional(db)
 		.await?;
 
 		let Some(row) = row else {
@@ -69,31 +69,31 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 			user: serde_json::from_str(&row.user)?,
 			expires_at: row.expires_at,
 			created_at: row.created_at.unwrap_or_default(),
-			metadata: serde_json::from_str(&row.metadata)?,
+			metadata: serde_json::from_str(&row.metadata.unwrap_or_default())?,
 		};
-		
+
 		if obj.code.get_type() != &K::PREFIX {
 			return Ok(None);
 		}
-		
+
 		Ok(Some(obj))
 	}
 
 	/// Check if a user secret exists
 	pub async fn exists(code: &SecretString, db: &Database) -> Result<bool> {
 		let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM user_secrets WHERE code = ?", code)
-		.fetch_one(db)
+			.fetch_one(db)
 		.await?;
-		
+
 		Ok(count > 0)
 	}
 
 	/// Remove a user secret by ID
 	pub async fn remove(code: &SecretString, db: &Database) -> Result<()> {
 		sqlx::query!("DELETE FROM user_secrets WHERE code = ?", code)
-		.execute(db)
+			.execute(db)
 		.await?;
-		
+
 		Ok(())
 	}
 }
@@ -182,9 +182,9 @@ impl<K: UserSecretKind> UserSecret<K> {
 /// As soon as the parent secret is deleted (or expired) the child secret will be invalidated
 /// and eventually deleted as well during metadata validation
 impl<P, K, M> UserSecret<K> where
-	P : UserSecretKind,
-	M : MetadataKind,
-	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
+P : UserSecretKind,
+M : MetadataKind,
+K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 {
 	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Database) -> Result<Self> {
 		Self::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await

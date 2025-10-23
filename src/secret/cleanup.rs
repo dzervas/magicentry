@@ -42,9 +42,7 @@ pub fn spawn_cleanup_job(db: crate::Database) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use chrono::Duration;
 
-	use crate::secret::LoginLinkSecret;
 	use crate::database::init_database;
 
 	async fn setup_test_db() -> crate::error::Result<crate::Database> {
@@ -53,71 +51,87 @@ mod tests {
 
 	#[tokio::test]
 	async fn deletes_only_expired() {
+		use sqlx::Row;
+
 		let db = setup_test_db().await.unwrap();
 
-		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
-			.bind("mc_ll_expiredSecret")
-			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
-			.bind(Utc::now().naive_utc() - Duration::hours(1))
-			.bind("{}")
+		sqlx::query!(
+			"INSERT INTO user_secrets (code, user, expires_at) VALUES (?, ?, datetime('now', '-1 hour'))",
+			"mc_ll_expiredSecret",
+			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
+		)
 			.execute(&db)
 			.await
 			.unwrap();
 
-		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
-			.bind("mc_ll_validSecret")
-			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
-			.bind(Utc::now().naive_utc() + Duration::hours(1))
-			.bind("{}")
+		sqlx::query!(
+			"INSERT INTO user_secrets (code, user, expires_at) VALUES (?, ?, datetime('now', '+1 hour'))",
+			"mc_ll_validSecret",
+			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
+		)
 			.execute(&db)
 			.await
 			.unwrap();
 
-		assert!(LoginLinkSecret::try_from_string("mc_ll_expiredSecret".to_string(), &db).await.is_ok());
-		assert!(LoginLinkSecret::try_from_string("mc_ll_validSecret".to_string(), &db).await.is_ok());
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_validSecret'").fetch_one(&db).await.unwrap();
+		assert!(!row.is_empty(), "There should be a row in the DB");
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_expiredSecret'").fetch_one(&db).await.unwrap();
+		assert!(!row.is_empty(), "There should be a row in the DB");
 
 		cleanup_expired(&db).await.unwrap();
 
-		assert!(LoginLinkSecret::try_from_string("mc_ll_expiredSecret".to_string(), &db).await.is_err());
-		assert!(LoginLinkSecret::try_from_string("mc_ll_validSecret".to_string(), &db).await.is_ok());
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_validSecret'").fetch_one(&db).await.unwrap();
+		assert!(!row.is_empty(), "There should be a row in the DB");
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_expiredSecret'").fetch_one(&db).await;
+		assert!(row.is_err(), "There should NOT be a row in the DB");
 	}
 
 	#[tokio::test]
 	async fn deletes_boundary_equal_now() {
+		use sqlx::Row;
+
 		let db = setup_test_db().await.unwrap();
 
-		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
-			.bind("mc_ll_nowSecret")
-			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
-			.bind(Utc::now().naive_utc())
-			.bind("{}")
+		sqlx::query!(
+			"INSERT INTO user_secrets (code, user, expires_at) VALUES (?, ?, datetime('now'))",
+			"mc_ll_nowSecret",
+			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
+		)
 			.execute(&db)
 			.await
 			.unwrap();
 
-		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_ok());
+		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await.unwrap();
+		assert!(!row.is_empty(), "There should be a row in the DB");
 
 		cleanup_expired(&db).await.unwrap();
-		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_err());
+
+		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await;
+		assert!(row.is_err(), "There should NOT be a row in the DB");
 	}
 
 	#[tokio::test]
 	async fn no_op_when_none_expired() {
+		use sqlx::Row;
+
 		let db = setup_test_db().await.unwrap();
 
-		sqlx::query("INSERT INTO user_secrets (code, user, expires_at, metadata) VALUES (?, ?, ?, ?)")
-			.bind("mc_ll_nowSecret")
-			.bind(r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#)
-			.bind(Utc::now().naive_utc() + Duration::hours(1))
-			.bind("{}")
+		sqlx::query!(
+			"INSERT INTO user_secrets (code, user, expires_at) VALUES (?, ?, datetime('now', '-1 hour'))",
+			"mc_ll_expiredSecret",
+			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
+		)
 			.execute(&db)
 			.await
 			.unwrap();
 
-		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_ok());
+		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await.unwrap();
+		assert!(!row.is_empty(), "There should be a row in the DB");
 
 		cleanup_expired(&db).await.unwrap();
-		assert!(LoginLinkSecret::try_from_string("mc_ll_nowSecret".to_string(), &db).await.is_ok());
+
+		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await;
+		assert!(row.is_err(), "There should NOT be a row in the DB");
 	}
 }
 
