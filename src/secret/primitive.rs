@@ -54,7 +54,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	/// Get a secret from the database by code
 	async fn get(code: &SecretString, db: &Database) -> Result<Option<Self>> {
 		let row = sqlx::query!(
-			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ? AND expires_at < datetime('now')"#,
+			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ? AND expires_at > datetime('now')"#,
 			code
 		)
 			.fetch_optional(db)

@@ -68,20 +68,20 @@ webauthn_enable: true
 
 # List of the users that can authenticate using the service
 # You can either list them here or load them from another file using `users_file`
-users_file: users.sample.yaml
-# users:
-#   - username: valid
-#     name: Valid User
-#     email: valid@example.com
-#     realms:
-#       - example
+# users_file: users.sample.yaml
+users:
+  - username: valid
+    name: Valid User
+    email: valid@example.com
+    realms:
+      - example
 
 # Services that can use magicentry
 services:
   # Service name (for cataloging)
   - name: example
     # URL of the service (for cataloging)
-    url: https://openidconnect.net
+    url: http://localhost:8080
     # Realms of which users have access to
     realms:
       - example
@@ -93,7 +93,6 @@ services:
         - https://openidconnect.net
         - http://localhost:8080  # Used in the flow_scoped.rs test
         - http://localhost:8081  # Used in hurl
-    valid_origins:
     # OIDC configuration (optional)
     # All of the settings below are tightly coupled with the service config
     oidc:

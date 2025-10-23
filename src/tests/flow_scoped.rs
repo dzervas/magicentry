@@ -11,6 +11,8 @@ use actix_web_httpauth::extractors::basic;
 
 #[actix_web::test]
 async fn test_global_login() {
+	ConfigFile::reload().await.unwrap();
+
 	let db = db_connect().await;
 	let email_stub: SmtpTransport = lettre::transport::stub::AsyncStubTransport::new_ok();
 	let app = actix_test::init_service(
@@ -45,7 +47,7 @@ async fn test_global_login() {
 	let login_message = &messages.first().unwrap().1;
 
 	let login_link = login_message
-		.split("http://localhost:8080/")
+		.split("http://localhost:8080")
 		.nth(1)
 		.unwrap()
 		.replace("=\r\n", "");

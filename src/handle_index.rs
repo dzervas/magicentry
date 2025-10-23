@@ -56,12 +56,11 @@ mod tests {
 	use actix_web::http::StatusCode;
 	use actix_web::{test as actix_test, web, App};
 
+
 	#[actix_web::test]
 	async fn test_index() {
 		let db = &db_connect().await;
-		// let mut session_map = HashMap::new();
 		let user = get_valid_user().await;
-		// session_map.insert(SESSION_COOKIE, "valid_session_id");
 
 		let app = actix_test::init_service(
 			App::new()
@@ -79,10 +78,12 @@ mod tests {
 
 		// Generate a link
 		let login_link = LoginLinkSecret::new(user, None, db).await.unwrap();
+		let login_link_url = login_link.get_login_url();
+		eprintln!("Login link: {login_link_url}");
 
 		// Visit valid generated link
 		let req = actix_test::TestRequest::get()
-			.uri(&login_link.get_login_url())
+			.uri(&login_link_url)
 			.to_request();
 		let resp = actix_test::call_service(&app, req).await;
 		assert_eq!(resp.status(), StatusCode::FOUND);

@@ -71,8 +71,6 @@ pub fn random_string() -> String {
 #[cfg(test)]
 pub mod tests {
 	use crate::Database;
-	
-
 	use crate::config::ConfigFile;
 	use crate::user::User;
 
