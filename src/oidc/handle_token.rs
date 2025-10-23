@@ -2,11 +2,11 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::{post, web, HttpResponse};
 use actix_web_httpauth::extractors::basic::BasicAuth;
 use chrono::Utc;
-use jwt_simple::algorithms::RS256KeyPair;
-use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
+use jsonwebtoken::EncodingKey;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::config::ConfigFile;
 use crate::error::{AppErrorKind, Response};
@@ -43,7 +43,8 @@ pub struct JWTData {
 	pub from_url: String,
 	#[serde(rename = "exp")]
 	pub expires_at: i64,
-	pub iat: i64,
+	#[serde(rename = "iat")]
+	pub issued_at: i64,
 
 	/// String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
 	/// The value is passed through unmodified from the Authentication Request to the ID Token.
@@ -75,7 +76,7 @@ impl JWTData {
 			client_id: String::default(),
 			from_url: base_url,
 			expires_at: expiry.timestamp(),
-			iat: Utc::now().timestamp(),
+			issued_at: Utc::now().timestamp(),
 			nonce,
 
 			name: String::default(),
@@ -101,7 +102,7 @@ pub async fn token(
 	conn: ConnectionInfo,
 	db: web::Data<crate::Database>,
 	web::Form(token_req): web::Form<TokenRequest>,
-	jwt_keypair: web::Data<RS256KeyPair>,
+	jwt_encoding_key: web::Data<EncodingKey>,
 	basic: Option<BasicAuth>,
 ) -> Response {
 	// This is a too long function.
@@ -133,7 +134,7 @@ pub async fn token(
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
-		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+		let generated_code_challenge = general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(AppErrorKind::InvalidCodeVerifier.into());
@@ -177,7 +178,7 @@ pub async fn token(
 
 
 	let id_token = auth_req
-		.generate_id_token(oidc_authcode.user(), base_url, jwt_keypair.as_ref())
+		.generate_id_token(oidc_authcode.user(), base_url, jwt_encoding_key.as_ref())
 		.await?;
 	let oidc_token = oidc_authcode.exchange_sibling(&db).await?;
 

@@ -228,8 +228,7 @@ from_error!(actix_web::http::header::ToStrError, "Actix Header value to string e
 from_error!(base64::DecodeError, "Base64 decode error: {}");
 from_error!(formatx::Error, "Formatx formatting error: {}");
 from_error!(handlebars::RenderError, "Handlebars render error: {}");
-from_error!(jwt_simple::Error, "JWT Simple error: {}");
-from_error!(jwt_simple::reexports::ct_codecs::Error, "JWT Simple CT Codecs error: {}");
+from_error!(jsonwebtoken::errors::Error, "JWT error: {}");
 from_error!(lettre::error::Error, "Lettre error: {}");
 from_error!(lettre::transport::stub::Error, "Lettre (Stub transport) error: {}");
 from_error!(lettre::transport::smtp::Error, "Lettre (SMTP transport) error: {}");

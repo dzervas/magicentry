@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ?",
+  "query": "SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ? AND expires_at > datetime('now')",
   "describe": {
     "columns": [
       {
@@ -40,5 +40,5 @@
       true
     ]
   },
-  "hash": "d07fe9c59476705712809efab3113bfab8f8bd902ef331925b2492e9ca6c14ac"
+  "hash": "8b5c6cfca581230a8b11ea3ff35b2eea84a0c28484d844d63acd1a30e3028734"
 }

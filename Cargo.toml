@@ -17,9 +17,6 @@ formatx = "0.2"
 futures = "0.3"
 handlebars = { version = "6.3.2", features = ["dir_source"] }
 hex = "0.4.3"
-jwt-simple = { version = "0.12", default-features = false, features = [
-	"pure-rust",
-] }
 lettre = { version = "0.11", default-features = false , features = [
 	"rustls-tls",
 	"tokio1-rustls-tls",
@@ -57,6 +54,7 @@ flate2 = "1.1"
 base64 = "0.22"
 quick-xml = { version = "0.38", features = ["async-tokio", "serialize"] }
 rsa = { version = "0.9", features = ["sha2"] }
+jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 
 [dev-dependencies]
 actix-http = "3.11"

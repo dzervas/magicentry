@@ -288,7 +288,7 @@ impl ConfigKV {
 #[repr(u8)]
 pub enum ConfigKeys {
 	Secret,
-	JWTKeyPair,
+	JWTSecret,
 }
 
 // Remove AsBytes trait as it's no longer needed for SQLx

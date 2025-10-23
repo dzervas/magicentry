@@ -72,4 +72,6 @@ pub async fn run_test(hurl_path: &str) {
 	let output = hurl::runner::run(&content, Some(&hurl_input), &runner_options, &variables, &logger_options).unwrap();
 
 	eprintln!("Hurl errors: {:?}", output.errors());
+
+	assert!(output.errors().is_empty(), "Hurl returned errors");
 }

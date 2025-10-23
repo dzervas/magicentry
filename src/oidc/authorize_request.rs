@@ -1,4 +1,5 @@
-use jwt_simple::prelude::*;
+use jsonwebtoken::{encode, Header, EncodingKey};
+use serde::{Deserialize, Serialize};
 use log::debug;
 use url::Url;
 
@@ -67,7 +68,7 @@ impl AuthorizeRequest {
 		&self,
 		user: &User,
 		url: String,
-		keypair: &RS256KeyPair,
+		encoding_key: &EncodingKey,
 	) -> Result<String, Error> {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
@@ -83,20 +84,8 @@ impl AuthorizeRequest {
 		};
 		debug!("JWT Data: {jwt_data:?}");
 
-		let claims = {
-			let config = CONFIG.read().await;
-			Claims::with_custom_claims(
-				jwt_data,
-				Duration::from_millis(
-					config
-						.session_duration
-						.num_milliseconds()
-						.try_into()
-						.map_err(|_| AppErrorKind::InvalidDuration)?,
-				),
-			)
-		};
-		let id_token = keypair.sign(claims)?;
+		let header = Header::default();
+		let id_token = encode(&header, &jwt_data, encoding_key)?;
 
 		Ok(id_token)
 	}
