@@ -4,7 +4,7 @@ use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
 
 use crate::error::{AppErrorKind, Result};
-use crate::{CONFIG, RANDOM_STRING_LEN, TEMPLATES};
+use crate::{CONFIG, PROXY_ORIGIN_HEADER, RANDOM_STRING_LEN, TEMPLATES};
 
 pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<&T>) -> Result<String> {
 	let config = CONFIG.try_read()?;
@@ -31,7 +31,7 @@ pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, Str
 
 pub fn get_request_origin(req: &HttpRequest) -> Result<String> {
 	let valid_headers = [
-		header::HeaderName::from_static("x-original-url"),
+		header::HeaderName::from_static(PROXY_ORIGIN_HEADER),
 		header::ORIGIN,
 		header::REFERER,
 		// TODO: Is this correct? oauth2 proxy handles: https://github.com/oauth2-proxy/oauth2-proxy/issues/1607#issuecomment-1086889273

@@ -6,6 +6,9 @@ use crate::*;
 
 pub async fn app_server() -> (actix_web::dev::Server, Vec<SocketAddr>, sqlx::SqlitePool) {
     ConfigFile::reload().await.unwrap();
+	let config = CONFIG.read().await;
+	println!("config: {:?}", config.services);
+	drop(config);
 	let db = database::init_database("sqlite::memory:").await.unwrap();
 
 	let (addrs, server) = app_build::build(
@@ -57,7 +60,7 @@ pub fn fixture_server(db: Database) -> (tokio::task::JoinHandle<()>, u16) {
 
 			// Return the first login link as plain text
 			if let Some(code) = data.first() {
-				let login_link = format!("http://localhost:8080/login/{code}");
+				let login_link = format!("/login/{code}");
 				eprintln!("Fixture server: Returning login link: {login_link}");
 				req.respond(Response::from_string(login_link).with_status_code(200)).unwrap();
 			} else {

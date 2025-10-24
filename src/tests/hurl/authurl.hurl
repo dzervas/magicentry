@@ -12,7 +12,7 @@ HTTP 200
 link: body
 
 # Visit the magic link that was sent
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 [Captures]
 session: cookie "session_id"
@@ -24,7 +24,7 @@ proxy_link: header "Location"
 # - that the existing query parameters are kept
 # - that our custom `magicentry_code` query parameter was added
 # - the code is populated and of the correct type
-header "Location" startsWith "http://localhost:8081/asdf?a=b&magicentry_code=me_proxy_code_"
+header "Location" startsWith "http://localhost:8081/asdf?a=b&magicentry_code=me_pc_"
 
 # Make the initial request after returning to the service
 GET {{base_url}}/auth-url/status
@@ -32,9 +32,11 @@ X-Original-Url: {{proxy_link}}
 HTTP 200
 [Captures]
 proxy_session: cookie "magicentry_session_id"
+[Asserts]
+cookie "magicentry_session_id" startsWith "me_ps_"
 
 GET {{base_url}}/auth-url/status
-X-Original-Url: {{base_url}}/asdasdasdas
+X-Original-Url: "http://localhost:8081/asdasdasdas"
 [Cookies]
 magicentry_session_id: {{proxy_session}}
 HTTP 200
@@ -48,14 +50,12 @@ POST {{base_url}}/login?rd=http://invalid.com/
 email: valid@example.com
 HTTP 200
 
-# Set up a temporary webserver to serve the login link
-# python3 -m http.server -d hurl 8081
 GET {{fixture_url}}
 HTTP 200
 [Captures]
 link: body
 
 # Visit the magic link that was sent
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 Location: /
