@@ -64,12 +64,15 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 			return Ok(None);
 		};
 
+		// Since the metadata column in the DB is nullable, we need to handle it
+		let metadata = serde_json::from_str(&row.metadata.unwrap_or_else(|| "null".to_string()))?;
+
 		let obj = Self {
 			code: row.code.try_into()?,
 			user: serde_json::from_str(&row.user)?,
 			expires_at: row.expires_at,
 			created_at: row.created_at.unwrap_or_default(),
-			metadata: serde_json::from_str(&row.metadata.unwrap_or_default())?,
+			metadata,
 		};
 
 		if obj.code.get_type() != &K::PREFIX {

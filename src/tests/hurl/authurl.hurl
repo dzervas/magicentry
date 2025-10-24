@@ -30,15 +30,12 @@ header "Location" startsWith "http://localhost:8081/asdf?a=b&magicentry_code=me_
 GET {{base_url}}/auth-url/status
 X-Original-Url: {{proxy_link}}
 HTTP 200
-[Captures]
-proxy_session: cookie "magicentry_session_id"
 [Asserts]
 cookie "magicentry_session_id" startsWith "me_ps_"
 
+# The magicentry_session_id cookie is held in the cookiejar and is sent
 GET {{base_url}}/auth-url/status
-X-Original-Url: "http://localhost:8081/asdasdasdas"
-[Cookies]
-magicentry_session_id: {{proxy_session}}
+X-Original-Url: http://localhost:8081/asdasdasdas
 HTTP 200
 
 # === Failure tests

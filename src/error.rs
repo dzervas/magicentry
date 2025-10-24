@@ -123,7 +123,6 @@ pub struct Error {
 
 impl ResponseError for Error {
 	fn status_code(&self) -> StatusCode {
-		eprintln!("app_error: {:?}", self.app_error);
 		self.app_error.as_ref().map_or(StatusCode::INTERNAL_SERVER_ERROR, |app_error| match app_error {
 			AppErrorKind::NotLoggedIn
 			| AppErrorKind::ExpiredSecret
