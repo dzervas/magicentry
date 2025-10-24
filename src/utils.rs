@@ -7,7 +7,22 @@ use crate::error::{AppErrorKind, Result};
 use crate::{CONFIG, PROXY_ORIGIN_HEADER, RANDOM_STRING_LEN, TEMPLATES};
 
 pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<&T>) -> Result<String> {
-	let config = CONFIG.try_read()?;
+	// Use a brief retry strategy to handle temporary mutex contention in concurrent tests
+	let mut i = 0;
+
+	let config = loop {
+		if let Ok(guard) = CONFIG.try_read() {
+			break guard;
+		}
+
+		std::thread::sleep(std::time::Duration::from_millis(1));
+
+		i += 1;
+		if i > 100 {
+			log::warn!("Could not sync-lock the config to read data related to partial {name} - this is a bug");
+			return Err("Could not sync-lock the config to read data related to partial".to_string().into());
+		}
+	};
 	let path_prefix = if config.path_prefix.ends_with('/') {
 		&config.path_prefix[..config.path_prefix.len() - 1]
 	} else {

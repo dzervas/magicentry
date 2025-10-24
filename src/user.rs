@@ -26,8 +26,20 @@ impl User {
 	}
 
 	pub fn from_config_blocking(email: &str) -> Option<Self> {
-		// TODO: Return an error instead of none
-		let Ok(config) = CONFIG.try_read() else { return None; };
+		let mut i = 0;
+		let config = loop {
+			if let Ok(guard) = CONFIG.try_read() {
+				break guard;
+			}
+
+			std::thread::sleep(std::time::Duration::from_millis(1));
+
+			i += 1;
+			if i > 100 {
+				log::warn!("Could not sync-lock the config to read the users - this is a bug");
+				return None;
+			}
+		};
 
 		config.users
 			.iter()
@@ -70,7 +82,7 @@ pub mod as_string {
 		deserializer: D,
 	) -> Result<User, D::Error> {
 		let email = String::deserialize(deserializer)?;
-		// let runtime = rt::Runtime::new().unwrap();
+		// TODO: Do not block
 		User::from_config_blocking(&email).ok_or_else(|| serde::de::Error::custom("User not found"))
 	}
 }
