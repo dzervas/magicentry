@@ -12,7 +12,7 @@ HTTP 200
 link: body
 
 # Visit the magic link that was sent
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 Location: /
 [Captures]
@@ -32,11 +32,11 @@ state: "<hello/>
 HTTP 200
 [Captures]
 # authcode: xpath "//a[@data-modal-toggle='successListModal']/@href"
-authcode: regex "code=(me_oidc_authcode_\\w+)&"
+authcode: regex "code=(me_oa_\\w+)&"
 [Asserts]
 # Basic XSS Check
 body not contains "<hello"
-body contains "https://openidconnect.net/callback?code=me_oidc_authcode_"
+body contains "https://openidconnect.net/callback?code=me_oa_"
 
 POST {{base_url}}/oidc/token
 [Form]
@@ -91,7 +91,7 @@ HTTP 200
 link: body
 
 # Visit the magic link that was sent
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 [Asserts]
 header "Location" startsWith "/oidc/authorize?"
@@ -104,4 +104,4 @@ GET {{base_url}}{{authorize_link}}
 session_id: {{session}}
 HTTP 200
 [Asserts]
-body contains "https://openidconnect.net/callback?code=me_oidc_authcode_"
+body contains "https://openidconnect.net/callback?code=me_oa_"

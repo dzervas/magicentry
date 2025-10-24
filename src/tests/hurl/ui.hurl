@@ -18,7 +18,7 @@ HTTP 200
 link: body
 
 # Visit the magic link that was sent
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 Location: /
 [Captures]
@@ -40,7 +40,7 @@ Location: /login
 # === Failure tests
 
 # Check that link reuse doesn't work
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 Location: /login
 

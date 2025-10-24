@@ -12,7 +12,7 @@ HTTP 200
 link: body
 
 # Visit the magic link that was sent
-GET {{link}}
+GET {{base_url}}{{link}}
 HTTP 302
 Location: /
 [Captures]
@@ -26,7 +26,7 @@ session: cookie "session_id"
 # request: example
 # HTTP 200
 # [Captures]
-# authcode: regex "code=(me_oidc_authcode_\\w+)&"
+# authcode: regex "code=(me_oa_\\w+)&"
 #
 # # Test the authorization redirect
 # GET {{base_url}}/saml/sso
@@ -68,4 +68,4 @@ session: cookie "session_id"
 # session_id: {{session}}
 # HTTP 200
 # [Asserts]
-# body contains "https://openidconnect.net/callback?code=me_oidc_authcode_"
+# body contains "https://openidconnect.net/callback?code=me_oa_"

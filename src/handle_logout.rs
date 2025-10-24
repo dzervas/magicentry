@@ -23,7 +23,7 @@ async fn logout(
 	// XXX: Open redirect
 	let target_url = req.post_logout_redirect_uri
 		.as_ref()
-		.map_or_else(|| "//login".to_string(), |target| urlencoding::decode(&target.clone())
+		.map_or_else(|| "/login".to_string(), |target| urlencoding::decode(&target.clone())
 			.unwrap_or_else(|_| {
 				warn!("Invalid logout redirect URL: {}", &target);
 				Cow::from("/login")
