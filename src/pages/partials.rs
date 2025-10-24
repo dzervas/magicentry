@@ -23,13 +23,14 @@ pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
 				link rel="stylesheet" href=(format!("{}/static/main.css", path_prefix));
 			}
 			body {
-				section {
+				main {
 					(content)
-					div {
-						"Powered by ";
-						a href="https://github.com/dzervas/magicentry" { "MagicEntry" }
-						"."
-					}
+				}
+
+				footer {
+					"Powered by ";
+					a href="https://github.com/dzervas/magicentry" { "MagicEntry" }
+					"."
 				}
 			}
 		}

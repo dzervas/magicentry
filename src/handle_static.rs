@@ -8,7 +8,7 @@ use crate::error::Response;
 async fn static_files(filename: web::Path<String>) -> Response {
 	let (file, content_type) = match filename.as_str() {
 		"app-placeholder.svg" => ("app-placeholder.svg", "image/svg+xml"),
-		"main.css" => ("main.build.css", "text/css"),
+		"main.css" => ("css/main.css", "text/css"),
 		"logo.svg" => ("logo.svg", "image/svg+xml"),
 		"webauthn.js" => ("webauthn.build.js", "text/javascript"),
 		_ => return Ok(HttpResponse::NotFound().finish()),

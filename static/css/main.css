@@ -1,33 +1,331 @@
-@import 'tailwindcss';
+/* Modern Dark Theme for MagicEntry */
 
-@theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-primary-950: #172554;
+/* CSS Variables - Color System */
+:root {
+  /* Primary colors */
+  --primary-50: #f0f9ff;
+  --primary-100: #e0f2fe;
+  --primary-200: #bae6fd;
+  --primary-300: #7dd3fc;
+  --primary-400: #38bdf8;
+  --primary-500: #0ea5e9;
+  --primary-600: #0284c7;
+  --primary-700: #0369a1;
+  --primary-800: #075985;
+  --primary-900: #0c4a6e;
+
+  /* Neutral/Gray colors */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --gray-900: #111827;
+
+  /* Semantic colors */
+  --bg-primary: var(--gray-900);
+  --bg-secondary: var(--gray-800);
+  --bg-tertiary: var(--gray-700);
+  --text-primary: var(--gray-50);
+  --text-secondary: var(--gray-300);
+  --text-muted: var(--gray-400);
+  --accent: var(--primary-500);
+  --accent-hover: var(--primary-400);
+  --border: var(--gray-700);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
 }
 
-/*
-  The default border color has changed to `currentColor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+/* Reset and base styles */
+* {
+  box-sizing: border-box;
+}
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
-@layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+/* Global layout */
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--gray-800) 100%);
+  color: var(--text-primary);
+  min-height: 100vh;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  line-height: 1.6;
+}
+
+main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+
+  width: 100%;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+main h1, main h2, main h3 {
+  display: flex;
+  justify-content: center;
+}
+
+/* Form layout */
+form {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+form input {
+  flex: 1;
+}
+
+/* Main content area */
+body main section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  justify-content: center;
+  text-align: center;
+  margin: auto;
+
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--border);
+  max-width: 500px;
+  width: 100%;
+  backdrop-filter: blur(10px);
+}
+
+/* Typography */
+h1, h2, h3 {
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.5rem; }
+
+p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+footer {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  padding: 1rem;
+}
+
+/* Form styling */
+form input:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+form input:last-child, form button:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"] {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  padding: 0.75rem 1rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+input[type="submit"],
+input[type="button"],
+button {
+  background: var(--accent);
+  color: var(--text-primary);
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+button:hover,
+input[type="submit"]:hover,
+input[type="button"]:hover {
+  background: var(--accent-hover);
+  transform: scale(1.05);
+}
+
+button:active,
+input[type="submit"]:active,
+input[type="button"]:active {
+  transform: scale(1.05);
+}
+
+button[type="button"] {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Tables for service listings */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+table tr {
+  border-bottom: 1px solid var(--border);
+}
+
+table tr:last-child {
+  border-bottom: none;
+}
+
+table td {
+  padding: 1rem 0;
+  vertical-align: middle;
+}
+
+table td:first-child {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+table object,
+table img {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
+table div > div:first-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+table div > div:last-child {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Lists */
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+
+ul li {
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-left: 4px solid var(--accent);
+}
+
+/* Utility classes */
+.text-center {
+  text-align: center;
+}
+
+.mb-2 { margin-bottom: 2rem; }
+.mb-1 { margin-bottom: 1rem; }
+
+/* Responsive design */
+@media (max-width: 640px) {
+  body > section {
+    padding: 1rem;
   }
+
+  body > section > div:not(:last-child) {
+    padding: 1.5rem;
+    margin: 0 0.5rem;
+  }
+
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+
+  body > section > h1:first-child,
+  body > section > h2:first-child,
+  body > section > h3:first-child {
+    top: 1rem;
+  }
+
+  body > section > div:last-child {
+    bottom: 1rem;
+  }
+}
+
+/* Animation for page load */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+body > section > div:not(:last-child) {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+/* Focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for all interactive elements */
+a, button, input {
+  transition: all 0.2s ease;
 }

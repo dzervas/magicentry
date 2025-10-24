@@ -13,8 +13,10 @@ pub struct LoginActionPage;
 impl Page for LoginActionPage {
 	async fn render_partial(&self, _config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
 		Ok(html! {
-			p { "You're almost there" }
-			p { "Check your email for the login link!" }
+			section {
+				h3 { "You're almost there!" }
+				p { "Check your email for the login link" }
+			}
 		})
 	}
 }

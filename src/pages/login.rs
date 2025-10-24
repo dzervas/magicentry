@@ -15,24 +15,17 @@ impl Page for LoginPage {
 	async fn render_partial(&self, config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
 		let layout = get_page_layout_from_config(config);
 		Ok(html! {
-			h2 { (format!("{} Login", config.title)) }
+			h2 { (config.title) }
+
 			form action="" method="post" {
-				div {
-					label for="email" { "Email address" }
-					input
-						type="email"
-						id="email"
-						name="email"
-						required="required"
-						autocomplete="email webauthn"
-						placeholder="Enter your email" {}
-				}
-				div {
-					button id="webauthn-auth" type="button" { "Passkey" }
-				}
-				div {
-					button type="submit" { "Login" }
-				}
+				input
+					type="email"
+					name="email"
+					required="required"
+					autocomplete="email webauthn"
+					placeholder="Enter your email" {}
+				button id="webauthn-auth" type="button" { "🔑 PassKey" }
+				button type="submit" { "✉️ Login" }
 			}
 			(script(&layout, "webauthn"))
 		})

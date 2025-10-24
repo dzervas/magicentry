@@ -25,27 +25,24 @@ impl Page for IndexPage {
 	async fn render_partial(&self, config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
 		let layout = get_page_layout_from_config(config);
 		Ok(html! {
-			div {
-				p { (format!("Welcome back {}", self.email)) }
-				p { "You're all set!" }
-				a href="/logout" { "Logout" }
+			header {
+				p { b { (format!("Welcome back {}", self.email)) } }
 				button id="webauthn-register" { "Register PassKey" }
+				a href="/logout" { "Logout" }
 			}
-			div {
-				table {
-					tbody {
-						@for service in &self.services {
-							tr {
-								td {
-									object data=(format!("{}/favicon.ico", service.url)) type="image/x-icon" {
-										img src=(format!("{}/static/app-placeholder.svg", layout.path_prefix)) {}
+			table {
+				tbody {
+					@for service in &self.services {
+						tr {
+							td {
+								object data=(format!("{}/favicon.ico", service.url)) type="image/x-icon" {
+									img src=(format!("{}/static/app-placeholder.svg", layout.path_prefix)) {}
+								}
+								div {
+									a href=(&service.url) {
+										div { (&service.name) }
 									}
-									div {
-										a href=(&service.url) {
-											div { (&service.name) }
-										}
-										div { "realm" }
-									}
+									div { "realm" }
 								}
 							}
 						}
