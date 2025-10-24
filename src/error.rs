@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::string::FromUtf8Error;
 
 use actix_web::http::header::{self, ContentType};
@@ -7,7 +6,7 @@ use derive_more::{Display, Error as DeriveError};
 use reqwest::header::ToStrError;
 
 use crate::secret::{BrowserSessionSecret, WebAuthnAuthSecret, WebAuthnRegSecret};
-use crate::utils::get_partial;
+use crate::pages::PageError;
 
 pub type Response = std::result::Result<HttpResponse, Error>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -171,17 +170,30 @@ impl ResponseError for Error {
 		} else {
 			let status_code = self.status_code().as_u16().to_string();
 			let error_name = self.status_code().canonical_reason().unwrap_or_default();
-
-			let mut page_data = BTreeMap::new();
-			page_data.insert("code", status_code);
-			page_data.insert("error", error_name.to_string());
-			page_data.insert("description", description);
-
-			let page = get_partial::<()>("error", page_data, None).unwrap_or_else(|_| {
-				log::error!("Could not format error page");
-				"Internal server error".to_string()
-			});
-
+			// Create error page HTML directly since error_response is not async
+			// Basic HTML escaping for security
+			let escape_html = |s: &str| {
+				s.replace('&', "&amp;")
+					.replace('<', "&lt;")
+					.replace('>', "&gt;")
+					.replace('"', "&quot;")
+					.replace('\'', "&#x27;")
+			};
+			let page = format!(
+				r#"<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Error</title></head>
+<body>
+<h1>{code}</h1>
+<p>{error}</p>
+<p>{description}</p>
+<a href="/">Back to Homepage</a>
+</body>
+</html>"#,
+				code = escape_html(&status_code),
+				error = escape_html(error_name),
+				description = escape_html(&description)
+			);
 			HttpResponse::build(status)
 				.content_type(ContentType::html())
 				.body(page)
@@ -193,6 +205,15 @@ impl From<String> for Error {
 	fn from(error: String) -> Self {
 		Self {
 			cause: error,
+			app_error: None,
+		}
+	}
+}
+
+impl From<PageError> for Error {
+	fn from(error: PageError) -> Self {
+		Self {
+			cause: error.to_string(),
 			app_error: None,
 		}
 	}

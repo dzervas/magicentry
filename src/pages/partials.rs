@@ -12,6 +12,7 @@ pub struct PageLayout {
 /// Create a complete HTML page with content
 #[must_use]
 pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
+	let path_prefix = layout.path_prefix.trim_end_matches('/');
 	html! {
 		(DOCTYPE)
 		html lang="en" {
@@ -19,7 +20,7 @@ pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
 				meta charset="UTF-8";
 				meta name="viewport" content="width=device-width, initial-scale=1.0";
 				title { (&layout.title) }
-				link rel="stylesheet" href=(format!("{}/static/main.css", layout.path_prefix));
+				link rel="stylesheet" href=(format!("{}/static/main.css", path_prefix));
 			}
 			body {
 				section {

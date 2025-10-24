@@ -2,14 +2,12 @@
 //!
 //! It also shows the services that the user has access to
 
-use std::collections::BTreeMap;
-
 use actix_web::http::header::ContentType;
 use actix_web::{get, HttpResponse};
 
 use crate::error::Response;
 use crate::secret::BrowserSessionSecret;
-use crate::utils::get_partial;
+use crate::pages::{IndexPage, ServiceInfo, Page};
 use crate::CONFIG;
 
 #[get("/")]
@@ -18,10 +16,17 @@ async fn index(
 ) -> Response {
 	// Render the index page
 	let config = CONFIG.read().await;
-	let mut index_data = BTreeMap::new();
-	index_data.insert("email", browser_session.user().email.clone());
 	let realmed_services = config.services.from_user(browser_session.user());
-	let index_page = get_partial("index", index_data, Some(&realmed_services))?;
+	let services: Vec<ServiceInfo> = realmed_services.0.into_iter()
+		.map(|service| ServiceInfo {
+			name: service.name,
+			url: service.url.to_string(),
+		})
+		.collect();
+	let index_page = IndexPage {
+		email: browser_session.user().email.clone(),
+		services,
+	}.render().await?;
 
 	// Respond with the index page and set the X-Remote headers as configured
 	Ok(HttpResponse::Ok()
@@ -42,7 +47,7 @@ async fn index(
 			browser_session.user().realms.join(","),
 		))
 		.content_type(ContentType::html())
-		.body(index_page))
+		.body(index_page.into_string()))
 }
 
 #[cfg(test)]

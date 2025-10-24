@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
@@ -9,7 +7,7 @@ use crate::config::ConfigFile;
 use crate::error::{AppErrorKind, Response};
 use crate::saml::authn_request::AuthnRequest;
 use crate::secret::BrowserSessionSecret;
-use crate::utils::get_partial;
+use crate::pages::{AuthorizePage, Page};
 use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -73,17 +71,18 @@ pub async fn sso(
 
 	drop(config);
 
-	let mut authorize_data = BTreeMap::new();
-	authorize_data.insert("name", browser_session.user().name.clone());
-	authorize_data.insert("username", browser_session.user().username.clone());
-	authorize_data.insert("email", browser_session.user().email.clone());
-	authorize_data.insert("client", "test client".to_string());
-	authorize_data.insert("samlACS", authn_request.acs_url.clone());
-	authorize_data.insert("samlResponseData", response.to_encoded_string()?);
-	authorize_data.insert("samlRelayState", data.relay_state.clone().unwrap_or_default());
-	let authorize_page = get_partial::<()>("authorize", authorize_data, None)?;
+	let authorize_page = AuthorizePage {
+		client: "test client".to_string(),
+		name: browser_session.user().name.clone(),
+		username: browser_session.user().username.clone(),
+		email: browser_session.user().email.clone(),
+		saml_response_data: Some(response.to_encoded_string()?),
+		saml_relay_state: Some(data.relay_state.clone().unwrap_or_default()),
+		saml_acs: Some(authn_request.acs_url.clone()),
+		link: None,
+	}.render().await?;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
-		.body(authorize_page))
+		.body(authorize_page.into_string()))
 }

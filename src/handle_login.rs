@@ -4,15 +4,13 @@
 //! If the user is already logged in, they'll get redirected to the index page
 //! or the [`LoginLinkRedirect`], mainly used to handle auth-url/OIDC/SAML cases
 
-use std::collections::BTreeMap;
-
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 
 use crate::error::Response;
 use crate::secret::login_link::LoginLinkRedirect;
 use crate::secret::BrowserSessionSecret;
-use crate::utils::get_partial;
+use crate::pages::{LoginPage, Page};
 
 #[get("/login")]
 async fn login(
@@ -37,8 +35,8 @@ async fn login(
 	}
 
 	// Unauthorized, show the login page
-	let login_page = get_partial::<()>("login", BTreeMap::new(), None)?;
-	Ok(HttpResponse::Ok().content_type(ContentType::html()).body(login_page))
+	let login_page = LoginPage.render().await?;
+	Ok(HttpResponse::Ok().content_type(ContentType::html()).body(login_page.into_string()))
 }
 
 #[cfg(test)]

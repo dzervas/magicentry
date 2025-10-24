@@ -47,4 +47,12 @@ impl Page for AuthorizePage {
 			}
 		})
 	}
+
+	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
+		&config.title
+	}
+
+	fn get_path_prefix<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
+		&config.path_prefix
+	}
 }

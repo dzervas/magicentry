@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use actix_web::cookie::{Cookie, SameSite};
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
@@ -9,7 +7,7 @@ use log::info;
 
 use crate::error::{AppErrorKind, Response};
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
-use crate::utils::get_partial;
+use crate::pages::{AuthorizePage, Page};
 use crate::config::ConfigFile;
 use crate::AUTHORIZATION_COOKIE;
 
@@ -52,13 +50,16 @@ async fn authorize(
 		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
 	let redirect_url_str = format!("{redirect_url_scheme}://{redirect_url_authority}");
 
-	let mut authorize_data = BTreeMap::new();
-	authorize_data.insert("name", oidc_authcode.user().name.clone());
-	authorize_data.insert("username", oidc_authcode.user().username.clone());
-	authorize_data.insert("email", oidc_authcode.user().email.clone());
-	authorize_data.insert("client", redirect_url_str);
-	authorize_data.insert("link", redirect_url);
-	let authorize_page = get_partial::<()>("authorize", authorize_data, None)?;
+	let authorize_page = AuthorizePage {
+		client: redirect_url_str,
+		name: oidc_authcode.user().name.clone(),
+		username: oidc_authcode.user().username.clone(),
+		email: oidc_authcode.user().email.clone(),
+		saml_response_data: None,
+		saml_relay_state: None,
+		saml_acs: None,
+		link: Some(redirect_url),
+	}.render().await?;
 
 	let cookie = Cookie::build(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)?)
 		.http_only(true)
@@ -69,7 +70,7 @@ async fn authorize(
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
 		.cookie(cookie)
-		.body(authorize_page))
+		.body(authorize_page.into_string()))
 	// Either send to ?code=<code>&state=<state>
 	// TODO: Or send to ?error=<error>&error_description=<error_description>&state=<state>
 }

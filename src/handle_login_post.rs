@@ -5,8 +5,6 @@
 //! and saving any redirection-related data so that when the user clicks the link,
 //! they can be redirected to the right place - used for auth-url/OIDC/SAML
 
-use std::collections::BTreeMap;
-
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::{post, web, HttpResponse};
@@ -22,7 +20,7 @@ use crate::error::Response;
 use crate::user::User;
 use crate::secret::login_link::LoginLinkRedirect;
 use crate::secret::LoginLinkSecret;
-use crate::utils::get_partial;
+use crate::pages::{LoginActionPage, Page};
 use crate::{SmtpTransport, CONFIG};
 
 /// Used to get the login form data for from the login page
@@ -40,13 +38,13 @@ async fn login_post(
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
 ) -> Response {
-	let login_action_page = get_partial::<()>("login_action", BTreeMap::new(), None)?;
+	let login_action_page = LoginActionPage.render().await?;
 
 	// Return 200 to avoid leaking valid emails
 	let Some(user) = User::from_email(&form.email).await else {
 		return Ok(HttpResponse::Ok()
 			.content_type(ContentType::html())
-			.body(login_action_page))
+			.body(login_action_page.into_string()))
 	};
 
 	// Generate the magic link
@@ -129,7 +127,7 @@ async fn login_post(
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())
-		.body(login_action_page))
+		.body(login_action_page.into_string()))
 }
 
 #[cfg(test)]
