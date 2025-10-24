@@ -55,6 +55,7 @@ base64 = "0.22"
 quick-xml = { version = "0.38", features = ["async-tokio", "serialize"] }
 rsa = { version = "0.9", features = ["sha2"] }
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
+maud = { version = "0.27.0", features = ["actix-web"] }
 
 [dev-dependencies]
 actix-http = "3.11"

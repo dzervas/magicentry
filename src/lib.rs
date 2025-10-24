@@ -73,6 +73,8 @@ pub mod handle_login;
 pub mod handle_logout;
 pub mod handle_static;
 
+pub mod pages;
+
 #[cfg(test)]
 pub mod tests;
 
