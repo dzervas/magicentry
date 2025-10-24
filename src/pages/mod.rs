@@ -4,6 +4,7 @@
 //! the handlebars templates. Each template uses minimal, semantic HTML
 //! without styling or helper tags.
 
+pub mod page_trait;
 pub mod partials;
 pub mod error;
 pub mod login;
@@ -15,6 +16,7 @@ pub mod authorize;
 pub mod example;
 
 // Re-export commonly used types and functions
+pub use page_trait::*;
 pub use partials::*;
 pub use error::*;
 pub use login::*;

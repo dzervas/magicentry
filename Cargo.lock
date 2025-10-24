@@ -2802,6 +2802,7 @@ dependencies = [
  "actix-http",
  "actix-web",
  "actix-web-httpauth",
+ "async-trait",
  "base64 0.22.1",
  "chrono",
  "criterion",

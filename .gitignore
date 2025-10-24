@@ -41,3 +41,4 @@ dist/
 .aider*
 .yarn
 /src/tests/gen_hurl_tests.rs
+/rendered_pages
