@@ -2,8 +2,12 @@
 
 use maud::{Markup, html};
 use async_trait::async_trait;
-use crate::pages::Page;
+
 use crate::config::ConfigFile;
+use crate::CONFIG;
+
+use super::Page;
+use super::partials::{PageLayout, render_page};
 
 /// Error page data
 #[derive(Debug, Clone)]
@@ -15,20 +19,40 @@ pub struct ErrorPage {
 
 #[async_trait]
 impl Page for ErrorPage {
-	async fn render_partial(&self, _config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
-		Ok(html! {
+	fn render_partial(&self, _config: &ConfigFile) -> Markup {
+		html! {
 			h1 { (&self.code) }
 			p { (&self.error) }
 			p { (&self.description) }
 			a href="/" { "Back to Homepage" }
-		})
+		}
 	}
+}
 
-	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
-		&config.title
-	}
+impl ErrorPage {
+	pub fn render_sync(code: u16, error: String, description: String) -> Markup {
+		let page = Self {
+			code: code.to_string(),
+			error,
+			description,
+		};
 
-	fn get_path_prefix<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
-		&config.path_prefix
+		// TODO: I don't like this, but I'm not sure how to do it otherwise
+		let config = loop {
+			if let Ok(config) = CONFIG.try_read() {
+				break config;
+			}
+			std::thread::sleep(std::time::Duration::from_millis(1));
+		};
+
+		let content = page.render_partial(&config);
+		let layout = PageLayout {
+			title: page.get_title(&config).to_string(),
+			path_prefix: page.get_path_prefix(&config).to_string(),
+		};
+
+		drop(config);
+
+		render_page(&layout, &content)
 	}
 }

@@ -26,7 +26,7 @@ async fn index(
 	let index_page = IndexPage {
 		email: browser_session.user().email.clone(),
 		services,
-	}.render().await?;
+	}.render().await;
 
 	// Respond with the index page and set the X-Remote headers as configured
 	Ok(HttpResponse::Ok()

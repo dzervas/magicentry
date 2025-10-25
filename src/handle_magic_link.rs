@@ -3,7 +3,7 @@ use actix_web::{get, web, HttpResponse};
 use tracing::info;
 
 use crate::error::Response;
-use crate::secret::LoginLinkSecret;
+use crate::secret::{LoginLinkSecret, BrowserSessionSecret};
 
 #[get("/login/{magic}")]
 async fn magic_link(
@@ -12,7 +12,7 @@ async fn magic_link(
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
 	let login_redirect_opt = login_secret.metadata().clone();
-	let browser_session = login_secret.exchange(&db).await?;
+	let browser_session: BrowserSessionSecret = login_secret.exchange(&db).await?;
 	let cookie = (&browser_session).into();
 
 	// Handle post-login redirect URLs from the cookie set by OIDC/SAML/auth-url

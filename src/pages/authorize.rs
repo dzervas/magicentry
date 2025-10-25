@@ -23,8 +23,8 @@ pub struct AuthorizePage {
 
 #[async_trait]
 impl Page for AuthorizePage {
-	async fn render_partial(&self, _config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
-		Ok(html! {
+	fn render_partial(&self, _config: &ConfigFile) -> Markup {
+		html! {
 			div {
 				h3 { (format!("Log-in to {{{}}} {}", self.client, self.client)) }
 				p { "The application will gain access to the following information about you:" }
@@ -45,7 +45,7 @@ impl Page for AuthorizePage {
 					a href=(link) { "Continue" }
 				}
 			}
-		})
+		}
 	}
 
 	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str {

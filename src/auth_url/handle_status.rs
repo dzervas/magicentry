@@ -30,7 +30,7 @@ async fn status(
 		proxy_session
 	} else if let Some(proxy_code) = proxy_code_opt {
 		info!("Proxied login for {}", &proxy_code.user().email);
-		let proxy_session = proxy_code
+		let proxy_session: ProxySessionSecret = proxy_code
 			.exchange_sibling(&db)
 			.await?;
 

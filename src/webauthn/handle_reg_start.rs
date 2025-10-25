@@ -2,6 +2,7 @@ use actix_web::{post, web, HttpResponse};
 use webauthn_rs::prelude::*;
 
 use crate::error::Response;
+use anyhow::Context as _;
 use crate::secret::{BrowserSessionSecret, WebAuthnRegSecret};
 
 #[post("/webauthn/register/start")]
@@ -17,7 +18,8 @@ pub async fn reg_start(
 		&user.email.clone(),
 		&user.name.clone(),
 		None,
-	)?;
+	)
+	.context("Failed to start passkey registration")?;
 
 	let reg = WebAuthnRegSecret::new(user, reg_state, &db).await?;
 

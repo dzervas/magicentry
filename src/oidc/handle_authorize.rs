@@ -5,7 +5,8 @@ use actix_web::http::Uri;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use tracing::info;
 
-use crate::error::{AppErrorKind, Response};
+use crate::error::{OidcError, Response};
+use anyhow::Context as _;
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 use crate::pages::{AuthorizePage, Page};
 use crate::config::ConfigFile;
@@ -23,10 +24,11 @@ async fn authorize(
 
 	let Some(browser_session) = browser_session_opt else {
 		let base_url = ConfigFile::url_from_request(conn).await;
-		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
+		let mut target_url = url::Url::parse(&base_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()
-			.append_pair("oidc", &serde_json::to_string(&auth_req)?);
+			.append_pair("oidc", &serde_json::to_string(&auth_req)
+				.with_context(|| format!("Failed to serialize OIDC auth request for client {}", auth_req.client_id))?);
 
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url.as_str()))
@@ -40,14 +42,15 @@ async fn authorize(
 	let redirect_url = auth_req
 		.get_redirect_url(&oidc_authcode.code().to_str_that_i_wont_print(), oidc_authcode.user())
 		.await
-		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
-	let redirect_url_uri = redirect_url.parse::<Uri>()?;
+		.ok_or(OidcError::InvalidRedirectUrl)?;
+	let redirect_url_uri = redirect_url.parse::<Uri>()
+			.context("Failed to parse redirect URL as URI")?;
 	let redirect_url_scheme = redirect_url_uri
 		.scheme_str()
-		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
+		.ok_or(OidcError::InvalidRedirectUrl)?;
 	let redirect_url_authority = redirect_url_uri
 		.authority()
-		.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
+		.ok_or(OidcError::InvalidRedirectUrl)?;
 	let redirect_url_str = format!("{redirect_url_scheme}://{redirect_url_authority}");
 
 	let authorize_page = AuthorizePage {
@@ -59,9 +62,10 @@ async fn authorize(
 		saml_relay_state: None,
 		saml_acs: None,
 		link: Some(redirect_url),
-	}.render().await?;
+	}.render().await;
 
-	let cookie = Cookie::build(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)?)
+	let cookie = Cookie::build(AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)
+			.with_context(|| format!("Failed to serialize OIDC auth request for cookie: {}", auth_req.client_id))?)
 		.http_only(true)
 		.same_site(SameSite::Lax)
 		.path("/")

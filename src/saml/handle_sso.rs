@@ -4,7 +4,8 @@ use actix_web::{get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
 use crate::config::ConfigFile;
-use crate::error::{AppErrorKind, Response};
+use crate::error::{OidcError, ProxyError, Response};
+use anyhow::Context as _;
 use crate::saml::authn_request::AuthnRequest;
 use crate::secret::BrowserSessionSecret;
 use crate::pages::{AuthorizePage, Page};
@@ -32,14 +33,16 @@ pub async fn sso(
 	web::Query(data): web::Query<SAMLRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>
 ) -> Response {
-	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
+	let authn_request = AuthnRequest::from_encoded_string(&data.request)
+		.context("Failed to decode SAML authentication request")?;
 
 	let Some(browser_session) = browser_session_opt else {
 		let base_url = ConfigFile::url_from_request(conn).await;
-		let mut target_url = url::Url::parse(&base_url).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
+		let mut target_url = url::Url::parse(&base_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()
-			.append_pair("saml", &serde_json::to_string(&data)?);
+			.append_pair("saml", &serde_json::to_string(&data)
+				.context("Failed to serialize SAML request for query parameter")?);
 
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", target_url.as_str()))
@@ -48,7 +51,7 @@ pub async fn sso(
 
 	let config = CONFIG.read().await;
 	let service = config.services.from_saml_entity_id(&authn_request.issuer)
-		.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
+		.ok_or(ProxyError::InvalidSAMLRedirectUrl)?;
 
 	if !service.is_user_allowed(browser_session.user()) {
 		tracing::warn!("User {} is not allowed to access SAML service {}", browser_session.user().email, service.name);
@@ -65,9 +68,12 @@ pub async fn sso(
 	tracing::info!("Starting SAML flow for user: {}", browser_session.user().email);
 
 	response.sign_saml_response(
-		&config.get_saml_key()?,
-		&config.get_saml_cert()?
-	)?;
+		&config.get_saml_key()
+			.context("Failed to get SAML private key for signing response")?,
+		&config.get_saml_cert()
+			.context("Failed to get SAML certificate for signing response")?
+	)
+		.context("Failed to sign SAML response")?;
 
 	drop(config);
 
@@ -80,7 +86,7 @@ pub async fn sso(
 		saml_relay_state: Some(data.relay_state.clone().unwrap_or_default()),
 		saml_acs: Some(authn_request.acs_url.clone()),
 		link: None,
-	}.render().await?;
+	}.render().await;
 
 	Ok(HttpResponse::Ok()
 		.content_type(ContentType::html())

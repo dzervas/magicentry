@@ -12,7 +12,7 @@ use serde::Serialize;
 
 #[allow(clippy::wildcard_imports)]
 use super::authn_response::*;
-use crate::error::Result;
+use anyhow::Result;
 
 impl AuthnResponse {
 	// This function inserts the XML Signature into a SAML Response XML string

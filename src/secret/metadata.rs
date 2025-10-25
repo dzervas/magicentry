@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::primitive::{UserSecret, UserSecretKind};
 
 use crate::database::Database;
-use crate::error::Result;
+use anyhow::Result;
 
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.

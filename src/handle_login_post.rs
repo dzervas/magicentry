@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::ConfigFile;
 use crate::error::Response;
 use crate::user::User;
+use anyhow::Context as _;
 use crate::secret::login_link::LoginLinkRedirect;
 use crate::secret::LoginLinkSecret;
 use crate::pages::{LoginActionPage, Page};
@@ -40,7 +41,7 @@ async fn login_post(
 	mailer: web::Data<Option<SmtpTransport>>,
 	http_client: web::Data<Option<reqwest::Client>>,
 ) -> Response {
-	let login_action_page = LoginActionPage.render().await?;
+	let login_action_page = LoginActionPage.render().await;
 
 	// Return 200 to avoid leaking valid emails
 	let Some(user) = User::from_email(&form.email).await else {
@@ -68,9 +69,12 @@ async fn login_post(
 	// TODO: Make a notifier struct that is `FromRequest` (`FromConfig`?)
 	if let Some(mailer) = mailer.as_ref() {
 		let email = Message::builder()
-			.from(config.smtp_from.parse()?)
-			.to(user.email.parse()?)
-			.subject(formatx!(&config.smtp_subject, title = &config.title)?)
+			.from(config.smtp_from.parse()
+				.context("Failed to parse SMTP 'from' address")?)
+			.to(user.email.parse()
+				.context("Failed to parse user email address")?)
+			.subject(formatx!(&config.smtp_subject, title = &config.title)
+				.context("Failed to format SMTP subject template")?)
 			.header(LettreContentType::TEXT_HTML)
 			.body(formatx!(
 				&config.smtp_body,
@@ -78,10 +82,13 @@ async fn login_post(
 				magic_link = &magic_link,
 				name = name,
 				username = username
-			)?)?;
+			)
+			.context("Failed to format SMTP body template")?)
+			.context("Failed to build email message")?;
 
 		info!("Sending email to {}", &user.email);
-		mailer.send(email).await?;
+		mailer.send(email).await
+			.context("Failed to send email via SMTP")?;
 	}
 
 	// And/or via HTTP
@@ -95,7 +102,8 @@ async fn login_post(
 			email = &user.email,
 			name = name,
 			username = username
-		)?;
+		)
+		.context("Failed to format HTTP request URL template")?;
 		let mut req = client.request(method, url);
 
 		if let Some(data) = &config.request_data {
@@ -106,7 +114,8 @@ async fn login_post(
 				email = &user.email,
 				name = name,
 				username = username
-			)?;
+			)
+			.context("Failed to format HTTP request body template")?;
 			req = req
 				// TODO: Make this configurable
 				.header(CONTENT_TYPE, config.request_content_type.as_str())
@@ -116,7 +125,8 @@ async fn login_post(
 		}
 
 		info!("Sending request for user {}", &user.email);
-		let resp = req.send().await?;
+		let resp = req.send().await
+			.context("Failed to send HTTP request for magic link notification")?;
 		if !resp.status().is_success() {
 			warn!(
 				"Request for user {} failed: {} {}",

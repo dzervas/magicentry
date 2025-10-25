@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![allow(clippy::must_use_candidate)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
 

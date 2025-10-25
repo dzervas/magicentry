@@ -3,10 +3,10 @@ use std::collections::BTreeMap;
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
 
-use crate::error::{AppErrorKind, Result};
+use crate::error::{AuthError};
 use crate::{CONFIG, PROXY_ORIGIN_HEADER, RANDOM_STRING_LEN, TEMPLATES};
 
-pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<&T>) -> Result<String> {
+pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<&T>) -> anyhow::Result<String> {
 	// Use a brief retry strategy to handle temporary mutex contention in concurrent tests
 	let mut i = 0;
 
@@ -20,7 +20,7 @@ pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, Str
 		i += 1;
 		if i > 100 {
 			tracing::warn!("Could not sync-lock the config to read data related to partial {name} - this is a bug");
-			return Err("Could not sync-lock the config to read data related to partial".to_string().into());
+			return Err(anyhow::anyhow!("Could not sync-lock the config to read data related to partial"));
 		}
 	};
 	let path_prefix = if config.path_prefix.ends_with('/') {
@@ -44,7 +44,7 @@ pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, Str
 	Ok(result)
 }
 
-pub fn get_request_origin(req: &HttpRequest) -> Result<String> {
+pub fn get_request_origin(req: &HttpRequest) -> anyhow::Result<String> {
 	let valid_headers = [
 		header::HeaderName::from_static(PROXY_ORIGIN_HEADER),
 		header::ORIGIN,
@@ -73,7 +73,7 @@ pub fn get_request_origin(req: &HttpRequest) -> Result<String> {
 		}
 	}
 
-	Err(AppErrorKind::MissingOriginHeader.into())
+	Err(AuthError::MissingOriginHeader.into())
 }
 
 #[must_use]

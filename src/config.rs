@@ -163,7 +163,7 @@ impl ConfigFile {
 	///
 	/// Note that live-updating the `CONFIG_FILE` environment variable
 	/// is **NOT** supported (and is probably impossible anyway)
-	pub async fn reload() -> crate::error::Result<()> {
+	pub async fn reload() -> anyhow::Result<()> {
 		info!("Reloading config from {}", CONFIG_FILE.as_str());
 
 		let mut new_config = serde_yaml::from_str::<Self>(
@@ -263,7 +263,7 @@ pub struct ConfigKV {
 
 impl ConfigKV {
 	/// Set the provided key to the provided value - overwrites any previous values
-	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> crate::error::Result<()> {
+	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> anyhow::Result<()> {
 		let key_str = serde_json::to_string(&key)?;
 		let value_str = value.unwrap_or_default();
 		
@@ -277,7 +277,7 @@ impl ConfigKV {
 	}
 	
 	/// Get a config value by key
-	pub async fn get(key: &ConfigKeys, db: &Database) -> crate::error::Result<Option<String>> {
+	pub async fn get(key: &ConfigKeys, db: &Database) -> anyhow::Result<Option<String>> {
 		let key_str = serde_json::to_string(key)?;
 		ConfigKVRow::get(&key_str, db).await
 	}

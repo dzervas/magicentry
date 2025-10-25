@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 use url::Url;
 
-use crate::error::Error;
-use crate::error::AppErrorKind;
+use crate::error::OidcError;
+use anyhow::Context as _;
 use crate::oidc::handle_token::JWTData;
 use crate::user::User;
 use crate::secret::MetadataKind;
@@ -69,7 +69,7 @@ impl AuthorizeRequest {
 		user: &User,
 		url: String,
 		encoding_key: &EncodingKey,
-	) -> Result<String, Error> {
+	) -> anyhow::Result<String> {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
@@ -85,22 +85,23 @@ impl AuthorizeRequest {
 		debug!("JWT Data: {jwt_data:?}");
 
 		let header = Header::default();
-		let id_token = encode(&header, &jwt_data, encoding_key)?;
+		let id_token = encode(&header, &jwt_data, encoding_key)
+			.with_context(|| format!("Failed to encode ID token for user {}", user.email))?;
 
 		Ok(id_token)
 	}
 }
 
 impl MetadataKind for AuthorizeRequest {
-	async fn validate(&self, _db: &crate::Database) -> crate::error::Result<()> {
+	async fn validate(&self, _db: &crate::Database) -> anyhow::Result<()> {
 		if let Some(code_challenge_method) = self.code_challenge_method.as_ref() {
 			// TODO: Support plain
 			if code_challenge_method != "S256" {
-				return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
+				return Err(OidcError::InvalidCodeChallengeMethod.into());
 			}
 
 			if self.code_challenge.is_none() {
-				return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
+				return Err(OidcError::InvalidCodeChallengeMethod.into());
 			}
 		}
 

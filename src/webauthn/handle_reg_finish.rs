@@ -3,7 +3,8 @@ use actix_web::{post, web, HttpResponse};
 
 use webauthn_rs::prelude::*;
 
-use crate::error::{AppErrorKind, Response};
+use crate::error::{WebAuthnError, Response};
+use anyhow::Context as _;
 use crate::secret::WebAuthnRegSecret;
 
 use super::store::PasskeyStore;
@@ -15,13 +16,14 @@ pub async fn reg_finish(
 	webauthn: web::Data<Webauthn>,
 	req: Json<RegisterPublicKeyCredential>,
 ) -> Response {
-	let sk = webauthn.finish_passkey_registration(&req, reg_secret.metadata())?;
+	let sk = webauthn.finish_passkey_registration(&req, reg_secret.metadata())
+		.context("Failed to finish passkey registration")?;
 
 	// Check if this passkey is already registered by getting all passkeys for this user
 	// and checking if any have the same credential ID
 	let existing_passkeys = PasskeyStore::get_by_user(reg_secret.user(), &db).await?;
 	if existing_passkeys.iter().any(|p| p.passkey.cred_id() == sk.cred_id()) {
-		return Err(AppErrorKind::PasskeyAlreadyRegistered.into());
+		return Err(WebAuthnError::AlreadyRegistered.into());
 	}
 
 	let mut passkey = PasskeyStore {

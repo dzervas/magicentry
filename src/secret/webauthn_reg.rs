@@ -2,7 +2,7 @@ use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
+use crate::error::{DatabaseError, WebAuthnError};
 use crate::webauthn::WEBAUTHN_REG_COOKIE;
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -23,20 +23,21 @@ impl UserSecretKind for WebAuthnRegSecretKind {
 pub type WebAuthnRegSecret = EphemeralUserSecret<WebAuthnRegSecretKind, BrowserSessionSecretKind>;
 
 impl actix_web::FromRequest for WebAuthnRegSecret {
-	type Error = crate::error::Error;
-	type Future = BoxFuture<'static, Result<Self>>;
+	type Error = crate::error::AppError;
+	type Future = BoxFuture<'static, std::result::Result<Self, Self::Error>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
 		let Some(code) = req.cookie(WEBAUTHN_REG_COOKIE) else {
-			return Box::pin(async { Err(AppErrorKind::WebAuthnSecretNotFound.into()) });
+			return Box::pin(async { Err(WebAuthnError::SecretNotFound.into()) });
 		};
 		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
-			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
+			return Box::pin(async { Err(DatabaseError::InstanceError.into()) });
 		};
 
 		let code = code.value().to_string();
 		Box::pin(async move {
 			Self::try_from_string(code, db.get_ref()).await
+				.map_err(Into::into)
 		})
 	}
 }

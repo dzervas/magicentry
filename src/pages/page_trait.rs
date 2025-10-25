@@ -1,26 +1,9 @@
 //! Page trait for async rendering with config integration
 
 use maud::Markup;
-use crate::pages::partials::render_page;
 use crate::{CONFIG, config::ConfigFile};
 
-/// Simple error type for page rendering
-#[derive(Debug)]
-pub struct PageError(String);
-
-impl std::fmt::Display for PageError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "Page error: {}", self.0)
-	}
-}
-
-impl std::error::Error for PageError {}
-
-impl From<&'static str> for PageError {
-	fn from(msg: &'static str) -> Self {
-		Self(msg.to_string())
-	}
-}
+use super::partials::{PageLayout, render_page};
 
 /// Trait for page types that can render themselves
 ///
@@ -33,7 +16,7 @@ pub trait Page {
 	///
 	/// This method receives config data and should
 	/// render only the page content (without the full HTML structure)
-	async fn render_partial(&self, config: &ConfigFile) -> Result<Markup, PageError>;
+	fn render_partial(&self, config: &ConfigFile) -> Markup;
 
 	/// Render the complete HTML page with layout
 	///
@@ -41,16 +24,16 @@ pub trait Page {
 	/// 1. Gets the `title` and [`path_prefix`] from the global config
 	/// 2. Calls [`render_partial`] with the config
 	/// 3. Wraps the content in the full HTML page layout
-	async fn render(&self) -> Result<Markup, PageError> {
+	async fn render(&self) -> Markup {
 		let config = CONFIG.read().await;
-		let content = self.render_partial(&config).await?;
-		let layout = crate::pages::partials::PageLayout {
+		let content = self.render_partial(&config);
+		let layout = PageLayout {
 			title: self.get_title(&config).to_string(),
 			path_prefix: self.get_path_prefix(&config).to_string(),
 		};
 
 		drop(config);
-		Ok(render_page(&layout, &content))
+		render_page(&layout, &content)
 	}
 
 	/// Get the page title from config or use a default

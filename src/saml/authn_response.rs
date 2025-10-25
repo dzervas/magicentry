@@ -7,7 +7,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::authn_request::AuthnRequest;
-use crate::error::Result;
+use anyhow::Result;
 use crate::user::User;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

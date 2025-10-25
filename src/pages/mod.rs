@@ -23,3 +23,6 @@ pub use login::*;
 pub use login_action::*;
 pub use index::*;
 pub use authorize::*;
+
+// Re-export PageError for convenience
+pub use crate::error::PageError;

@@ -7,7 +7,7 @@ use super::primitive::UserSecretKind;
 use super::proxy_code::ProxyCodeSecret;
 use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind, SecretType};
 
-use crate::error::{AppErrorKind, Result};
+use crate::error::{AuthError, DatabaseError, ProxyError, OidcError};
 use crate::{CONFIG, PROXY_QUERY_CODE};
 
 // This should have been an enum, but bincode (used by reindeer db) doesn't support it
@@ -21,7 +21,7 @@ pub struct LoginLinkRedirect {
 }
 
 impl LoginLinkRedirect {
-	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &crate::Database) -> Result<String> {
+	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, db: &crate::Database) -> anyhow::Result<String> {
 		let mut url = self.validate_internal().await?;
 
 		if self.rd.is_some() {
@@ -33,7 +33,7 @@ impl LoginLinkRedirect {
 			// Note that the proxy code will get forwarded to us from the proxy under a
 			// different domain, so we can't just use a normal session cookie.
 
-			let browser_session = browser_session_opt.ok_or(AppErrorKind::NotLoggedIn)?;
+			let browser_session = browser_session_opt.ok_or(AuthError::NotLoggedIn)?;
 			let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), db).await?;
 			url
 				.query_pairs_mut()
@@ -44,7 +44,7 @@ impl LoginLinkRedirect {
 		} else if let Some(saml) = &self.saml {
 			Ok(format!("/saml/sso?{}", serde_qs::to_string(saml)?))
 		} else {
-			Err(AppErrorKind::NoLoginLinkRedirect.into())
+			Err(AuthError::NoLoginLinkRedirect.into())
 		}
 	}
 
@@ -56,9 +56,9 @@ impl LoginLinkRedirect {
 		}
 	}
 
-	async fn validate_internal(&self) -> Result<url::Url> {
+	async fn validate_internal(&self) -> anyhow::Result<url::Url> {
 		if u8::from(self.rd.is_some()) + u8::from(self.oidc.is_some()) + u8::from(self.saml.is_some()) > 1 {
-			return Err(AppErrorKind::MultipleLoginLinkRedirectDefinitions.into())
+			return Err(AuthError::MultipleLoginLinkRedirectDefinitions.into())
 		}
 
 		let config = CONFIG.read().await;
@@ -66,29 +66,29 @@ impl LoginLinkRedirect {
 		if let Some(url) = &self.rd {
 			config.services
 				.from_auth_url_origin(&url.origin())
-				.ok_or(AppErrorKind::InvalidReturnDestinationUrl)?;
+				.ok_or(ProxyError::InvalidReturnDestinationUrl)?;
 			Ok(url.clone())
 		} else if let Some(oidc) = &self.oidc {
-			let url = url::Url::parse(&oidc.redirect_uri).map_err(|_| AppErrorKind::InvalidOIDCRedirectUrl)?;
+			let url = url::Url::parse(&oidc.redirect_uri).map_err(|_| OidcError::InvalidRedirectUrl)?;
 			config.services
 				.from_oidc_redirect_url(&url)
-				.ok_or(AppErrorKind::InvalidOIDCRedirectUrl)?;
+				.ok_or(OidcError::InvalidRedirectUrl)?;
 			Ok(url)
 		} else if let Some(saml) = &self.saml {
-			let url = url::Url::parse(&saml.acs_url).map_err(|_| AppErrorKind::InvalidSAMLRedirectUrl)?;
+			let url = url::Url::parse(&saml.acs_url).map_err(|_| ProxyError::InvalidSAMLRedirectUrl)?;
 			config.services
 				.from_saml_redirect_url(&url)
-				.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
+				.ok_or(ProxyError::InvalidSAMLRedirectUrl)?;
 			Ok(url)
 		} else {
 			drop(config);
-			Err(AppErrorKind::NoLoginLinkRedirect.into())
+			Err(AuthError::NoLoginLinkRedirect.into())
 		}
 	}
 }
 
 impl MetadataKind for LoginLinkRedirect {
-	async fn validate(&self, _: &crate::Database) -> Result<()> {
+	async fn validate(&self, _: &crate::Database) -> anyhow::Result<()> {
 		self.validate_internal().await?;
 		Ok(())
 	}
@@ -114,24 +114,25 @@ impl LoginLinkSecret {
 }
 
 impl actix_web::FromRequest for LoginLinkSecret {
-	type Error = crate::error::Error;
-	type Future = BoxFuture<'static, Result<Self>>;
+	type Error = crate::error::AppError;
+	type Future = BoxFuture<'static, std::result::Result<Self, Self::Error>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
 		let code = if let Some(code) = req.match_info().get("magic") {
 			code.to_string()
 		} else {
-			return Box::pin(async { Err(AppErrorKind::MissingLoginLinkCode.into()) });
+			return Box::pin(async { Err(AuthError::MissingLoginLinkCode.into()) });
 		};
 
 		let db = if let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>() {
 			db.clone()
 		} else {
-			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
+			return Box::pin(async { Err(DatabaseError::InstanceError.into()) });
 		};
 
 		Box::pin(async move {
 			Self::try_from_string(code, db.get_ref()).await
+				.map_err(Into::into)
 		})
 	}
 }

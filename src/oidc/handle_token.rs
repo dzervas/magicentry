@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use base64::{Engine as _, engine::general_purpose};
 
 use crate::config::ConfigFile;
-use crate::error::{AppErrorKind, Response};
+use crate::error::{AuthError, OidcError, Response};
 use crate::secret::OIDCAuthCodeSecret;
 use crate::{generate_cors_preflight, CONFIG};
 
@@ -125,9 +125,9 @@ pub async fn token(
 	let mut service = config
 		.services
 		.from_oidc_client_id(&client_id)
-		.ok_or(AppErrorKind::InvalidClientID)?;
+		.ok_or(AuthError::InvalidClientID)?;
 
-	let mut oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
+	let mut oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
 
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
@@ -139,43 +139,43 @@ pub async fn token(
 		let generated_code_challenge = general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
-			return Err(AppErrorKind::InvalidCodeVerifier.into());
+			return Err(OidcError::InvalidCodeVerifier.into());
 		}
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
 		info!("Responding to client_secret_post request for client {}", service.name);
-		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
+		let req_client_id = token_req.client_id.clone().ok_or(OidcError::NoClientID)?;
 
 		if oidc.client_secret != req_client_secret {
-			return Err(AppErrorKind::InvalidClientSecret.into());
+			return Err(AuthError::InvalidClientSecret.into());
 		}
 
 		if oidc.client_id != req_client_id {
-			return Err(AppErrorKind::InvalidClientID.into());
+			return Err(AuthError::InvalidClientID.into());
 		}
 	} else if let Some(basic_creds) = basic {
 		// We're using client_id - client_secret over basic auth
 		debug!("Responding to client_secret_basic request");
 		let req_client_id = basic_creds.user_id().to_string();
 		let req_client_secret = basic_creds.password()
-			.ok_or(AppErrorKind::NoClientSecret)?
+			.ok_or(OidcError::NoClientSecret)?
 			.to_string();
 		service = config
 			.services
 			.from_oidc_client_id(&req_client_id)
-			.ok_or(AppErrorKind::InvalidClientID)?;
+			.ok_or(AuthError::InvalidClientID)?;
 
 		if !service.is_user_allowed(oidc_authcode.user()) {
-			return Err(AppErrorKind::Unauthorized.into());
+			return Err(AuthError::Unauthorized.into());
 		}
 
-		oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
+		oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
 
 		if oidc.client_id != req_client_id || oidc.client_secret != req_client_secret {
-			return Err(AppErrorKind::InvalidClientSecret.into());
+			return Err(AuthError::InvalidClientSecret.into());
 		}
 	} else {
-		return Err(AppErrorKind::NoClientCredentialsProvided.into());
+		return Err(OidcError::NoClientCredentialsProvided.into());
 	}
 
 

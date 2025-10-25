@@ -19,7 +19,7 @@ use kube::{api::{Patch, PatchParams}, Api, Client};
 use kube::core::ObjectMeta;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
+use crate::error::AuthError;
 use crate::service::{Service, ServiceAuthUrl, ServiceOIDC};
 use crate::utils::random_string;
 use crate::CONFIG;
@@ -73,7 +73,7 @@ impl IngressConfig {
 	// TODO: Refactor this function
 	#[allow(clippy::cognitive_complexity)]
 	#[allow(clippy::too_many_lines)]
-	pub async fn process(&self, ingress: &Ingress) -> Result<()> {
+	pub async fn process(&self, ingress: &Ingress) -> anyhow::Result<()> {
 		let no_name = String::new();
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
 
@@ -106,7 +106,7 @@ impl IngressConfig {
 			.iter().cloned().collect::<Vec<_>>();
 		let Some(service_url) = urls.first().cloned() else {
 			tracing::warn!("Ingress {name} has no host");
-			return Err(AppErrorKind::IngressHasNoHost.into());
+			return Err(AuthError::IngressHasNoHost.into());
 		};
 
 		let oidc = if let Some(secret_name) = &self.oidc_target_secret {
@@ -288,7 +288,7 @@ async fn process_ingress(ingress: &Ingress) {
 ///
 /// This function is asynchronously ran alongside the main actix-web server
 /// and will update the config file in the background
-pub async fn watch() -> Result<()> {
+pub async fn watch() -> anyhow::Result<()> {
 	let client = Client::try_default().await?;
 	let ingresses: Api<Ingress> = Api::all(client);
 

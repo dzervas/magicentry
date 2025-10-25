@@ -3,7 +3,7 @@ use flate2::read::DeflateDecoder;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
 
-use crate::error::Result;
+use anyhow::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnRequest {

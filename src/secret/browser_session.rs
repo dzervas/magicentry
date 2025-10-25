@@ -2,7 +2,7 @@ use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
+use crate::error::{AuthError, DatabaseError};
 use crate::SESSION_COOKIE;
 
 use super::primitive::{UserSecret, UserSecretKind};
@@ -22,20 +22,21 @@ impl UserSecretKind for BrowserSessionSecretKind {
 pub type BrowserSessionSecret = UserSecret<BrowserSessionSecretKind>;
 
 impl actix_web::FromRequest for BrowserSessionSecret {
-	type Error = crate::error::Error;
-	type Future = BoxFuture<'static, Result<Self>>;
+	type Error = crate::error::AppError;
+	type Future = BoxFuture<'static, std::result::Result<Self, Self::Error>>;
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
 		let Some(code) = req.cookie(SESSION_COOKIE) else {
-			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
+			return Box::pin(async { Err(AuthError::NotLoggedIn.into()) });
 		};
 		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
-			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
+			return Box::pin(async { Err(DatabaseError::InstanceError.into()) });
 		};
 
 		let code = code.value().to_string();
 		Box::pin(async move {
 			Self::try_from_string(code, db.get_ref()).await
+				.map_err(Into::into)
 		})
 	}
 }

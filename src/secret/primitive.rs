@@ -1,8 +1,8 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::error::{AuthError};
 use crate::database::Database;
-use crate::error::{AppErrorKind, Result};
 use crate::user::User;
 
 use super::{ChildSecretMetadata, SecretString, SecretType};
@@ -34,7 +34,7 @@ pub(super) struct InternalUserSecret<K: UserSecretKind> {
 
 impl<K: UserSecretKind> InternalUserSecret<K> {
 	/// Save the secret to the database
-	async fn save(&self, db: &Database) -> Result<()> {
+	async fn save(&self, db: &Database) -> anyhow::Result<()> {
 		let user = serde_json::to_string(&self.user)?;
 		let metadata = serde_json::to_string(&self.metadata)?;
 
@@ -52,7 +52,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	}
 
 	/// Get a secret from the database by code
-	async fn get(code: &SecretString, db: &Database) -> Result<Option<Self>> {
+	async fn get(code: &SecretString, db: &Database) -> anyhow::Result<Option<Self>> {
 		let row = sqlx::query!(
 			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code = ? AND expires_at > datetime('now')"#,
 			code
@@ -83,7 +83,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	}
 
 	/// Check if a user secret exists
-	pub async fn exists(code: &SecretString, db: &Database) -> Result<bool> {
+	pub async fn exists(code: &SecretString, db: &Database) -> anyhow::Result<bool> {
 		let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM user_secrets WHERE code = ?", code)
 			.fetch_one(db)
 		.await?;
@@ -92,7 +92,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	}
 
 	/// Remove a user secret by ID
-	pub async fn remove(code: &SecretString, db: &Database) -> Result<()> {
+	pub async fn remove(code: &SecretString, db: &Database) -> anyhow::Result<()> {
 		sqlx::query!("DELETE FROM user_secrets WHERE code = ?", code)
 			.execute(db)
 		.await?;
@@ -107,7 +107,7 @@ pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 /// Basic user secret operations
 impl<K: UserSecretKind> UserSecret<K> {
 	/// Create a new user secret that is bound to a user and has some metadata
-	pub async fn new(user: User, metadata: K::Metadata, db: &Database) -> Result<Self> {
+	pub async fn new(user: User, metadata: K::Metadata, db: &Database) -> anyhow::Result<Self> {
 		metadata.validate(db).await?;
 
 		let expires_at = chrono::Utc::now()
@@ -133,38 +133,38 @@ impl<K: UserSecretKind> UserSecret<K> {
 	///
 	/// Any failure will remove the secret from the db and return an error
 	/// This is useful for cleaning up expired secrets
-	pub async fn validate(&self, db: &Database) -> Result<()> {
+	pub async fn validate(&self, db: &Database) -> anyhow::Result<()> {
 		let prefix = K::PREFIX.as_short_str();
 		if !self.0.code.to_str_that_i_wont_print().starts_with(&format!("me_{prefix}_")) {
-			return Err(AppErrorKind::InvalidSecretType.into());
+			return Err(AuthError::InvalidSecretType.into());
 		}
 
 		if self.0.expires_at <= Utc::now().naive_utc() {
 			InternalUserSecret::<K>::remove(&self.0.code, db).await?;
-			return Err(AppErrorKind::ExpiredSecret.into());
+			return Err(AuthError::ExpiredSecret.into());
 		}
 
 		if !InternalUserSecret::<K>::exists(&self.0.code, db).await? {
-			return Err(AppErrorKind::InvalidSecret.into());
+			return Err(AuthError::InvalidSecret.into());
 		}
 
 		if self.0.metadata.validate(db).await.is_err() {
 			InternalUserSecret::<K>::remove(&self.0.code, db).await?;
-			return Err(AppErrorKind::InvalidSecretMetadata.into());
+			return Err(AuthError::InvalidSecretMetadata.into());
 		}
 
 		Ok(())
 	}
 
 	/// Just delete the secret from the db
-	pub async fn delete(self, db: &Database) -> Result<()> {
+	pub async fn delete(self, db: &Database) -> anyhow::Result<()> {
 		InternalUserSecret::<K>::remove(&self.0.code, db).await?;
 		Ok(())
 	}
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
-	pub async fn try_from_string(code: String, db: &Database) -> Result<Self> {
-		let internal_secret = InternalUserSecret::get(&code.try_into()?, db).await?.ok_or(AppErrorKind::InvalidSecret)?;
+	pub async fn try_from_string(code: String, db: &Database) -> anyhow::Result<Self> {
+		let internal_secret = InternalUserSecret::get(&code.try_into()?, db).await?.ok_or(AuthError::InvalidSecret)?;
 		let user_secret = Self(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)
@@ -189,7 +189,7 @@ P : UserSecretKind,
 M : MetadataKind,
 K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 {
-	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Database) -> Result<Self> {
+	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Database) -> anyhow::Result<Self> {
 		Self::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await
 	}
 
@@ -204,7 +204,7 @@ mod tests {
 
 	use super::*;
 
-	async fn setup_test_db() -> Result<Database> {
+	async fn setup_test_db() -> anyhow::Result<Database> {
 		// Use in-memory database for tests
 		init_database("sqlite::memory:").await
 	}

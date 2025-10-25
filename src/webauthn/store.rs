@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::Passkey;
 
 use crate::database::{Database, PasskeyRow};
-use crate::error::Result;
+use anyhow::Result;
 use crate::user::User;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

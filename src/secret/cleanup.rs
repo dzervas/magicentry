@@ -2,12 +2,10 @@ use chrono::Utc;
 
 use std::time::Duration as StdDuration;
 
-use crate::error::Result;
-
 /// Delete all expired secrets from the database.
 ///
 /// A secret is considered expired when `expires_at <= now()`.
-pub async fn cleanup_expired(db: &crate::Database) -> Result<()> {
+pub async fn cleanup_expired(db: &crate::Database) -> anyhow::Result<()> {
 	// TODO: Re-calculate expiration based on the config
 	let now = Utc::now().naive_utc();
 	sqlx::query!("DELETE FROM user_secrets WHERE expires_at <= ?", now)
@@ -45,7 +43,7 @@ mod tests {
 
 	use crate::database::init_database;
 
-	async fn setup_test_db() -> crate::error::Result<crate::Database> {
+	async fn setup_test_db() -> anyhow::Result<crate::Database> {
 		init_database("sqlite::memory:").await
 	}
 

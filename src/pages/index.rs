@@ -22,9 +22,9 @@ pub struct IndexPage {
 
 #[async_trait]
 impl Page for IndexPage {
-	async fn render_partial(&self, config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
+	fn render_partial(&self, config: &ConfigFile) -> Markup {
 		let layout = get_page_layout_from_config(config);
-		Ok(html! {
+		html! {
 			header {
 				p { b { (format!("Welcome back {}", self.email)) } }
 				button id="webauthn-register" { "Register PassKey" }
@@ -50,7 +50,7 @@ impl Page for IndexPage {
 				}
 			}
 			(script(&layout, "webauthn"))
-		})
+		}
 	}
 
 	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str {

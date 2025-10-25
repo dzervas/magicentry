@@ -12,9 +12,9 @@ pub struct LoginPage;
 
 #[async_trait]
 impl Page for LoginPage {
-	async fn render_partial(&self, config: &ConfigFile) -> Result<Markup, crate::pages::PageError> {
+	fn render_partial(&self, config: &ConfigFile) -> Markup {
 		let layout = get_page_layout_from_config(config);
-		Ok(html! {
+		html! {
 			h2 { (config.title) }
 
 			form action="" method="post" {
@@ -28,7 +28,7 @@ impl Page for LoginPage {
 				button type="submit" { "✉️ Login" }
 			}
 			(script(&layout, "webauthn"))
-		})
+		}
 	}
 }
 

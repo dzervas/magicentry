@@ -119,12 +119,12 @@ impl std::fmt::Display for SecretString {
 }
 
 impl TryFrom<String> for SecretString {
-	type Error = crate::error::Error;
+	type Error = crate::error::AppError;
 
 	fn try_from(value: String) -> Result<Self, Self::Error> {
 		let parts: Vec<_> = value.split('_').collect();
 		if parts.len() != 3 || parts[0] != "me" {
-			return Err(crate::error::AppErrorKind::InvalidSecret.into());
+			return Err(crate::error::AuthError::InvalidSecret.into());
 		}
 
 		let kind = match parts[1] {
@@ -138,7 +138,7 @@ impl TryFrom<String> for SecretString {
 			"ps" => SecretType::ProxySession,
 			"wa" => SecretType::WebAuthnAuth,
 			"wr" => SecretType::WebAuthnReg,
-			_ => return Err(crate::error::AppErrorKind::InvalidSecret.into()),
+			_ => return Err(crate::error::AuthError::InvalidSecret.into()),
 		};
 
 		Ok(Self(kind, parts[2].to_string()))

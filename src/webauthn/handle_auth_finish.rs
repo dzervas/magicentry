@@ -3,8 +3,9 @@ use actix_web::{post, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::*;
 
-use crate::error::{AppErrorKind, Response};
-use crate::secret::WebAuthnAuthSecret;
+use crate::error::{Response, AuthError};
+use anyhow::Context as _;
+use crate::secret::{WebAuthnAuthSecret, BrowserSessionSecret};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthFinishResponse {
@@ -18,13 +19,14 @@ pub async fn auth_finish(
 	auth: WebAuthnAuthSecret,
 	Json(req): Json<PublicKeyCredential>,
 ) -> Response {
-	let sk = webauthn.finish_passkey_authentication(&req, auth.metadata())?;
+	let sk = webauthn.finish_passkey_authentication(&req, auth.metadata())
+		.context("Failed to finish passkey authentication")?;
 
 	if !sk.user_verified() {
-		return Err(AppErrorKind::InvalidTargetUser.into());
+		return Err(AuthError::InvalidTargetUser.into());
 	}
 
-	let browser_session = auth.exchange(&db).await?;
+	let browser_session: BrowserSessionSecret = auth.exchange(&db).await?;
 	let cookie = (&browser_session).into();
 
 	// TODO: How to handle redirects?

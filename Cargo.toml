@@ -57,6 +57,8 @@ rsa = { version = "0.9", features = ["sha2"] }
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
 maud = { version = "0.27.0", features = ["actix-web"] }
 async-trait = "0.1"
+anyhow = "1.0"
+thiserror = "2.0"
 
 [dev-dependencies]
 actix-http = "3.11"

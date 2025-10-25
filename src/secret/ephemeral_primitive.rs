@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::user::User;
-use crate::error::Result;
+use anyhow::Result;
 
 use super::primitive::{InternalUserSecret, UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};

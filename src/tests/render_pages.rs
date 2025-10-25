@@ -47,7 +47,7 @@ fn create_mock_config() -> ConfigFile {
 }
 
 /// Helper function to render pages with mock config
-async fn render_with_mock_config<P>(page: P, filename: &str) -> Result<(), Box<dyn std::error::Error>>
+fn render_with_mock_config<P>(page: P, filename: &str) -> Result<(), Box<dyn std::error::Error>>
 where
     P: Page,
 {
@@ -58,7 +58,7 @@ where
     let mock_config = create_mock_config();
 
     // Manually implement the render logic using the mock config
-    let content = page.render_partial(&mock_config).await?;
+    let content = page.render_partial(&mock_config);
 
     // Create layout and render full page
     let layout = crate::pages::partials::PageLayout {
@@ -91,32 +91,32 @@ fn save_html(filename: &str, content: &str) -> Result<(), std::io::Error> {
 }
 
 /// Render and save error page
-async fn render_error_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_error_page() -> Result<(), Box<dyn std::error::Error>> {
     let error_page = ErrorPage {
         code: "404".to_string(),
         error: "Page Not Found".to_string(),
         description: "The page you're looking for doesn't exist.".to_string(),
     };
 
-    render_with_mock_config(error_page, "error.html").await
+    render_with_mock_config(error_page, "error.html")
 }
 
 /// Render and save login page
-async fn render_login_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_login_page() -> Result<(), Box<dyn std::error::Error>> {
     let login_page = LoginPage;
 
-    render_with_mock_config(login_page, "login.html").await
+    render_with_mock_config(login_page, "login.html")
 }
 
 /// Render and save login action page
-async fn render_login_action_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_login_action_page() -> Result<(), Box<dyn std::error::Error>> {
     let login_action_page = LoginActionPage;
 
-    render_with_mock_config(login_action_page, "login_action.html").await
+    render_with_mock_config(login_action_page, "login_action.html")
 }
 
 /// Render and save index page
-async fn render_index_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_index_page() -> Result<(), Box<dyn std::error::Error>> {
     let index_page = IndexPage {
         email: "user@example.com".to_string(),
         services: vec![
@@ -135,11 +135,11 @@ async fn render_index_page() -> Result<(), Box<dyn std::error::Error>> {
         ],
     };
 
-    render_with_mock_config(index_page, "index.html").await
+    render_with_mock_config(index_page, "index.html")
 }
 
 /// Render and save authorization page (OIDC)
-async fn render_authorize_page_oidc() -> Result<(), Box<dyn std::error::Error>> {
+fn render_authorize_page_oidc() -> Result<(), Box<dyn std::error::Error>> {
     let auth_page = AuthorizePage {
         client: "OAuth Client".to_string(),
         name: "John Doe".to_string(),
@@ -151,11 +151,11 @@ async fn render_authorize_page_oidc() -> Result<(), Box<dyn std::error::Error>> 
         link: Some("https://oauth.example.com/callback?code=abc123&state=xyz789".to_string()),
     };
 
-    render_with_mock_config(auth_page, "authorize_oidc.html").await
+    render_with_mock_config(auth_page, "authorize_oidc.html")
 }
 
 /// Render and save authorization page (SAML)
-async fn render_authorize_page_saml() -> Result<(), Box<dyn std::error::Error>> {
+fn render_authorize_page_saml() -> Result<(), Box<dyn std::error::Error>> {
     let auth_page = AuthorizePage {
         client: "SAML Service Provider".to_string(),
         name: "Jane Smith".to_string(),
@@ -167,7 +167,7 @@ async fn render_authorize_page_saml() -> Result<(), Box<dyn std::error::Error>> 
         link: None,
     };
 
-    render_with_mock_config(auth_page, "authorize_saml.html").await
+    render_with_mock_config(auth_page, "authorize_saml.html")
 }
 
 /// Create an index page to view all rendered examples
@@ -283,12 +283,12 @@ async fn render_pages() -> Result<(), Box<dyn std::error::Error>> {
     // Render all pages using the new Page trait
     println!("\n📄 Rendering pages with Page trait:");
 
-    render_error_page().await?;
-    render_login_page().await?;
-    render_login_action_page().await?;
-    render_index_page().await?;
-    render_authorize_page_oidc().await?;
-    render_authorize_page_saml().await?;
+    render_error_page()?;
+    render_login_page()?;
+    render_login_action_page()?;
+    render_index_page()?;
+    render_authorize_page_oidc()?;
+    render_authorize_page_saml()?;
 
     // Create viewer index
     create_viewer_index()?;

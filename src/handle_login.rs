@@ -35,7 +35,7 @@ async fn login(
 	}
 
 	// Unauthorized, show the login page
-	let login_page = LoginPage.render().await?;
+	let login_page = LoginPage.render().await;
 	Ok(HttpResponse::Ok().content_type(ContentType::html()).body(login_page.into_string()))
 }
 
