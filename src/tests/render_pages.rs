@@ -170,118 +170,9 @@ fn render_authorize_page_saml() -> Result<(), Box<dyn std::error::Error>> {
     render_with_mock_config(auth_page, "authorize_saml.html")
 }
 
-/// Create an index page to view all rendered examples
-fn create_viewer_index() -> Result<(), std::io::Error> {
-    let html = r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MagicEntry Pages - rendered examples</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .page-list { list-style: none; padding: 0; }
-        .page-list li { margin: 10px 0; }
-        .page-list a {
-            display: block;
-            padding: 15px;
-            background: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            text-decoration: none;
-            color: #333;
-            transition: background-color 0.2s;
-        }
-        .page-list a:hover { background: #e9e9e9; }
-        .description {
-            font-size: 0.9em;
-            color: #666;
-            margin-top: 5px;
-            font-style: italic;
-        }
-        .note {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-        }
-    </style>
-</head>
-<body>
-    <h1>MagicEntry Pages - Rendered Examples</h1>
-
-    <div class="note">
-        <strong>Note:</strong> These are basic HTML renderings without styling.
-        The actual pages would have CSS styling applied from the main.css file.
-    </div>
-
-    <h2>Available Pages:</h2>
-    <ul class="page-list">
-        <li>
-            <a href="error.html">
-                <strong>Error Page (404)</strong>
-                <div class="description">Shows error handling with custom error messages</div>
-            </a>
-        </li>
-        <li>
-            <a href="login.html">
-                <strong>Login Page</strong>
-                <div class="description">User login form with email input and WebAuthn support</div>
-            </a>
-        </li>
-        <li>
-            <a href="login_action.html">
-                <strong>Login Action Page</strong>
-                <div class="description">Shown after user submits login form (email sent)</div>
-            </a>
-        </li>
-        <li>
-            <a href="index.html">
-                <strong>Index Page</strong>
-                <div class="description">Main dashboard after successful login with service list</div>
-            </a>
-        </li>
-        <li>
-            <a href="authorize_oidc.html">
-                <strong>OAuth Authorization Page</strong>
-                <div class="description">OAuth2/OIDC consent screen for third-party apps</div>
-            </a>
-        </li>
-        <li>
-            <a href="authorize_saml.html">
-                <strong>SAML Authorization Page</strong>
-                <div class="description">SAML consent screen with form submission</div>
-            </a>
-        </li>
-    </ul>
-
-    <h2>Page Trait Features:</h2>
-    <ul>
-        <li>✅ Async rendering with automatic config integration</li>
-        <li>✅ Type-safe custom structs for each page type</li>
-        <li>✅ Compile-time HTML validation with maud</li>
-        <li>✅ Minimal, semantic HTML without styling</li>
-        <li>✅ Config values (title, path_prefix) from global CONFIG</li>
-        <li>✅ Backward compatibility with legacy render functions</li>
-    </ul>
-</body>
-</html>"#;
-
-    save_html("viewer.html", html)
-}
-
 #[tokio::test]
 async fn render_pages() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Starting MagicEntry Page Rendering Example");
-    println!("=====================================");
-
-    // Create output directory
     ensure_output_dir()?;
-    println!("📁 Created output directory: rendered_pages/");
-
-    // Render all pages using the new Page trait
-    println!("\n📄 Rendering pages with Page trait:");
 
     render_error_page()?;
     render_login_page()?;
@@ -289,15 +180,6 @@ async fn render_pages() -> Result<(), Box<dyn std::error::Error>> {
     render_index_page()?;
     render_authorize_page_oidc()?;
     render_authorize_page_saml()?;
-
-    // Create viewer index
-    create_viewer_index()?;
-
-    println!("\n✨ All pages rendered successfully!");
-    println!("\n📂 Open 'rendered_pages/viewer.html' in your browser to see all examples");
-    println!("🌐 Each page shows the basic HTML structure without CSS styling");
-    println!("🔗 The actual pages would have full styling from main.css");
-    println!("🚀 Pages are rendered using the new async Page trait with config integration");
 
     Ok(())
 }

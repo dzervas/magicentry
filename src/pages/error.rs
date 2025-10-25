@@ -38,11 +38,20 @@ impl ErrorPage {
 		};
 
 		// TODO: I don't like this, but I'm not sure how to do it otherwise
+		let mut i = 0;
 		let config = loop {
 			if let Ok(config) = CONFIG.try_read() {
 				break config;
 			}
+
 			std::thread::sleep(std::time::Duration::from_millis(1));
+			i += 1;
+			if i > 10 {
+				break render_page(&PageLayout {
+					title: "Error".to_string(),
+					path_prefix: "/".to_string(),
+				});
+			}
 		};
 
 		let content = page.render_partial(&config);
