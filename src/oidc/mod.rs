@@ -69,6 +69,7 @@ use crate::secret::LoginLinkSecret;
 
 	#[actix_web::test]
 	async fn test_oidc() {
+		let config = crate::CONFIG.read().await.clone().into();
 		let db = &db_connect().await;
 		let user = get_valid_user().await;
 		let jwt_secret = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
@@ -119,7 +120,7 @@ use crate::secret::LoginLinkSecret;
 				nonce: None,
 			}),
 		};
-		let token = LoginLinkSecret::new(user, Some(login_redirect), db).await.unwrap();
+		let token = LoginLinkSecret::new(user, Some(login_redirect), &config, db).await.unwrap();
 
 		let req = actix_test::TestRequest::get()
 			.uri(&token.get_login_url())

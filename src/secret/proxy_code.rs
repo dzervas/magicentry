@@ -1,8 +1,9 @@
+use anyhow::Context as _;
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
+use crate::config::LiveConfig;
 use crate::error::{AuthError, DatabaseError, ProxyError};
-use anyhow::Context as _;
 use crate::{CONFIG, PROXY_ORIGIN_HEADER, PROXY_QUERY_CODE};
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -18,7 +19,7 @@ impl UserSecretKind for ProxyCodeSecretKind {
 	const PREFIX: SecretType = SecretType::ProxyCode;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
-	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration { config.session_duration }
 }
 
 pub type ProxyCodeSecret = EphemeralUserSecret<ProxyCodeSecretKind, ProxySessionSecretKind>;

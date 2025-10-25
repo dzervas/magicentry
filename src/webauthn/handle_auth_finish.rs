@@ -1,10 +1,11 @@
 use actix_web::web::Json;
 use actix_web::{post, web, HttpResponse};
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::*;
 
+use crate::config::LiveConfig;
 use crate::error::{Response, AuthError};
-use anyhow::Context as _;
 use crate::secret::{WebAuthnAuthSecret, BrowserSessionSecret};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -14,6 +15,7 @@ pub struct AuthFinishResponse {
 
 #[post("/webauthn/auth/finish")]
 pub async fn auth_finish(
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	webauthn: web::Data<Webauthn>,
 	auth: WebAuthnAuthSecret,
@@ -26,7 +28,7 @@ pub async fn auth_finish(
 		return Err(AuthError::InvalidTargetUser.into());
 	}
 
-	let browser_session: BrowserSessionSecret = auth.exchange(&db).await?;
+	let browser_session: BrowserSessionSecret = auth.exchange(&config, &db).await?;
 	let cookie = (&browser_session).into();
 
 	// TODO: How to handle redirects?

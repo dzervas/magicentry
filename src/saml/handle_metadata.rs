@@ -1,20 +1,18 @@
 use actix_web::{get, HttpResponse};
+use anyhow::Context as _;
 use serde::Serialize;
 
+use crate::config::LiveConfig;
 use crate::error::Response;
-use crate::CONFIG;
-use anyhow::Context as _;
 
 use super::entity_descriptor::EntityDescriptor;
 
 
 #[get("/saml/metadata")]
-pub async fn metadata() -> Response {
-	let config = CONFIG.read().await;
+pub async fn metadata(config: LiveConfig) -> Response {
 	let external_url = config.external_url.clone();
 	let cert_x509 = config.get_saml_cert()
 		.context("Failed to get SAML certificate from configuration")?;
-	drop(config);
 
 	let discovery = EntityDescriptor::new(&external_url, &cert_x509);
 

@@ -1,6 +1,7 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+use crate::config::LiveConfig;
 use crate::error::{AuthError};
 use crate::database::Database;
 use crate::user::User;
@@ -15,7 +16,7 @@ pub trait UserSecretKind: PartialEq + Send + Sync {
 	const PREFIX: SecretType;
 	type Metadata: MetadataKind;
 
-	async fn duration() -> chrono::Duration;
+	async fn duration(config: &LiveConfig) -> chrono::Duration;
 }
 
 #[derive(PartialEq, Serialize, Deserialize)]
@@ -23,7 +24,7 @@ pub(super) struct InternalUserSecret<K: UserSecretKind> {
 	/// The primary key and value of the token. A random string filled by `crate::utils::random_string()`.
 	code: SecretString,
 	/// The user it authenticates
-	#[serde(with = "crate::user::as_string")]
+	// #[serde(with = "crate::user::as_string")]
 	user: User,
 	/// The time the token expires at
 	expires_at: NaiveDateTime,
@@ -107,12 +108,12 @@ pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 /// Basic user secret operations
 impl<K: UserSecretKind> UserSecret<K> {
 	/// Create a new user secret that is bound to a user and has some metadata
-	pub async fn new(user: User, metadata: K::Metadata, db: &Database) -> anyhow::Result<Self> {
+	pub async fn new(user: User, metadata: K::Metadata, config: &LiveConfig, db: &Database) -> anyhow::Result<Self> {
 		metadata.validate(db).await?;
 
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
-			.checked_add_signed(K::duration().await)
+			.checked_add_signed(K::duration(config).await)
 			.unwrap_or_else(|| panic!("Couldn't generate expiry for {:?}", K::PREFIX));
 
 		let internal_secret = InternalUserSecret {
@@ -189,8 +190,8 @@ P : UserSecretKind,
 M : MetadataKind,
 K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 {
-	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &Database) -> anyhow::Result<Self> {
-		Self::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), db).await
+	pub async fn new_child(parent: UserSecret<P>, metadata: M, config: &LiveConfig, db: &Database) -> anyhow::Result<Self> {
+		Self::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), config, db).await
 	}
 
 	pub const fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
@@ -219,6 +220,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_user_secret_crud() {
+		let config = crate::CONFIG.read().await.clone().into();
 		let db = setup_test_db().await.unwrap();
 		let user = crate::user::User {
 			email: "hello@world.com".to_string(),
@@ -227,7 +229,7 @@ mod tests {
 			realms: vec!["test".to_string()],
 		};
 
-		let login_link = LoginLinkSecret::new(user.clone(), None, &db).await.unwrap();
+		let login_link = LoginLinkSecret::new(user.clone(), None, &config, &db).await.unwrap();
 		let login_link_code = login_link
 			.get_login_url()
 			.split('/')
@@ -243,7 +245,7 @@ mod tests {
 		let db_fetched = db_fetch(retrieved.code().clone(), &db).await;
 		assert_eq!(db_fetched, 1);
 
-		let session = retrieved.exchange(&db).await.unwrap();
+		let session = retrieved.exchange(&config, &db).await.unwrap();
 		let session_code = session.code().clone();
 		let db_fetched = db_fetch(session.code().clone(), &db).await;
 		assert_eq!(db_fetched, 1);

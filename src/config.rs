@@ -4,7 +4,10 @@
 //! YAML was chosen because the main target group are devops-adjacent people,
 //! but serde makes sure that we're not married to that choice.
 
+use std::ops::Deref;
 use std::path::Path;
+use std::sync::Arc;
+use futures::future::BoxFuture;
 
 use actix_web::dev::ConnectionInfo;
 use chrono::Duration;
@@ -182,7 +185,8 @@ impl Config {
 		if new_config.users_file != config.users_file {
 			error!("Users file path changed, live watching new paths is not supported, please restart the server");
 		}
-		*config = new_config;
+		// XXX: Does this memleak? I don't think so, but I'm not sure
+		*config = Arc::new(new_config);
 		drop(config);
 
 		Ok(())
@@ -247,6 +251,36 @@ impl Config {
 			})
 			.collect::<String>()
 			.replace("\n", ""))
+	}
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct LiveConfig(Arc<Config>);
+
+impl actix_web::FromRequest for LiveConfig {
+	type Error = crate::error::AppError;
+	type Future = BoxFuture<'static, Result<Self, Self::Error>>;
+
+	fn from_request(_: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
+		Box::pin(async {
+			let config = CONFIG.read().await.clone();
+			Ok(Self(config))
+		})
+	}
+}
+
+impl From<Arc<Config>> for LiveConfig {
+	fn from(config: Arc<Config>) -> Self {
+		Self(config)
+	}
+}
+
+impl Deref for LiveConfig {
+	type Target = Config;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
 	}
 }
 

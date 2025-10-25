@@ -2,6 +2,7 @@ use actix_web::cookie::Cookie;
 use actix_web::{get, web, HttpResponse};
 use tracing::info;
 
+use crate::config::LiveConfig;
 use crate::error::Response;
 use crate::secret::ProxySessionSecret;
 use crate::secret::ProxyCodeSecret;
@@ -20,6 +21,7 @@ use crate::{CONFIG, PROXY_SESSION_COOKIE};
 /// documented in [the example](https://magicentry.rs/#/installation?id=example-valuesyaml)
 #[get("/auth-url/status")]
 async fn status(
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
@@ -31,7 +33,7 @@ async fn status(
 	} else if let Some(proxy_code) = proxy_code_opt {
 		info!("Proxied login for {}", &proxy_code.user().email);
 		let proxy_session: ProxySessionSecret = proxy_code
-			.exchange_sibling(&db)
+			.exchange_sibling(&config, &db)
 			.await?;
 
 		cookie = Some((&proxy_session).into());

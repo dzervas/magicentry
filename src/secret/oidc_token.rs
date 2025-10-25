@@ -1,6 +1,7 @@
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
+use crate::config::LiveConfig;
 use crate::error::{AuthError, DatabaseError};
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -14,7 +15,7 @@ impl UserSecretKind for OIDCTokenSecretKind {
 	const PREFIX: SecretType = SecretType::OIDCToken;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
-	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration { config.session_duration }
 }
 
 pub type OIDCTokenSecret = UserSecret<OIDCTokenSecretKind>;

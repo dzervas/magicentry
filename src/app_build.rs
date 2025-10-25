@@ -17,7 +17,7 @@ pub async fn build(
 	mailer: Option<SmtpTransport>,
 	http_client: Option<reqwest::Client>,
 ) -> (Vec<SocketAddr>, actix_web::dev::Server) {
-	let config = CONFIG.read().await;
+	let config = CONFIG.read().await.clone();
 	let webauthn_enable = config.webauthn_enable;
 	let title = config.title.clone();
 	let external_url = config.external_url.clone();
@@ -26,7 +26,6 @@ pub async fn build(
 	let listen = listen.unwrap_or_else(|| {
 		format!("{}:{}", config.listen_host.clone(), config.listen_port)
 	});
-	drop(config);
 
 	let server = HttpServer::new(move || {
 		let mut app = App::new()

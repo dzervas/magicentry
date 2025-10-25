@@ -8,6 +8,7 @@
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::{post, web, HttpResponse};
+use anyhow::Context as _;
 use formatx::formatx;
 use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
@@ -15,14 +16,13 @@ use tracing::{info, warn};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
+use crate::config::{Config, LiveConfig};
 use crate::error::Response;
 use crate::user::User;
-use anyhow::Context as _;
 use crate::secret::login_link::LoginLinkRedirect;
 use crate::secret::LoginLinkSecret;
 use crate::pages::{LoginActionPage, Page};
-use crate::{SmtpTransport, CONFIG};
+use crate::{SmtpTransport};
 
 /// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -35,6 +35,7 @@ pub struct LoginInfo {
 #[allow(clippy::cognitive_complexity)]
 async fn login_post(
 	conn: ConnectionInfo,
+	config: LiveConfig,
 	web::Form(form): web::Form<LoginInfo>,
 	web::Query(login_redirect): web::Query<LoginLinkRedirect>,
 	db: web::Data<crate::Database>,
@@ -44,7 +45,7 @@ async fn login_post(
 	let login_action_page = LoginActionPage.render().await;
 
 	// Return 200 to avoid leaking valid emails
-	let Some(user) = User::from_email(&form.email).await else {
+	let Some(user) = User::from_email(&config, &form.email) else {
 		return Ok(HttpResponse::Ok()
 			.content_type(ContentType::html())
 			.body(login_action_page.into_string()))
@@ -54,13 +55,13 @@ async fn login_post(
 	let link = LoginLinkSecret::new(
 		user.clone(),
 		login_redirect.into_opt().await,
+		&config,
 		&db
 	).await?;
 	let base_url = Config::url_from_request(conn).await;
 	let magic_link = base_url + &link.get_login_url();
 	let name = &user.name.clone();
 	let username = &user.username.clone();
-	let config = CONFIG.read().await;
 
 	#[cfg(debug_assertions)]
 	info!("Link: {}", &magic_link);

@@ -2,6 +2,7 @@ use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
+use crate::config::LiveConfig;
 use crate::error::{DatabaseError, WebAuthnError};
 use crate::webauthn::WEBAUTHN_REG_COOKIE;
 
@@ -17,7 +18,7 @@ impl UserSecretKind for WebAuthnRegSecretKind {
 	const PREFIX: SecretType = SecretType::WebAuthnReg;
 	type Metadata = webauthn_rs::prelude::PasskeyRegistration;
 
-	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration { config.session_duration }
 }
 
 pub type WebAuthnRegSecret = EphemeralUserSecret<WebAuthnRegSecretKind, BrowserSessionSecretKind>;

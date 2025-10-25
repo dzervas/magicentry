@@ -1,15 +1,14 @@
 use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
+use anyhow::Context as _;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
+use crate::config::{Config, LiveConfig};
 use crate::error::{OidcError, ProxyError, Response};
-use anyhow::Context as _;
 use crate::saml::authn_request::AuthnRequest;
 use crate::secret::BrowserSessionSecret;
 use crate::pages::{AuthorizePage, Page};
-use crate::CONFIG;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SAMLRequest {
@@ -29,6 +28,7 @@ pub struct SAMLResponse {
 
 #[get("/saml/sso")]
 pub async fn sso(
+	config: LiveConfig,
 	conn: ConnectionInfo,
 	web::Query(data): web::Query<SAMLRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>
@@ -49,7 +49,6 @@ pub async fn sso(
 			.finish());
 	};
 
-	let config = CONFIG.read().await;
 	let service = config.services.from_saml_entity_id(&authn_request.issuer)
 		.ok_or(ProxyError::InvalidSAMLRedirectUrl)?;
 

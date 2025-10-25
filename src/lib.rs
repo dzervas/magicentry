@@ -46,7 +46,7 @@
 //! It should automatically watch for file changes and re-do all the tests,
 //! a nice way to fix some bugs
 
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use tokio::sync::RwLock;
 
@@ -123,4 +123,7 @@ pub static CONFIG_FILE: LazyLock<String> = LazyLock::new(|| "config.sample.yaml"
 /// to allow for concurrent access to the config. I'm not proud but here we are
 // Can this be kept in an actix app state? If so, how could the kube side
 // access it - and even worse, write to it?
-pub static CONFIG: LazyLock<RwLock<Config>> = LazyLock::new(|| RwLock::new(Config::default()));
+pub static CONFIG: LazyLock<RwLock<Arc<Config>>> = LazyLock::new(RwLock::default);
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+pub struct InFlightConfig(Arc<Config>);

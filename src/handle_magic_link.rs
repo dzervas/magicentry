@@ -2,24 +2,26 @@ use actix_web::http::header;
 use actix_web::{get, web, HttpResponse};
 use tracing::info;
 
+use crate::config::LiveConfig;
 use crate::error::Response;
 use crate::secret::{LoginLinkSecret, BrowserSessionSecret};
 
 #[get("/login/{magic}")]
 async fn magic_link(
+	config: LiveConfig,
 	login_secret: LoginLinkSecret,
 	db: web::Data<crate::Database>,
 ) -> Response {
 	info!("User {} logged in", &login_secret.user().email);
 	let login_redirect_opt = login_secret.metadata().clone();
-	let browser_session: BrowserSessionSecret = login_secret.exchange(&db).await?;
+	let browser_session: BrowserSessionSecret = login_secret.exchange(&config, &db).await?;
 	let cookie = (&browser_session).into();
 
 	// Handle post-login redirect URLs from the cookie set by OIDC/SAML/auth-url
 	// These can be configured through either the service.<name>.auth_url.origins, service.<name>.saml.redirect_urls or service.<name>.oidc.redirect_urls
 	// redirect_url = login_secret.redirect_url(&db).await?;
 	let redirect_url = if let Some(login_redirect) = login_redirect_opt {
-		login_redirect.into_redirect_url(Some(browser_session), &db).await?
+		login_redirect.into_redirect_url(Some(browser_session), &config, &db).await?
 	} else {
 		"/".to_string()
 	};
@@ -40,6 +42,7 @@ mod tests {
 
 	#[actix_web::test]
 	async fn test_login_link() {
+		let config = crate::CONFIG.read().await.clone().into();
 		let db = &db_connect().await;
 		let user = get_valid_user().await;
 		let app = actix_test::init_service(
@@ -49,7 +52,7 @@ mod tests {
 		)
 		.await;
 
-		let token = LoginLinkSecret::new(user, None, db).await.unwrap();
+		let token = LoginLinkSecret::new(user, None, &config, db).await.unwrap();
 
 		// Assuming a valid session exists in the database
 		let req = actix_test::TestRequest::get()

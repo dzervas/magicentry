@@ -8,14 +8,14 @@ use actix_web::{get, HttpResponse};
 use crate::error::Response;
 use crate::secret::BrowserSessionSecret;
 use crate::pages::{IndexPage, ServiceInfo, Page};
-use crate::CONFIG;
+use crate::config::LiveConfig;
 
 #[get("/")]
 async fn index(
 	browser_session: BrowserSessionSecret,
+	config: LiveConfig,
 ) -> Response {
 	// Render the index page
-	let config = CONFIG.read().await;
 	let realmed_services = config.services.from_user(browser_session.user());
 	let services: Vec<ServiceInfo> = realmed_services.0.into_iter()
 		.map(|service| ServiceInfo {
@@ -64,6 +64,7 @@ mod tests {
 
 	#[actix_web::test]
 	async fn test_index() {
+		let config = crate::CONFIG.read().await.clone().into();
 		let db = &db_connect().await;
 		let user = get_valid_user().await;
 
@@ -82,7 +83,7 @@ mod tests {
 		assert_eq!(resp.headers().get("Location").unwrap(), "/login");
 
 		// Generate a link
-		let login_link = LoginLinkSecret::new(user, None, db).await.unwrap();
+		let login_link = LoginLinkSecret::new(user, None, &config, db).await.unwrap();
 		let login_link_url = login_link.get_login_url();
 		eprintln!("Login link: {login_link_url}");
 
@@ -108,7 +109,6 @@ mod tests {
 		let resp = actix_test::call_service(&app, req).await;
 		println!("res: {resp:?}");
 		assert_eq!(resp.status(), StatusCode::OK);
-		let config = CONFIG.read().await;
 		assert_eq!(
 			resp.headers()
 				.get(config.auth_url_user_header.as_str())
@@ -121,7 +121,6 @@ mod tests {
 				.unwrap(),
 			"valid@example.com"
 		);
-		drop(config);
 
 		// Test unauthenticated request again
 		let req = actix_test::TestRequest::get().uri("/").to_request();

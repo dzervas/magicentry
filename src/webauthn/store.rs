@@ -8,7 +8,7 @@ use crate::user::User;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasskeyStore {
 	pub id: Option<i64>,
-	#[serde(with = "crate::user::as_string")]
+	// #[serde(with = "crate::user::as_string")]
 	pub user: User,
 	#[serde(with = "as_string")]
 	pub passkey: Passkey,

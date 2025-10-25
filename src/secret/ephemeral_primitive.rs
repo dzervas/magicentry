@@ -1,12 +1,13 @@
 use std::marker::PhantomData;
 
+use anyhow::Result;
 use chrono::NaiveDateTime;
-
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+
+use crate::config::LiveConfig;
 use crate::user::User;
-use anyhow::Result;
 
 use super::primitive::{InternalUserSecret, UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};
@@ -15,14 +16,14 @@ use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};
 pub struct EphemeralUserSecret<K: UserSecretKind, ExchangeTo: UserSecretKind>(UserSecret<K>, PhantomData<ExchangeTo>);
 
 impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, ExchangeTo> {
-	pub async fn new(user: User, metadata: K::Metadata, db: &crate::Database) -> Result<Self> {
-		Ok(Self(UserSecret::new(user, metadata, db).await?, PhantomData))
+	pub async fn new(user: User, metadata: K::Metadata, config: &LiveConfig, db: &crate::Database) -> Result<Self> {
+		Ok(Self(UserSecret::new(user, metadata, config, db).await?, PhantomData))
 	}
 
-	pub async fn exchange_with_metadata(self, db: &crate::Database, metadata: <ExchangeTo as UserSecretKind>::Metadata) -> Result<UserSecret<ExchangeTo>> {
+	pub async fn exchange_with_metadata(self, config: &LiveConfig, db: &crate::Database, metadata: <ExchangeTo as UserSecretKind>::Metadata) -> Result<UserSecret<ExchangeTo>> {
 		self.0.validate(db).await?;
 
-		let new_secret = UserSecret::new(self.0.user().clone(), metadata, db).await?;
+		let new_secret = UserSecret::new(self.0.user().clone(), metadata, config, db).await?;
 		InternalUserSecret::<K>::remove(self.0.code(), db).await?;
 
 		Ok(new_secret)
@@ -41,8 +42,8 @@ impl<K, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 	K : UserSecretKind,
 	ExchangeTo : UserSecretKind<Metadata=EmptyMetadata>,
 {
-	pub async fn exchange(self, db: &crate::Database) -> Result<UserSecret<ExchangeTo>> {
-		self.exchange_with_metadata(db, EmptyMetadata()).await
+	pub async fn exchange(self, config: &LiveConfig, db: &crate::Database) -> Result<UserSecret<ExchangeTo>> {
+		self.exchange_with_metadata(config, db, EmptyMetadata()).await
 	}
 }
 
@@ -52,8 +53,8 @@ impl<P, K, M, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 	ExchangeTo : UserSecretKind
 {
-	pub async fn new_child(parent: UserSecret<P>, metadata: M, db: &crate::Database) -> Result<Self> {
-		Ok(Self(UserSecret::<K>::new_child(parent, metadata, db).await?, PhantomData))
+	pub async fn new_child(parent: UserSecret<P>, metadata: M, config: &LiveConfig, db: &crate::Database) -> Result<Self> {
+		Ok(Self(UserSecret::<K>::new_child(parent, metadata, config, db).await?, PhantomData))
 	}
 
 	pub const fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata().metadata() }
@@ -65,13 +66,13 @@ impl<K, M, P, ExchangeTo> EphemeralUserSecret<K, ExchangeTo> where
 	K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
 	ExchangeTo : UserSecretKind<Metadata=ChildSecretMetadata<P, EmptyMetadata>>,
 {
-	pub async fn exchange_sibling(self, db: &crate::Database) -> Result<UserSecret<ExchangeTo>> {
+	pub async fn exchange_sibling(self, config: &LiveConfig, db: &crate::Database) -> Result<UserSecret<ExchangeTo>> {
 		self.0.validate(db).await?;
 		InternalUserSecret::<K>::remove(self.0.code(), db).await?;
 		let user = self.0.user().clone();
 		let metadata = self.0.take_metadata().into_empty();
 
-		let new_secret = UserSecret::new(user, metadata, db).await?;
+		let new_secret = UserSecret::new(user, metadata, config, db).await?;
 
 		Ok(new_secret)
 	}

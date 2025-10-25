@@ -7,6 +7,7 @@
 use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 
+use crate::config::LiveConfig;
 use crate::error::Response;
 use crate::secret::login_link::LoginLinkRedirect;
 use crate::secret::BrowserSessionSecret;
@@ -14,6 +15,7 @@ use crate::pages::{LoginPage, Page};
 
 #[get("/login")]
 async fn login(
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	web::Query(login_redirect): web::Query<LoginLinkRedirect>,
@@ -22,7 +24,7 @@ async fn login(
 	if browser_session_opt.is_some() {
 		// Already authorized, back to the index OR redirect to the service
 		// Make sure that the redirect URL is valid (based on redirect_urls and origins)
-		let Ok(redirect_url) = login_redirect.into_redirect_url(browser_session_opt, &db).await else {
+		let Ok(redirect_url) = login_redirect.into_redirect_url(browser_session_opt, &config, &db).await else {
 			// If not, back to index
 			return Ok(HttpResponse::Found()
 				.append_header(("Location", "/"))

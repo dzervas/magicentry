@@ -8,7 +8,9 @@
 //! actix-web server and updates the global config file in the background.
 
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
+use anyhow::Context;
 use futures::TryStreamExt;
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::api::networking::v1::Ingress;
@@ -179,7 +181,8 @@ impl IngressConfig {
 
 		// Take the write lock at the last possible moment and drop it
 		// as soon as possible to avoid blocking other threads/contexts
-		let mut config = CONFIG.write().await;
+		let mut config_ref = CONFIG.write().await;
+		let config = Arc::get_mut(&mut config_ref).context("Failed to get mutable reference to config")?;
 		if config.services.get(name).is_none() {
 			tracing::info!("Adding service {name} to config");
 			config.services.0.push(service.clone());
@@ -187,7 +190,6 @@ impl IngressConfig {
 			tracing::info!("Updating service {name} in config");
 			*existing_service = service.clone();
 		}
-		drop(config);
 
 		Ok(())
 	}

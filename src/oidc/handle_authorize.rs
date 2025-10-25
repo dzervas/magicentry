@@ -3,10 +3,11 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
 use actix_web::{get, post, web, HttpResponse, Responder};
+use anyhow::Context as _;
 use tracing::info;
 
+use crate::config::LiveConfig;
 use crate::error::{OidcError, Response};
-use anyhow::Context as _;
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 use crate::pages::{AuthorizePage, Page};
 use crate::config::Config;
@@ -16,6 +17,7 @@ use super::AuthorizeRequest;
 
 async fn authorize(
 	conn: ConnectionInfo,
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	auth_req: AuthorizeRequest,
 	browser_session_opt: Option<BrowserSessionSecret>,
@@ -35,7 +37,7 @@ async fn authorize(
 			.finish());
 	};
 
-	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &db).await?;
+	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &config, &db).await?;
 
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?
@@ -82,19 +84,21 @@ async fn authorize(
 #[get("/oidc/authorize")]
 pub async fn authorize_get(
 	conn: ConnectionInfo,
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	data: web::Query<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
-	authorize(conn, db, data.into_inner(), browser_session_opt).await
+	authorize(conn, config, db, data.into_inner(), browser_session_opt).await
 }
 
 #[post("/oidc/authorize")]
 pub async fn authorize_post(
 	conn: ConnectionInfo,
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	data: web::Form<AuthorizeRequest>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 ) -> impl Responder {
-	authorize(conn, db, data.into_inner(), browser_session_opt).await
+	authorize(conn, config, db, data.into_inner(), browser_session_opt).await
 }

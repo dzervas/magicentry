@@ -1,14 +1,14 @@
 use actix_web::dev::ConnectionInfo;
 use actix_web::{post, web, HttpResponse};
 use actix_web_httpauth::extractors::basic::BasicAuth;
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use jsonwebtoken::EncodingKey;
-use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use base64::{Engine as _, engine::general_purpose};
+use tracing::{debug, info};
 
-use crate::config::Config;
+use crate::config::{Config, LiveConfig};
 use crate::error::{AuthError, OidcError, Response};
 use crate::secret::OIDCAuthCodeSecret;
 use crate::{generate_cors_preflight, CONFIG};
@@ -102,6 +102,7 @@ generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 #[post("/oidc/token")]
 pub async fn token(
 	conn: ConnectionInfo,
+	config: LiveConfig,
 	db: web::Data<crate::Database>,
 	web::Form(token_req): web::Form<TokenRequest>,
 	jwt_encoding_key: web::Data<EncodingKey>,
@@ -121,7 +122,6 @@ pub async fn token(
 			|basic_creds| basic_creds.user_id().to_string()
 		);
 
-	let config = CONFIG.read().await;
 	let mut service = config
 		.services
 		.from_oidc_client_id(&client_id)
@@ -182,7 +182,7 @@ pub async fn token(
 	let id_token = auth_req
 		.generate_id_token(oidc_authcode.user(), base_url, jwt_encoding_key.as_ref())
 		.await?;
-	let oidc_token = oidc_authcode.exchange_sibling(&db).await?;
+	let oidc_token = oidc_authcode.exchange_sibling(&config, &db).await?;
 
 	let response = TokenResponse {
 		access_token: oidc_token.code().to_str_that_i_wont_print(),
