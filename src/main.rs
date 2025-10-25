@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-use magicentry::config::ConfigFile;
+use magicentry::config::Config;
 use magicentry::secret::cleanup::spawn_cleanup_job;
 pub use magicentry::*;
 
@@ -43,7 +43,7 @@ pub async fn main() -> std::io::Result<()> {
 	#[cfg(debug_assertions)]
 	tracing::warn!("Running in debug mode, all magic links will be printed to the console.");
 
-	ConfigFile::reload()
+	Config::reload()
 		.await
 		.expect("Failed to load config file");
 
@@ -72,7 +72,7 @@ pub async fn main() -> std::io::Result<()> {
 
 	let (_addrs, server) = crate::app_build::build(None, db.clone(), mailer, http_client).await;
 
-	let _config_watcher = config::ConfigFile::watch();
+	let _config_watcher = config::Config::watch();
 	spawn_cleanup_job(db.clone());
 
 	#[cfg(feature = "kube")]

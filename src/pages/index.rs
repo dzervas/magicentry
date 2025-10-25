@@ -4,7 +4,7 @@ use maud::{Markup, html};
 use async_trait::async_trait;
 use crate::pages::partials::{script, PageLayout};
 use crate::pages::Page;
-use crate::config::ConfigFile;
+use crate::config::Config;
 
 /// Service information for index page
 #[derive(Debug, Clone)]
@@ -22,7 +22,7 @@ pub struct IndexPage {
 
 #[async_trait]
 impl Page for IndexPage {
-	fn render_partial(&self, config: &ConfigFile) -> Markup {
+	fn render_partial(&self, config: &Config) -> Markup {
 		let layout = get_page_layout_from_config(config);
 		html! {
 			header {
@@ -53,17 +53,17 @@ impl Page for IndexPage {
 		}
 	}
 
-	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
+	fn get_title<'a>(&'a self, config: &'a Config) -> &'a str {
 		&config.title
 	}
 
-	fn get_path_prefix<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
+	fn get_path_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
 		&config.path_prefix
 	}
 }
 
 /// Helper function to create [`PageLayout`] from config
-fn get_page_layout_from_config(config: &ConfigFile) -> PageLayout {
+fn get_page_layout_from_config(config: &Config) -> PageLayout {
 	let path_prefix = if config.path_prefix.ends_with('/') {
 		&config.path_prefix[..config.path_prefix.len() - 1]
 	} else {

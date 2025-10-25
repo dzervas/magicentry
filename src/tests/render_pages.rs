@@ -5,12 +5,12 @@
 
 use std::path::Path;
 use std::fs;
-use crate::config::ConfigFile;
+use crate::config::Config;
 use crate::pages::*;
 
 /// Mock configuration for testing
-fn create_mock_config() -> ConfigFile {
-    ConfigFile {
+fn create_mock_config() -> Config {
+    Config {
         database_url: "sqlite::memory:".to_string(),
         listen_host: "127.0.0.1".to_string(),
         listen_port: 8080,
@@ -47,10 +47,7 @@ fn create_mock_config() -> ConfigFile {
 }
 
 /// Helper function to render pages with mock config
-fn render_with_mock_config<P>(page: P, filename: &str) -> Result<(), Box<dyn std::error::Error>>
-where
-    P: Page,
-{
+fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> anyhow::Result<()> {
     // For this example, we'll simulate the global CONFIG with a local Arc<RwLock>
     // In a real application, the global CONFIG would be properly initialized
 
@@ -91,32 +88,32 @@ fn save_html(filename: &str, content: &str) -> Result<(), std::io::Error> {
 }
 
 /// Render and save error page
-fn render_error_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_error_page() -> anyhow::Result<()> {
     let error_page = ErrorPage {
         code: "404".to_string(),
         error: "Page Not Found".to_string(),
         description: "The page you're looking for doesn't exist.".to_string(),
     };
 
-    render_with_mock_config(error_page, "error.html")
+    render_with_mock_config(&error_page, "error.html")
 }
 
 /// Render and save login page
-fn render_login_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_login_page() -> anyhow::Result<()> {
     let login_page = LoginPage;
 
-    render_with_mock_config(login_page, "login.html")
+    render_with_mock_config(&login_page, "login.html")
 }
 
 /// Render and save login action page
-fn render_login_action_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_login_action_page() -> anyhow::Result<()> {
     let login_action_page = LoginActionPage;
 
-    render_with_mock_config(login_action_page, "login_action.html")
+    render_with_mock_config(&login_action_page, "login_action.html")
 }
 
 /// Render and save index page
-fn render_index_page() -> Result<(), Box<dyn std::error::Error>> {
+fn render_index_page() -> anyhow::Result<()> {
     let index_page = IndexPage {
         email: "user@example.com".to_string(),
         services: vec![
@@ -135,11 +132,11 @@ fn render_index_page() -> Result<(), Box<dyn std::error::Error>> {
         ],
     };
 
-    render_with_mock_config(index_page, "index.html")
+    render_with_mock_config(&index_page, "index.html")
 }
 
 /// Render and save authorization page (OIDC)
-fn render_authorize_page_oidc() -> Result<(), Box<dyn std::error::Error>> {
+fn render_authorize_page_oidc() -> anyhow::Result<()> {
     let auth_page = AuthorizePage {
         client: "OAuth Client".to_string(),
         name: "John Doe".to_string(),
@@ -151,11 +148,11 @@ fn render_authorize_page_oidc() -> Result<(), Box<dyn std::error::Error>> {
         link: Some("https://oauth.example.com/callback?code=abc123&state=xyz789".to_string()),
     };
 
-    render_with_mock_config(auth_page, "authorize_oidc.html")
+    render_with_mock_config(&auth_page, "authorize_oidc.html")
 }
 
 /// Render and save authorization page (SAML)
-fn render_authorize_page_saml() -> Result<(), Box<dyn std::error::Error>> {
+fn render_authorize_page_saml() -> anyhow::Result<()> {
     let auth_page = AuthorizePage {
         client: "SAML Service Provider".to_string(),
         name: "Jane Smith".to_string(),
@@ -167,19 +164,17 @@ fn render_authorize_page_saml() -> Result<(), Box<dyn std::error::Error>> {
         link: None,
     };
 
-    render_with_mock_config(auth_page, "authorize_saml.html")
+    render_with_mock_config(&auth_page, "authorize_saml.html")
 }
 
 #[tokio::test]
-async fn render_pages() -> Result<(), Box<dyn std::error::Error>> {
-    ensure_output_dir()?;
+async fn render_pages() {
+    ensure_output_dir().unwrap();
 
-    render_error_page()?;
-    render_login_page()?;
-    render_login_action_page()?;
-    render_index_page()?;
-    render_authorize_page_oidc()?;
-    render_authorize_page_saml()?;
-
-    Ok(())
+    render_error_page().unwrap();
+    render_login_page().unwrap();
+    render_login_action_page().unwrap();
+    render_index_page().unwrap();
+    render_authorize_page_oidc().unwrap();
+    render_authorize_page_saml().unwrap();
 }

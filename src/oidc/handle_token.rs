@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use base64::{Engine as _, engine::general_purpose};
 
-use crate::config::ConfigFile;
+use crate::config::Config;
 use crate::error::{AuthError, OidcError, Response};
 use crate::secret::OIDCAuthCodeSecret;
 use crate::{generate_cors_preflight, CONFIG};
@@ -111,7 +111,7 @@ pub async fn token(
 	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
 	debug!("Token request: {token_req:?}");
 
-	let base_url = ConfigFile::url_from_request(conn).await;
+	let base_url = Config::url_from_request(conn).await;
 	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 

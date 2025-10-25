@@ -50,7 +50,7 @@ use std::sync::LazyLock;
 
 use tokio::sync::RwLock;
 
-use crate::config::ConfigFile;
+use crate::config::Config;
 
 pub mod app_build;
 pub mod auth_url;
@@ -119,38 +119,8 @@ pub type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
 #[cfg(test)]
 pub static CONFIG_FILE: LazyLock<String> = LazyLock::new(|| "config.sample.yaml".to_string());
 
-/// Global static that holds a read/write mutex to the [`ConfigFile`] struct
+/// Global static that holds a read/write mutex to the [`Config`] struct
 /// to allow for concurrent access to the config. I'm not proud but here we are
 // Can this be kept in an actix app state? If so, how could the kube side
 // access it - and even worse, write to it?
-pub static CONFIG: LazyLock<RwLock<ConfigFile>> = LazyLock::new(|| RwLock::new(ConfigFile::default()));
-
-/// Global static that holds the initialized handlebars templates and some
-/// of its options. Used to render all HTML within the app.
-pub static TEMPLATES: LazyLock<handlebars::Handlebars<'static>> = LazyLock::new(|| {
-	let mut handlebars = handlebars::Handlebars::new();
-	let mut dir_src = handlebars::DirectorySourceOptions::default();
-	dir_src.tpl_extension = ".html.hbs".to_string();
-
-	handlebars.register_templates_directory(
-		"static/templates",
-		dir_src
-	)
-	.expect("Failed to register templates directory");
-
-	let mut dir_src = handlebars::DirectorySourceOptions::default();
-	dir_src.tpl_extension = ".html.hbs".to_string();
-	// The partials are the same as the templates
-	handlebars.register_templates_directory(
-		"static/partials",
-		dir_src
-	)
-	.expect("Failed to register partials directory");
-
-	handlebars.set_strict_mode(true);
-
-	#[cfg(debug_assertions)]
-	handlebars.set_dev_mode(true);
-
-	handlebars
-});
+pub static CONFIG: LazyLock<RwLock<Config>> = LazyLock::new(|| RwLock::new(Config::default()));

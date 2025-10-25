@@ -5,7 +5,7 @@ use tiny_http::{Response, Server as TinyServer};
 use crate::*;
 
 pub async fn app_server() -> (actix_web::dev::Server, Vec<SocketAddr>, sqlx::SqlitePool) {
-    ConfigFile::reload().await.unwrap();
+    Config::reload().await.unwrap();
 	let config = CONFIG.read().await;
 	println!("config: {:?}", config.services);
 	drop(config);

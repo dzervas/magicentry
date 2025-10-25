@@ -7,7 +7,7 @@ use actix_web_httpauth::extractors::basic;
 // We need most of the crate
 #[allow(clippy::wildcard_imports)]
 use crate::*;
-// use crate::config::ConfigFile;
+// use crate::config::Config;
 // use crate::secret::cleanup::spawn_cleanup_job;
 
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)

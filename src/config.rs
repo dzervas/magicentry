@@ -27,7 +27,7 @@ use crate::{CONFIG, CONFIG_FILE};
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_excessive_bools)]
-pub struct ConfigFile {
+pub struct Config {
 	pub database_url: String,
 
 	pub listen_host: String,
@@ -80,7 +80,7 @@ pub struct ConfigFile {
 	pub services: Services,
 }
 
-impl Default for ConfigFile {
+impl Default for Config {
 	#[allow(clippy::or_fun_call)]
 	#[allow(clippy::unwrap_used)] // All the cases are either const or on start (e.g. port)
     fn default() -> Self {
@@ -135,7 +135,7 @@ impl Default for ConfigFile {
     }
 }
 
-impl ConfigFile {
+impl Config {
 	/// Return the base URL that magicentry was accessed from
 	///
 	/// Useful to return correct links for proxied requests that do not abide

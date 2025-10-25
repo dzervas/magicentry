@@ -15,7 +15,7 @@ use tracing::{info, warn};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
-use crate::config::ConfigFile;
+use crate::config::Config;
 use crate::error::Response;
 use crate::user::User;
 use anyhow::Context as _;
@@ -56,7 +56,7 @@ async fn login_post(
 		login_redirect.into_opt().await,
 		&db
 	).await?;
-	let base_url = ConfigFile::url_from_request(conn).await;
+	let base_url = Config::url_from_request(conn).await;
 	let magic_link = base_url + &link.get_login_url();
 	let name = &user.name.clone();
 	let username = &user.username.clone();

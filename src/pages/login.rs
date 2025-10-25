@@ -4,7 +4,7 @@ use maud::{Markup, html};
 use async_trait::async_trait;
 use crate::pages::partials::{script, PageLayout};
 use crate::pages::Page;
-use crate::config::ConfigFile;
+use crate::config::Config;
 
 /// Login page data
 #[derive(Debug, Clone)]
@@ -12,7 +12,7 @@ pub struct LoginPage;
 
 #[async_trait]
 impl Page for LoginPage {
-	fn render_partial(&self, config: &ConfigFile) -> Markup {
+	fn render_partial(&self, config: &Config) -> Markup {
 		let layout = get_page_layout_from_config(config);
 		html! {
 			h2 { (config.title) }
@@ -33,7 +33,7 @@ impl Page for LoginPage {
 }
 
 /// Helper function to create [`PageLayout`] from config
-fn get_page_layout_from_config(config: &ConfigFile) -> PageLayout {
+fn get_page_layout_from_config(config: &Config) -> PageLayout {
 	let path_prefix = if config.path_prefix.ends_with('/') {
 		&config.path_prefix[..config.path_prefix.len() - 1]
 	} else {

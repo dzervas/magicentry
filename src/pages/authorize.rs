@@ -2,7 +2,7 @@
 
 use maud::{Markup, html};
 use async_trait::async_trait;
-use crate::config::ConfigFile;
+use crate::config::Config;
 
 use super::Page;
 
@@ -23,7 +23,7 @@ pub struct AuthorizePage {
 
 #[async_trait]
 impl Page for AuthorizePage {
-	fn render_partial(&self, _config: &ConfigFile) -> Markup {
+	fn render_partial(&self, _config: &Config) -> Markup {
 		html! {
 			div {
 				h3 { (format!("Log-in to {{{}}} {}", self.client, self.client)) }
@@ -48,11 +48,11 @@ impl Page for AuthorizePage {
 		}
 	}
 
-	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
+	fn get_title<'a>(&'a self, config: &'a Config) -> &'a str {
 		&config.title
 	}
 
-	fn get_path_prefix<'a>(&'a self, config: &'a ConfigFile) -> &'a str {
+	fn get_path_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
 		&config.path_prefix
 	}
 }

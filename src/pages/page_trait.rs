@@ -1,7 +1,9 @@
 //! Page trait for async rendering with config integration
 
 use maud::Markup;
-use crate::{CONFIG, config::ConfigFile};
+
+use crate::config::Config;
+use crate::CONFIG;
 
 use super::partials::{PageLayout, render_page};
 
@@ -16,7 +18,7 @@ pub trait Page {
 	///
 	/// This method receives config data and should
 	/// render only the page content (without the full HTML structure)
-	fn render_partial(&self, config: &ConfigFile) -> Markup;
+	fn render_partial(&self, config: &Config) -> Markup;
 
 	/// Render the complete HTML page with layout
 	///
@@ -38,9 +40,9 @@ pub trait Page {
 
 	/// Get the page title from config or use a default
 	/// This can be overridden by implementors for custom title logic
-	fn get_title<'a>(&'a self, config: &'a ConfigFile) -> &'a str { &config.title }
+	fn get_title<'a>(&'a self, config: &'a Config) -> &'a str { &config.title }
 
 	/// Get the path prefix from config or use a default
 	/// This can be overridden by implementors for custom path prefix logic
-	fn get_path_prefix<'a>(&'a self, config: &'a ConfigFile) -> &'a str { &config.path_prefix }
+	fn get_path_prefix<'a>(&'a self, config: &'a Config) -> &'a str { &config.path_prefix }
 }

@@ -1,4 +1,4 @@
-use crate::config::ConfigFile;
+use crate::config::Config;
 use uuid::Uuid;
 
 #[test]
@@ -7,7 +7,7 @@ fn get_saml_key_strips_pem_headers() {
     let path = std::env::temp_dir().join(format!("testkey-{}.pem", Uuid::new_v4()));
     std::fs::write(&path, pem).expect("write pem");
 
-    let config = ConfigFile {
+    let config = Config {
         saml_key_pem_path: path.to_string_lossy().into_owned(),
         ..Default::default()
     };

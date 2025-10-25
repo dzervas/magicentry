@@ -3,7 +3,7 @@ use actix_web::http::header::ContentType;
 use actix_web::{get, web, HttpResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::config::ConfigFile;
+use crate::config::Config;
 use crate::error::{OidcError, ProxyError, Response};
 use anyhow::Context as _;
 use crate::saml::authn_request::AuthnRequest;
@@ -37,7 +37,7 @@ pub async fn sso(
 		.context("Failed to decode SAML authentication request")?;
 
 	let Some(browser_session) = browser_session_opt else {
-		let base_url = ConfigFile::url_from_request(conn).await;
+		let base_url = Config::url_from_request(conn).await;
 		let mut target_url = url::Url::parse(&base_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()

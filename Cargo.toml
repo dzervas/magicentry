@@ -14,7 +14,6 @@ derive_more = { version = "2.0", features = ["display", "error"] }
 duration-str = "0.17"
 formatx = "0.2"
 futures = "0.3"
-handlebars = { version = "6.3.2", features = ["dir_source"] }
 hex = "0.4.3"
 lettre = { version = "0.11", default-features = false , features = [
 	"rustls-tls",

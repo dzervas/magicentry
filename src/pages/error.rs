@@ -3,7 +3,7 @@
 use maud::{Markup, html};
 use async_trait::async_trait;
 
-use crate::config::ConfigFile;
+use crate::config::Config;
 use crate::CONFIG;
 
 use super::Page;
@@ -19,7 +19,7 @@ pub struct ErrorPage {
 
 #[async_trait]
 impl Page for ErrorPage {
-	fn render_partial(&self, _config: &ConfigFile) -> Markup {
+	fn render_partial(&self, _config: &Config) -> Markup {
 		html! {
 			h1 { (&self.code) }
 			p { (&self.error) }
@@ -46,12 +46,12 @@ impl ErrorPage {
 
 			std::thread::sleep(std::time::Duration::from_millis(1));
 			i += 1;
-			if i > 10 {
-				break render_page(&PageLayout {
-					title: "Error".to_string(),
-					path_prefix: "/".to_string(),
-				});
-			}
+			// if i > 10 {
+			// 	break render_page(&PageLayout {
+			// 		title: "Error".to_string(),
+			// 		path_prefix: "/".to_string(),
+			// 	});
+			// }
 		};
 
 		let content = page.render_partial(&config);

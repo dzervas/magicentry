@@ -11,7 +11,7 @@ use actix_web_httpauth::extractors::basic;
 
 #[actix_web::test]
 async fn test_global_login() {
-	ConfigFile::reload().await.unwrap();
+	Config::reload().await.unwrap();
 
 	let db = db_connect().await;
 	let email_stub: SmtpTransport = lettre::transport::stub::AsyncStubTransport::new_ok();

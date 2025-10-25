@@ -9,7 +9,7 @@ use crate::error::{OidcError, Response};
 use anyhow::Context as _;
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 use crate::pages::{AuthorizePage, Page};
-use crate::config::ConfigFile;
+use crate::config::Config;
 use crate::AUTHORIZATION_COOKIE;
 
 use super::AuthorizeRequest;
@@ -23,7 +23,7 @@ async fn authorize(
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 
 	let Some(browser_session) = browser_session_opt else {
-		let base_url = ConfigFile::url_from_request(conn).await;
+		let base_url = Config::url_from_request(conn).await;
 		let mut target_url = url::Url::parse(&base_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut()

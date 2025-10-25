@@ -1,48 +1,8 @@
-use std::collections::BTreeMap;
-
 use actix_web::http::{header, Uri};
 use actix_web::HttpRequest;
 
 use crate::error::{AuthError};
-use crate::{CONFIG, PROXY_ORIGIN_HEADER, RANDOM_STRING_LEN, TEMPLATES};
-
-pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, String>, obj: Option<&T>) -> anyhow::Result<String> {
-	// Use a brief retry strategy to handle temporary mutex contention in concurrent tests
-	let mut i = 0;
-
-	let config = loop {
-		if let Ok(guard) = CONFIG.try_read() {
-			break guard;
-		}
-
-		std::thread::sleep(std::time::Duration::from_millis(1));
-
-		i += 1;
-		if i > 100 {
-			tracing::warn!("Could not sync-lock the config to read data related to partial {name} - this is a bug");
-			return Err(anyhow::anyhow!("Could not sync-lock the config to read data related to partial"));
-		}
-	};
-	let path_prefix = if config.path_prefix.ends_with('/') {
-		&config.path_prefix[..config.path_prefix.len() - 1]
-	} else {
-		&config.path_prefix
-	};
-
-	data.insert("title", config.title.clone());
-	data.insert("path_prefix", path_prefix.to_string());
-	drop(config);
-
-	let json_data = serde_json::json!({
-		"data": data,
-		"state": obj,
-	});
-
-	let ctx = handlebars::Context::from(json_data);
-	let result = TEMPLATES.render_with_context(name, &ctx)?;
-
-	Ok(result)
-}
+use crate::{PROXY_ORIGIN_HEADER, RANDOM_STRING_LEN};
 
 pub fn get_request_origin(req: &HttpRequest) -> anyhow::Result<String> {
 	let valid_headers = [
@@ -76,7 +36,6 @@ pub fn get_request_origin(req: &HttpRequest) -> anyhow::Result<String> {
 	Err(AuthError::MissingOriginHeader.into())
 }
 
-#[must_use]
 pub fn random_string() -> String {
 	let mut buffer = [0u8; RANDOM_STRING_LEN];
 	rand::fill(&mut buffer);
@@ -85,8 +44,8 @@ pub fn random_string() -> String {
 
 #[cfg(test)]
 pub mod tests {
-	use crate::Database;
-	use crate::config::ConfigFile;
+	use crate::{CONFIG, Database};
+	use crate::config::Config;
 	use crate::user::User;
 
 	use super::*;
@@ -99,7 +58,7 @@ pub mod tests {
 	}
 
 	pub async fn get_valid_user() -> User {
-		ConfigFile::reload()
+		Config::reload()
 			.await
 			.expect("Failed to reload config file");
 		let user_email = "valid@example.com";
