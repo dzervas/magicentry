@@ -3,7 +3,7 @@ use actix_web::dev::ConnectionInfo;
 use actix_web::http::header::ContentType;
 use actix_web::http::Uri;
 use actix_web::{get, post, web, HttpResponse, Responder};
-use log::info;
+use tracing::info;
 
 use crate::error::{AppErrorKind, Response};
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};

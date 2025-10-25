@@ -8,7 +8,7 @@ use std::path::Path;
 
 use actix_web::dev::ConnectionInfo;
 use chrono::Duration;
-use log::error;
+use tracing::{error, info};
 use notify::{PollWatcher, Watcher};
 use serde::{Deserialize, Serialize};
 
@@ -164,7 +164,7 @@ impl ConfigFile {
 	/// Note that live-updating the `CONFIG_FILE` environment variable
 	/// is **NOT** supported (and is probably impossible anyway)
 	pub async fn reload() -> crate::error::Result<()> {
-		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
+		info!("Reloading config from {}", CONFIG_FILE.as_str());
 
 		let mut new_config = serde_yaml::from_str::<Self>(
 			&std::fs::read_to_string(CONFIG_FILE.as_str())?
@@ -197,10 +197,10 @@ impl ConfigFile {
 			.with_follow_symlinks(true);
 
 		let mut watcher = notify::PollWatcher::new(move |_| {
-			log::info!("Config file changed, reloading");
+			info!("Config file changed, reloading");
 			futures::executor::block_on(async {
 				if let Err(e) = Self::reload().await {
-					log::error!("Failed to reload config file: {e}");
+					error!("Failed to reload config file: {e}");
 				}
 			});
 		}, watcher_config)

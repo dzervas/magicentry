@@ -70,6 +70,8 @@ impl IngressConfig {
 	/// Due to the global static mutex, the main actix-web code should pick
 	/// up the changes automatically but it might block config reads
 	/// for the duration of the write - should be extremely fast
+	// TODO: Refactor this function
+	#[allow(clippy::cognitive_complexity)]
 	#[allow(clippy::too_many_lines)]
 	pub async fn process(&self, ingress: &Ingress) -> Result<()> {
 		let no_name = String::new();
@@ -92,7 +94,7 @@ impl IngressConfig {
 				);
 
 				let mut url = url::Url::parse(host).unwrap_or_else(|_| {
-					log::error!("Ingress {name:?} has invalid host {host}");
+					tracing::error!("Ingress {name:?} has invalid host {host}");
 					#[allow(clippy::unwrap_used)] // const
 					url::Url::parse("http://localhost").unwrap()
 				});
@@ -103,7 +105,7 @@ impl IngressConfig {
 			})
 			.iter().cloned().collect::<Vec<_>>();
 		let Some(service_url) = urls.first().cloned() else {
-			log::warn!("Ingress {name} has no host");
+			tracing::warn!("Ingress {name} has no host");
 			return Err(AppErrorKind::IngressHasNoHost.into());
 		};
 
@@ -179,10 +181,10 @@ impl IngressConfig {
 		// as soon as possible to avoid blocking other threads/contexts
 		let mut config = CONFIG.write().await;
 		if config.services.get(name).is_none() {
-			log::info!("Adding service {name} to config");
+			tracing::info!("Adding service {name} to config");
 			config.services.0.push(service.clone());
 		} else if let Some(existing_service) = config.services.get_mut(name) && existing_service != &service  {
-			log::info!("Updating service {name} in config");
+			tracing::info!("Updating service {name} in config");
 			*existing_service = service.clone();
 		}
 		drop(config);
@@ -267,17 +269,17 @@ impl From<&Ingress> for IngressConfig {
 /// and then process it with the [`IngressConfig::process`] method
 async fn process_ingress(ingress: &Ingress) {
 	let name = ingress.metadata.name.clone().unwrap_or_default();
-	log::debug!("Inspecting ingress resource {name}");
+	tracing::debug!("Inspecting ingress resource {name}");
 
 	let ingress_config: IngressConfig = ingress.into();
 	if !ingress_config.enable || ingress_config.name.is_empty() {
-		log::debug!("Ingress {name} is disabled");
+		tracing::debug!("Ingress {name} is disabled");
 		return;
 	}
 
-	log::info!("Discovered ingress {name}");
+	tracing::info!("Discovered ingress {name}");
 	ingress_config.process(ingress).await.unwrap_or_else(|e| {
-		log::error!("Failed to process ingress {name}: {e:?}");
+		tracing::error!("Failed to process ingress {name}: {e:?}");
 	});
 }
 
@@ -290,7 +292,7 @@ pub async fn watch() -> Result<()> {
 	let client = Client::try_default().await?;
 	let ingresses: Api<Ingress> = Api::all(client);
 
-	log::info!("Watching for Ingresses");
+	tracing::info!("Watching for Ingresses");
 
 	loop {
 		watcher::watcher(ingresses.clone(), watcher::Config::default())
@@ -299,7 +301,7 @@ pub async fn watch() -> Result<()> {
 					Event::Apply(ingress) | Event::InitApply(ingress) => process_ingress(&ingress).await,
 					Event::Delete(ingress) => {
 						// TODO: Take care of deleted events too
-						log::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.unwrap_or_default());
+						tracing::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.unwrap_or_default());
 					}
 					_ => {}
 				}
@@ -309,10 +311,10 @@ pub async fn watch() -> Result<()> {
 		)
 		.await
 		.unwrap_or_else(|e| {
-			log::error!("Ingress watch stream ended unexpectedly: {e:?}");
+			tracing::error!("Ingress watch stream ended unexpectedly: {e:?}");
 		});
 
-		log::warn!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
+		tracing::warn!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
 		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 	}
 }

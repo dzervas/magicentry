@@ -12,7 +12,6 @@ actix-web = "4.11"
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0", features = ["display", "error"] }
 duration-str = "0.17"
-env_logger = "0.11"
 formatx = "0.2"
 futures = "0.3"
 handlebars = { version = "6.3.2", features = ["dir_source"] }
@@ -24,7 +23,8 @@ lettre = { version = "0.11", default-features = false , features = [
 	"pool",
 	"smtp-transport",
 ]}
-log = "0.4"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 notify = "8"
 rand = "0.9"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "json"] }

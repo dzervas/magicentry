@@ -1,6 +1,6 @@
 use actix_web::http::header;
 use actix_web::{get, web, HttpResponse};
-use log::info;
+use tracing::info;
 
 use crate::error::Response;
 use crate::secret::LoginLinkSecret;

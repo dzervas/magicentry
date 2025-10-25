@@ -11,7 +11,7 @@ use actix_web::{post, web, HttpResponse};
 use formatx::formatx;
 use lettre::message::header::ContentType as LettreContentType;
 use lettre::{AsyncTransport, Message};
-use log::info;
+use tracing::{info, warn};
 use reqwest::header::CONTENT_TYPE;
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +30,8 @@ pub struct LoginInfo {
 }
 
 #[post("/login")]
+// TODO: Refactor this function
+#[allow(clippy::cognitive_complexity)]
 async fn login_post(
 	conn: ConnectionInfo,
 	web::Form(form): web::Form<LoginInfo>,
@@ -116,7 +118,7 @@ async fn login_post(
 		info!("Sending request for user {}", &user.email);
 		let resp = req.send().await?;
 		if !resp.status().is_success() {
-			log::warn!(
+			warn!(
 				"Request for user {} failed: {} {}",
 				&user.email,
 				resp.status(),

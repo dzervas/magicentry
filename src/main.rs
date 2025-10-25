@@ -4,16 +4,44 @@ use magicentry::secret::cleanup::spawn_cleanup_job;
 pub use magicentry::*;
 
 use lettre::transport::smtp;
+use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+
+fn init_tracing() {
+	let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+	let log_format = std::env::var("LOG_FORMAT").unwrap_or_else(|_| "compact".to_string());
+	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level));
+
+	match log_format.as_str() {
+		"json" => {
+			tracing_subscriber::registry()
+				.with(filter)
+				.with(fmt::layer().json())
+				.init();
+		}
+		"pretty" => {
+			tracing_subscriber::registry()
+				.with(filter)
+				.with(fmt::layer().pretty())
+				.init();
+		}
+		_ => {
+			tracing_subscriber::registry()
+				.with(filter)
+				.with(fmt::layer().compact())
+				.init();
+		}
+	}
+}
 
 // Do not compile in tests at all as the SmtpTransport is not available
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 #[actix_web::main]
 pub async fn main() -> std::io::Result<()> {
 	// TODO: Add a log checker during test that checks for secrets and panics if it finds any
-	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+	init_tracing();
 
 	#[cfg(debug_assertions)]
-	log::warn!("Running in debug mode, all magic links will be printed to the console.");
+	tracing::warn!("Running in debug mode, all magic links will be printed to the console.");
 
 	ConfigFile::reload()
 		.await

@@ -28,7 +28,7 @@ impl actix_web::FromRequest for ProxyCodeSecret {
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
 		let Some(origin_header) = req.headers().get(PROXY_ORIGIN_HEADER).cloned() else {
-			log::warn!("Got a proxy code request with no origin");
+			tracing::warn!("Got a proxy code request with no origin");
 			return Box::pin(async { Err(AppErrorKind::MissingOriginHeader.into()) });
 		};
 		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
@@ -52,7 +52,7 @@ impl actix_web::FromRequest for ProxyCodeSecret {
 			};
 
 			if !service.is_user_allowed(secret.user()) {
-				log::warn!("User {} tried to access {} with a proxy code", secret.user().email, service.name);
+				tracing::warn!("User {} tried to access {} with a proxy code", secret.user().email, service.name);
 				return Err(AppErrorKind::Unauthorized.into());
 			}
 

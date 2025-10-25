@@ -149,7 +149,7 @@ impl ResponseError for Error {
 		println!("Error: {self}");
 
 		if status.is_server_error() {
-			log::error!("{self}");
+			tracing::error!("{self}");
 
 			#[cfg(not(debug_assertions))]
 			{
@@ -157,7 +157,7 @@ impl ResponseError for Error {
 				description = "Something went very wrong from our end".to_string();
 			}
 		} else if status != StatusCode::NOT_FOUND {
-			log::warn!("{self}");
+			tracing::warn!("{self}");
 		}
 
 		if status == StatusCode::FOUND {

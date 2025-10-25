@@ -27,7 +27,7 @@ impl actix_web::FromRequest for ProxySessionSecret {
 
 	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
 		let Some(origin_header) = req.headers().get(PROXY_ORIGIN_HEADER).cloned() else {
-			log::warn!("Got a proxy session request with no origin");
+			tracing::warn!("Got a proxy session request with no origin");
 			return Box::pin(async { Err(AppErrorKind::MissingOriginHeader.into()) });
 		};
 		let Some(code) = req.cookie(PROXY_SESSION_COOKIE) else {
@@ -49,7 +49,7 @@ impl actix_web::FromRequest for ProxySessionSecret {
 			};
 
 			if !service.is_user_allowed(secret.user()) {
-				log::warn!("User {} tried to access {} with a proxy session", secret.user().email, service.name);
+				tracing::warn!("User {} tried to access {} with a proxy session", secret.user().email, service.name);
 				return Err(AppErrorKind::Unauthorized.into());
 			}
 

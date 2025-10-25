@@ -51,7 +51,7 @@ pub async fn sso(
 		.ok_or(AppErrorKind::InvalidSAMLRedirectUrl)?;
 
 	if !service.is_user_allowed(browser_session.user()) {
-		log::warn!("User {} is not allowed to access SAML service {}", browser_session.user().email, service.name);
+		tracing::warn!("User {} is not allowed to access SAML service {}", browser_session.user().email, service.name);
 		return Ok(HttpResponse::Found()
 			.append_header(("Location", "/login"))
 			.finish());
@@ -62,7 +62,7 @@ pub async fn sso(
 		browser_session.user()
 	);
 
-	log::info!("Starting SAML flow for user: {}", browser_session.user().email);
+	tracing::info!("Starting SAML flow for user: {}", browser_session.user().email);
 
 	response.sign_saml_response(
 		&config.get_saml_key()?,

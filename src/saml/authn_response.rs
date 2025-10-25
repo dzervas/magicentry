@@ -1,4 +1,4 @@
-use log::debug;
+use tracing::debug;
 
 use base64::engine::general_purpose;
 use base64::Engine;

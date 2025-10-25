@@ -36,7 +36,7 @@ pub async fn init(db: &Database) -> EncodingKey {
 	if let Ok(Some(secret)) = ConfigKV::get(&ConfigKeys::JWTSecret, db).await {
 		EncodingKey::from_secret(secret.as_bytes())
 	} else {
-		log::warn!("Generating 64-byte JWT secret");
+		tracing::warn!("Generating 64-byte JWT secret");
 		let mut buffer = [0u8; 64];
 		rand::fill(&mut buffer);
 		let secret = hex::encode(buffer);

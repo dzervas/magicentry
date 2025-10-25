@@ -36,7 +36,7 @@ impl User {
 
 			i += 1;
 			if i > 100 {
-				log::warn!("Could not sync-lock the config to read the users - this is a bug");
+				tracing::warn!("Could not sync-lock the config to read the users - this is a bug");
 				return None;
 			}
 		};

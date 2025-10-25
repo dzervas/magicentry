@@ -3,7 +3,7 @@ use actix_web::{post, web, HttpResponse};
 use actix_web_httpauth::extractors::basic::BasicAuth;
 use chrono::Utc;
 use jsonwebtoken::EncodingKey;
-use log::{debug, info};
+use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use base64::{Engine as _, engine::general_purpose};
@@ -96,8 +96,10 @@ impl JWTData {
 // from any origin
 generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 
-#[post("/oidc/token")]
+// TODO: Refactor this function
+#[allow(clippy::cognitive_complexity)]
 #[allow(clippy::significant_drop_tightening)] // config is used in almost all branches
+#[post("/oidc/token")]
 pub async fn token(
 	conn: ConnectionInfo,
 	db: web::Data<crate::Database>,

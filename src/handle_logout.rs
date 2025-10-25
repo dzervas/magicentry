@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use actix_web::{get, web, HttpResponse};
-use log::warn;
+use tracing::warn;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Response;

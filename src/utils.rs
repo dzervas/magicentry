@@ -19,7 +19,7 @@ pub fn get_partial<T: serde::Serialize>(name: &str, mut data: BTreeMap<&str, Str
 
 		i += 1;
 		if i > 100 {
-			log::warn!("Could not sync-lock the config to read data related to partial {name} - this is a bug");
+			tracing::warn!("Could not sync-lock the config to read data related to partial {name} - this is a bug");
 			return Err("Could not sync-lock the config to read data related to partial".to_string().into());
 		}
 	};
@@ -55,7 +55,7 @@ pub fn get_request_origin(req: &HttpRequest) -> Result<String> {
 
 	for header in &valid_headers {
 		if let Some(origin) = req.headers().get(header) {
-			log::debug!("Origin header: {origin:?}");
+			tracing::debug!("Origin header: {origin:?}");
 			let Ok(origin_str) = origin.to_str() else {
 				continue;
 			};

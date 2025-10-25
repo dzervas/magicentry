@@ -1,6 +1,6 @@
 use jsonwebtoken::{encode, Header, EncodingKey};
 use serde::{Deserialize, Serialize};
-use log::debug;
+use tracing::debug;
 use url::Url;
 
 use crate::error::Error;
@@ -34,7 +34,7 @@ impl AuthorizeRequest {
 		let config = CONFIG.read().await;
 
 		let Some(service) = config.services.from_oidc_redirect_url(&redirect_url) else {
-			log::warn!(
+			tracing::warn!(
 				"Invalid OIDC redirect_uri: {} for client_id: {}",
 				redirect_url,
 				self.client_id
@@ -44,7 +44,7 @@ impl AuthorizeRequest {
 		drop(config);
 
 		if !service.is_user_allowed(user) {
-			log::warn!(
+			tracing::warn!(
 				"User {} is not allowed to access OIDC redirect_uri: {} for client_id: {}",
 				user.email,
 				redirect_url,
