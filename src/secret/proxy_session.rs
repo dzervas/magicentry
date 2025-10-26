@@ -4,8 +4,8 @@ use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
 use crate::config::LiveConfig;
-use crate::error::{AuthError, DatabaseError, ProxyError};
-use crate::{CONFIG, PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
+use crate::error::{AppError, AuthError, DatabaseError, ProxyError};
+use crate::{PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
@@ -38,6 +38,11 @@ impl actix_web::FromRequest for ProxySessionSecret {
 		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
 			return Box::pin(async { Err(DatabaseError::InstanceError.into()) });
 		};
+		let Some(config) = req.app_data::<LiveConfig>().cloned() else {
+			eprintln!("No config");
+			tracing::error!("Unable to get config from request - this should not happen");
+			return Box::pin(async { Err(AppError::Config("Unable to get config")) });
+		};
 
 		let code = code.value().to_string();
 		Box::pin(async move {
@@ -46,12 +51,9 @@ impl actix_web::FromRequest for ProxySessionSecret {
 				.context("Failed to parse origin header as URL")?;
 			let secret = Self::try_from_string(code, db.get_ref()).await
 				.context("Failed to create proxy session secret from string")?;
-			let service = {
-				let config = CONFIG.read().await;
-				config.services
+			let service = config.services
 					.from_auth_url_origin(&origin_url.origin())
-					.ok_or_else(|| crate::error::AppError::Proxy(ProxyError::operation("Origin not found in service configuration")))?
-			};
+					.ok_or_else(|| crate::error::AppError::Proxy(ProxyError::operation("Origin not found in service configuration")))?;
 
 			if !service.is_user_allowed(secret.user()) {
 				tracing::warn!("User {} tried to access {} with a proxy session", secret.user().email, service.name);

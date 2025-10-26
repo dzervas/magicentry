@@ -11,7 +11,7 @@ use tracing::{debug, info};
 use crate::config::{Config, LiveConfig};
 use crate::error::{AuthError, OidcError, Response};
 use crate::secret::OIDCAuthCodeSecret;
-use crate::{generate_cors_preflight, CONFIG};
+use crate::generate_cors_preflight;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TokenRequest {
@@ -65,11 +65,8 @@ pub struct JWTData {
 }
 
 impl JWTData {
-	pub async fn new(base_url: String, nonce: Option<String>) -> Self {
-		let expiry = {
-			let config = CONFIG.read().await;
-			Utc::now() + config.session_duration
-		};
+	pub fn new(base_url: String, nonce: Option<String>, config: &LiveConfig) -> Self {
+		let expiry = Utc::now() + config.session_duration;
 
 		Self {
 			user: String::default(),
@@ -179,9 +176,12 @@ pub async fn token(
 	}
 
 
-	let id_token = auth_req
-		.generate_id_token(oidc_authcode.user(), base_url, jwt_encoding_key.as_ref())
-		.await?;
+	let id_token = auth_req.generate_id_token(
+		oidc_authcode.user(),
+		base_url,
+		jwt_encoding_key.as_ref(),
+		&config
+	)?;
 	let oidc_token = oidc_authcode.exchange_sibling(&config, &db).await?;
 
 	let response = TokenResponse {

@@ -7,8 +7,6 @@ use actix_web::http::header::{self, ContentType};
 use actix_web::{error::ResponseError, http::StatusCode, HttpResponse};
 use thiserror::Error;
 
-use crate::pages::Page;
-
 pub use self::database::DatabaseError;
 pub use self::auth::AuthError;
 pub use self::oidc::OidcError;
@@ -51,6 +49,9 @@ pub enum AppError {
 
     #[error("Page rendering error: {0}")]
     Page(#[from] PageError),
+
+    #[error("Config error: {0}")]
+    Config(&'static str),
 
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
@@ -118,18 +119,39 @@ impl ResponseError for AppError {
                 .append_header((header::LOCATION, "/login"))
                 .finish()
         } else {
-            let status_code = status.as_u16().to_string();
-            let error_name = status.canonical_reason().unwrap_or_default();
-            let page = crate::pages::ErrorPage {
-                code: status_code,
-                error: error_name.to_string(),
-                description,
-            };
-            let rendered = {
-                use tokio::runtime::Handle;
-                let handle = Handle::current();
-                handle.block_on(page.render())
-            };
+            // let status_code = status.as_u16().to_string();
+            // let error_name = status.canonical_reason().unwrap_or_default();
+            // let page = crate::pages::ErrorPage {
+            //     code: status_code,
+            //     error: error_name.to_string(),
+            //     description,
+            // };
+            // let rendered = {
+            //     use tokio::runtime::Handle;
+            //     let handle = Handle::current();
+            //     handle.block_on(page.render())
+            // };
+            // TODO: there needs to be a middleware after the response generation that handles errors and generates the page
+            let rendered = format!(
+                r#"<!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Magic Entry</title>
+                        <link rel="stylesheet" href="/static/style.css">
+                    </head>
+                    <body>
+                        <h1>{status_code} {error_name}</h1>
+                        <p>{description}</p>
+                    </body>
+                    </html>
+                "#,
+                status_code = status.as_str(),
+                error_name = status.canonical_reason().unwrap_or("Unknown"),
+                description = status.canonical_reason().unwrap_or("Unknown")
+            );
 
             HttpResponse::build(status)
                 .content_type(ContentType::html())

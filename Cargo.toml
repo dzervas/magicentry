@@ -9,6 +9,10 @@ kube = ["dep:kube", "dep:k8s-openapi"]
 
 [dependencies]
 actix-web = "4.11"
+actix-web-httpauth = "0.8"
+serde_qs = { version = "0.15", features = ["actix-web4"] }
+maud = { version = "0.27.0", features = ["actix-web"] }
+
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0", features = ["display", "error"] }
 duration-str = "0.17"
@@ -32,7 +36,6 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-serde_qs = { version = "0.15", features = ["actix-web4"] }
 serde_yaml = "0.9"
 sha2 = "0.10"
 tokio = { version = "1", features = ["full"] }
@@ -48,19 +51,18 @@ openssl = { version = "0.10", features = ["vendored"] }
 # kube feature
 kube = { version = "0.99", features = ["runtime", "derive"], optional = true }
 k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
-actix-web-httpauth = "0.8"
 flate2 = "1.1"
 base64 = "0.22"
 quick-xml = { version = "0.38", features = ["async-tokio", "serialize"] }
 rsa = { version = "0.9", features = ["sha2"] }
 jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
-maud = { version = "0.27.0", features = ["actix-web"] }
 async-trait = "0.1"
 anyhow = "1.0"
 thiserror = "2.0"
 
 [dev-dependencies]
 actix-http = "3.11"
+
 criterion = { version = "0.7.0", features = ["async_tokio"] }
 scraper = "0.24"
 tempfile = "3.23"

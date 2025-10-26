@@ -29,13 +29,13 @@ title: MagicEntry
 # Header-based authentication, OIDC or SAML
 auth_url_enable: true
 # The username header of the authenticated user
-auth_url_user_header: X-Auth-User
+auth_url_user_header: X-Remote-User
 # The full name header of the authenticated user
-auth_url_name_header: X-Auth-Name
+auth_url_name_header: X-Remote-Name
 # The email header of the authenticated user
-auth_url_email_header: X-Auth-Email
+auth_url_email_header: X-Remote-Email
 # The realms that this user has access to
-auth_url_realms_header: X-Auth-Realms
+auth_url_realms_header: X-Remote-Realms
 
 # How long does an OIDC code last
 oidc_code_duration: 1m

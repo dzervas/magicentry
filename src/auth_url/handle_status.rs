@@ -39,6 +39,7 @@ async fn status(
 		cookie = Some((&proxy_session).into());
 		proxy_session
 	} else {
+		eprintln!("No proxy code or session");
 		let mut remove_cookie = Cookie::new(PROXY_SESSION_COOKIE, "");
 		remove_cookie.make_removal();
 

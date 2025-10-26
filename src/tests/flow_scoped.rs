@@ -79,6 +79,7 @@ async fn test_global_login() {
 	let headers = resp.headers().clone();
 	let cookie_header = headers.get("set-cookie").unwrap().to_str().unwrap();
 	let parsed_cookie = Cookie::parse_encoded(cookie_header).unwrap();
+	println!("cookie: {parsed_cookie:?}");
 
 	let resp = call_service(
 		&app,
@@ -89,5 +90,6 @@ async fn test_global_login() {
 			.to_request(),
 	)
 	.await;
+	println!("resp: {resp:?}");
 	assert_eq!(resp.status(), StatusCode::OK);
 }

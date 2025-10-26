@@ -1,10 +1,11 @@
+use anyhow::Context as _;
 use jsonwebtoken::{encode, Header, EncodingKey};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use url::Url;
 
+use crate::config::LiveConfig;
 use crate::error::OidcError;
-use anyhow::Context as _;
 use crate::oidc::handle_token::JWTData;
 use crate::user::User;
 use crate::secret::MetadataKind;
@@ -64,11 +65,12 @@ impl AuthorizeRequest {
 		)
 	}
 
-	pub async fn generate_id_token(
+	pub fn generate_id_token(
 		&self,
 		user: &User,
 		url: String,
 		encoding_key: &EncodingKey,
+		config: &LiveConfig,
 	) -> anyhow::Result<String> {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
@@ -80,7 +82,7 @@ impl AuthorizeRequest {
 			email_verified: true,
 			preferred_username: user.username.clone(),
 
-			..JWTData::new(url, self.nonce.clone()).await
+			..JWTData::new(url, self.nonce.clone(), config)
 		};
 		debug!("JWT Data: {jwt_data:?}");
 
