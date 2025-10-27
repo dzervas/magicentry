@@ -1,3 +1,4 @@
+use axum::RequestPartsExt;
 use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -77,5 +78,39 @@ impl BrowserSessionSecret {
 		let mut cookie: Cookie<'_> = Cookie::new(SESSION_COOKIE, "");
 		cookie.make_removal();
 		cookie
+	}
+}
+
+impl axum::extract::FromRequestParts<crate::AppState> for BrowserSessionSecret {
+	// type Rejection = crate::error::AppError;
+	type Rejection = axum::http::StatusCode;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
+		// let Ok(code) = parts.extract::<String>().await else {
+		// 	return Err(Self::Rejection::BAD_REQUEST);
+		// };
+		let jar = parts.extract::<axum_extra::extract::CookieJar>().await.unwrap();
+		let Some(code) = jar.get(SESSION_COOKIE) else {
+			return Err(axum::http::StatusCode::BAD_REQUEST);
+		};
+
+		Ok(Self::try_from_string(code.value().to_string(), &state.db).await.unwrap())
+	}
+}
+
+impl axum::extract::OptionalFromRequestParts<crate::AppState> for BrowserSessionSecret {
+	// type Rejection = crate::error::AppError;
+	type Rejection = axum::http::StatusCode;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Option<Self>, Self::Rejection> {
+		// let Ok(code) = parts.extract::<String>().await else {
+		// 	return Err(Self::Rejection::BAD_REQUEST);
+		// };
+		let jar = parts.extract::<axum_extra::extract::CookieJar>().await.unwrap();
+		let Some(code) = jar.get(SESSION_COOKIE) else {
+			return Ok(None);
+		};
+
+		Ok(Some(Self::try_from_string(code.value().to_string(), &state.db).await.unwrap()))
 	}
 }

@@ -14,8 +14,8 @@ path = "src/axum_main.rs"
 [dependencies]
 actix-web = "4.11"
 actix-web-httpauth = "0.8"
-serde_qs = { version = "0.15", features = ["actix-web4"] }
-maud = { version = "0.27.0", features = ["actix-web"] }
+serde_qs = { version = "0.15", features = ["actix-web4", "axum"] }
+maud = { version = "0.27.0", features = ["actix-web", "axum"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0", features = ["display", "error"] }
@@ -69,6 +69,7 @@ axum-extra = { version = "0.10.3", features = ["cookie", "form", "query", "typed
 
 [dev-dependencies]
 actix-http = "3.11"
+axum-test = { version = "18.1.0", features = ["reqwest", "typed-routing"] }
 
 criterion = { version = "0.7.0", features = ["async_tokio"] }
 scraper = "0.24"

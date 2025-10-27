@@ -50,6 +50,47 @@ async fn index(
 		.body(index_page.into_string()))
 }
 
+#[axum::debug_handler]
+pub async fn handle_index(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	browser_session: BrowserSessionSecret,
+) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode>  {
+	let config: LiveConfig = state.config.into();
+	let realmed_services = config.services.from_user(browser_session.user());
+	let services: Vec<ServiceInfo> = realmed_services.0.into_iter()
+		.map(|service| ServiceInfo {
+			name: service.name,
+			url: service.url.to_string(),
+		})
+		.collect();
+	let index_page = IndexPage {
+		email: browser_session.user().email.clone(),
+		services,
+	}.render().await;
+
+	// let mut headers = axum::http::HeaderMap::new();
+	//
+	// headers.insert(
+	// 	config.auth_url_email_header.as_str(),
+	// 	browser_session.user().email.parse().unwrap(),
+	// );
+	// headers.insert(
+	// 	config.auth_url_user_header.as_str(),
+	// 	browser_session.user().username.parse().unwrap(),
+	// );
+	// headers.insert(
+	// 	config.auth_url_name_header.as_str(),
+	// 	browser_session.user().name.parse().unwrap(),
+	// );
+	// headers.insert(
+	// 	config.auth_url_realms_header.as_str(),
+	// 	browser_session.user().realms.join(",").parse().unwrap(),
+	// );
+
+	// Ok(headers)
+	Ok(axum::response::Html(index_page.into_string()))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
