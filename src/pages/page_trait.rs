@@ -28,13 +28,16 @@ pub trait Page {
 	/// 3. Wraps the content in the full HTML page layout
 	async fn render(&self) -> Markup {
 		let config = CONFIG.read().await;
-		let content = self.render_partial(&config);
+		self.render_with_config(&config)
+	}
+
+	fn render_with_config(&self, config: &Config) -> Markup {
+		let content = self.render_partial(config);
 		let layout = PageLayout {
-			title: self.get_title(&config).to_string(),
-			path_prefix: self.get_path_prefix(&config).to_string(),
+			title: self.get_title(config).to_string(),
+			path_prefix: self.get_path_prefix(config).to_string(),
 		};
 
-		drop(config);
 		render_page(&layout, &content)
 	}
 
