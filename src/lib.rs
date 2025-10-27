@@ -49,8 +49,9 @@
 use std::sync::{Arc, LazyLock};
 
 use tokio::sync::RwLock;
+use tracing::{info, warn};
 
-use crate::config::Config;
+use crate::{config::Config, user::User};
 
 pub mod app_build;
 pub mod auth_url;
@@ -132,6 +133,107 @@ pub struct InFlightConfig(Arc<Config>);
 pub struct AppState {
 	pub db: crate::Database,
 	pub config: Arc<Config>,
-	pub mailer: Option<SmtpTransport>,
-	pub http_client: Option<reqwest::Client>,
+	// pub mailer: Option<SmtpTransport>,
+	// pub http_client: Option<reqwest::Client>,
+	pub link_senders: Vec<Arc<dyn LinkSender>>,
+}
+
+impl AppState {
+	pub async fn send_magic_link(&self, user: &User, link: &str) -> anyhow::Result<()> {
+		// TODO: Make this concurrent and return multiple errors
+		for sender in &self.link_senders {
+			sender.send_magic_link(user, link, &self.config).await?;
+		}
+
+		Ok(())
+	}
+}
+
+#[async_trait::async_trait]
+pub trait LinkSender: Send + Sync {
+	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> anyhow::Result<()>;
+}
+
+#[async_trait::async_trait]
+impl LinkSender for crate::SmtpTransport {
+	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> anyhow::Result<()> {
+		use anyhow::Context as _;
+		use lettre::{AsyncTransport, Message};
+		use lettre::message::header::ContentType as LettreContentType;
+		use formatx::formatx;
+
+		let email = Message::builder()
+			.from(config.smtp_from.parse()
+				.context("Failed to parse SMTP 'from' address")?)
+			.to(user.email.parse()
+				.context("Failed to parse user email address")?)
+			.subject(formatx!(&config.smtp_subject, title = &config.title)
+				.context("Failed to format SMTP subject template")?)
+			.header(LettreContentType::TEXT_HTML)
+			.body(
+				formatx!(
+					&config.smtp_body,
+					title = &config.title,
+					magic_link = &link,
+					name = user.name.clone(),
+					username = user.username.clone()
+				).context("Failed to format SMTP body template")?
+			).context("Failed to build email message")?;
+
+		self.send(email).await
+			.context("Failed to send email via SMTP")?;
+
+		Ok(())
+	}
+}
+
+#[async_trait::async_trait]
+impl LinkSender for reqwest::Client {
+	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> anyhow::Result<()> {
+		use anyhow::Context as _;
+		use reqwest::header::CONTENT_TYPE;
+		use formatx::formatx;
+
+		let method = reqwest::Method::from_bytes(config.request_method.as_bytes())
+			.expect("Invalid request_method provided in the config");
+		let url = formatx!(
+			&config.request_url,
+			title = &config.title,
+			magic_link = &link,
+			email = &user.email,
+			name = user.name.clone(),
+			username = user.username.clone()
+		).context("Failed to format HTTP request URL template")?;
+		let mut req = self.request(method, url);
+
+		if let Some(data) = &config.request_data {
+			let body = formatx!(
+				data.as_str(),
+				title = &config.title,
+				magic_link = &link,
+				email = &user.email,
+				name = user.name.clone(),
+				username = user.username.clone()
+			).context("Failed to format HTTP request body template")?;
+			req = req
+				// TODO: Make this configurable
+				.header(CONTENT_TYPE, config.request_content_type.as_str())
+				.body(body);
+		}
+
+		info!("Sending request for user {}", &user.email);
+		let resp = req.send().await
+			.context("Failed to send HTTP request for magic link notification")?;
+
+		if !resp.status().is_success() {
+			warn!(
+				"Request for user {} failed: {} {}",
+				&user.email,
+				resp.status(),
+				resp.text().await.unwrap_or_default()
+			);
+		}
+
+		Ok(())
+	}
 }

@@ -143,6 +143,38 @@ async fn login_post(
 		.body(login_action_page.into_string()))
 }
 
+use axum::response::IntoResponse as _;
+
+#[axum::debug_handler]
+pub async fn handle_login_post(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	axum::extract::Query(login_redirect): axum::extract::Query<LoginLinkRedirect>,
+	axum::Form(form): axum::Form<LoginInfo>,
+) -> Result<axum::response::Response, crate::error::AppError> {
+	let login_action_page = LoginActionPage.render().await;
+	let config = state.config.clone().into();
+
+	// Return 200 to avoid leaking valid emails
+	let Some(user) = User::from_email(&config, &form.email) else {
+		return Ok(login_action_page.into_response());
+	};
+
+	// Generate the magic link
+	let link = LoginLinkSecret::new(
+		user.clone(),
+		login_redirect.into_opt().await,
+		&config,
+		&state.db
+	).await?;
+	let magic_link = config.external_url.clone() + &link.get_login_url();
+
+	#[cfg(debug_assertions)]
+	info!("Link: {}", &magic_link);
+
+	state.send_magic_link(&user, &magic_link).await?;
+	Ok(login_action_page.into_response())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

@@ -2974,6 +2974,7 @@ dependencies = [
  "formatx",
  "futures",
  "glob",
+ "headers",
  "hex",
  "hurl",
  "hurl_core",
@@ -2989,6 +2990,7 @@ dependencies = [
  "rand 0.9.2",
  "reqwest",
  "rsa",
+ "scheme",
  "scraper",
  "serde",
  "serde_json",
@@ -4283,6 +4285,12 @@ dependencies = [
  "serde_derive_internals",
  "syn",
 ]
+
+[[package]]
+name = "scheme"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d0449cfb07d718f6252250ff1a65ca73b52becdd9b3a8102d86cba61f820599"
 
 [[package]]
 name = "scopeguard"

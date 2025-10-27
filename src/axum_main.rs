@@ -1,18 +1,18 @@
 use axum::middleware::map_response_with_state;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 
-use magicentry::handle_login::handle_login;
-use magicentry::handle_logout::handle_logout;
 use magicentry::{CONFIG, AppState};
+use magicentry::handle_login::handle_login;
+use magicentry::handle_login_post::handle_login_post;
+use magicentry::handle_logout::handle_logout;
 use magicentry::handle_magic_link::handle_magic_link;
 use magicentry::handle_index::handle_index;
 
 // Issues:
 // - Implement the rest of the endpoints
 // - Add a middleware/extractor that checks the origin of the request - there's a feature flag in axum?
-// - Move HTTP/SMTP/etc. under a "LinkSender" trait and have a list of them in the state
 // - Maybe browser session middleware?
 // - App builder
 // - Test migration & replace main
@@ -31,14 +31,14 @@ async fn main() {
 	let state = AppState {
 		db,
 		config: CONFIG.read().await.clone(),
-		mailer: None,
-		http_client: None,
+		link_senders: vec![],
 	};
 
 	// Set up the router with the typed path
 	let app = Router::new()
 		.route("/", get(handle_index))
 		.route("/login", get(handle_login))
+		.route("/login", post(handle_login_post))
 		.route("/logout", get(handle_logout))
 		.typed_get(handle_magic_link)
 		.layer(map_response_with_state(state.clone(), magicentry::error::error_handler))

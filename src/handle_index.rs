@@ -54,7 +54,7 @@ async fn index(
 pub async fn handle_index(
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	browser_session: BrowserSessionSecret,
-) -> Result<impl axum::response::IntoResponse, axum::http::StatusCode>  {
+) -> impl axum::response::IntoResponse  {
 	let config: LiveConfig = state.config.into();
 	let realmed_services = config.services.from_user(browser_session.user());
 	let services: Vec<ServiceInfo> = realmed_services.0.into_iter()
@@ -68,6 +68,7 @@ pub async fn handle_index(
 		services,
 	}.render().await;
 
+	// TODO: Return the headers
 	// let mut headers = axum::http::HeaderMap::new();
 	//
 	// headers.insert(
@@ -88,7 +89,7 @@ pub async fn handle_index(
 	// );
 
 	// Ok(headers)
-	Ok(axum::response::Html(index_page.into_string()))
+	axum::response::Html(index_page.into_string())
 }
 
 #[cfg(test)]
