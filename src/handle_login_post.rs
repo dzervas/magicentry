@@ -22,7 +22,7 @@ use crate::user::User;
 use crate::secret::login_link::LoginLinkRedirect;
 use crate::secret::LoginLinkSecret;
 use crate::pages::{LoginActionPage, Page};
-use crate::{SmtpTransport};
+use crate::SmtpTransport;
 
 /// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

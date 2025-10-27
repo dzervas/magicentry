@@ -59,6 +59,18 @@ impl From<&BrowserSessionSecret> for Cookie<'_> {
 	}
 }
 
+impl From<&BrowserSessionSecret> for axum_extra::extract::cookie::Cookie<'_> {
+	fn from(val: &BrowserSessionSecret) -> axum_extra::extract::cookie::Cookie<'static> {
+		axum_extra::extract::cookie::Cookie::build((
+			SESSION_COOKIE,
+			val.code().to_str_that_i_wont_print(),
+		))
+		.http_only(true)
+		.path("/")
+		.build()
+	}
+}
+
 impl BrowserSessionSecret {
 	#[must_use]
 	pub fn unset_cookie() -> Cookie<'static> {

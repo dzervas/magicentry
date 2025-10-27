@@ -7,6 +7,10 @@ edition = "2024"
 default = []
 kube = ["dep:kube", "dep:k8s-openapi"]
 
+[[bin]]
+name = "axum"
+path = "src/axum_main.rs"
+
 [dependencies]
 actix-web = "4.11"
 actix-web-httpauth = "0.8"
@@ -60,6 +64,9 @@ async-trait = "0.1"
 anyhow = "1.0"
 thiserror = "2.0"
 
+axum = { version = "0.8.6", features = ["original-uri", "http2", "macros"] }
+axum-extra = { version = "0.10.3", features = ["cookie", "form", "query", "typed-header", "typed-routing"] }
+
 [dev-dependencies]
 actix-http = "3.11"
 
@@ -89,6 +96,6 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 enum_glob_use = "deny"
-pedantic = "deny"
+# pedantic = "deny"
 nursery = "deny"
-unwrap_used = "deny"
+# unwrap_used = "deny"

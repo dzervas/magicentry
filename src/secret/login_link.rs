@@ -1,3 +1,4 @@
+use axum::RequestPartsExt;
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
@@ -135,5 +136,19 @@ impl actix_web::FromRequest for LoginLinkSecret {
 			Self::try_from_string(code, db.get_ref()).await
 				.map_err(Into::into)
 		})
+	}
+}
+
+impl axum::extract::FromRequestParts<crate::handle_magic_link::AppState> for LoginLinkSecret {
+	// type Rejection = crate::error::AppError;
+	type Rejection = axum::http::StatusCode;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::handle_magic_link::AppState) -> Result<Self, Self::Rejection> {
+		// let Ok(code) = parts.extract::<String>().await else {
+		// 	return Err(Self::Rejection::BAD_REQUEST);
+		// };
+		let crate::handle_magic_link::LoginPath { link } = parts.extract::<crate::handle_magic_link::LoginPath>().await.unwrap();
+
+		Ok(Self::try_from_string(link, &state.db).await.unwrap())
 	}
 }

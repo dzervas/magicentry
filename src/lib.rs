@@ -127,3 +127,11 @@ pub static CONFIG: LazyLock<RwLock<Arc<Config>>> = LazyLock::new(RwLock::default
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct InFlightConfig(Arc<Config>);
+
+#[derive(Clone)]
+pub struct AppState {
+	pub db: crate::Database,
+	pub config: Arc<Config>,
+	pub mailer: Option<SmtpTransport>,
+	pub http_client: Option<reqwest::Client>,
+}
