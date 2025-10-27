@@ -140,15 +140,13 @@ impl actix_web::FromRequest for LoginLinkSecret {
 }
 
 impl axum::extract::FromRequestParts<crate::AppState> for LoginLinkSecret {
-	// type Rejection = crate::error::AppError;
-	type Rejection = axum::http::StatusCode;
+	type Rejection = crate::error::AppError;
 
 	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
-		// let Ok(code) = parts.extract::<String>().await else {
-		// 	return Err(Self::Rejection::BAD_REQUEST);
-		// };
-		let crate::handle_magic_link::LoginPath { link } = parts.extract::<crate::handle_magic_link::LoginPath>().await.unwrap();
+		let Ok(crate::handle_magic_link::LoginPath { link }) = parts.extract::<crate::handle_magic_link::LoginPath>().await else {
+			return Err(AuthError::MissingLoginLinkCode.into());
+		};
 
-		Ok(Self::try_from_string(link, &state.db).await.unwrap())
+		Ok(Self::try_from_string(link, &state.db).await?)
 	}
 }

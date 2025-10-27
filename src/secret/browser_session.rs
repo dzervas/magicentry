@@ -82,35 +82,28 @@ impl BrowserSessionSecret {
 }
 
 impl axum::extract::FromRequestParts<crate::AppState> for BrowserSessionSecret {
-	// type Rejection = crate::error::AppError;
-	type Rejection = axum::http::StatusCode;
+	type Rejection = crate::error::AppError;
 
 	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
-		// let Ok(code) = parts.extract::<String>().await else {
-		// 	return Err(Self::Rejection::BAD_REQUEST);
-		// };
-		let jar = parts.extract::<axum_extra::extract::CookieJar>().await.unwrap();
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
 		let Some(code) = jar.get(SESSION_COOKIE) else {
-			return Err(axum::http::StatusCode::BAD_REQUEST);
+			return Err(DatabaseError::InstanceError.into());
 		};
 
-		Ok(Self::try_from_string(code.value().to_string(), &state.db).await.unwrap())
+		Ok(Self::try_from_string(code.value().to_string(), &state.db).await?)
 	}
 }
 
 impl axum::extract::OptionalFromRequestParts<crate::AppState> for BrowserSessionSecret {
-	// type Rejection = crate::error::AppError;
-	type Rejection = axum::http::StatusCode;
+	type Rejection = crate::error::AppError;
 
 	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Option<Self>, Self::Rejection> {
-		// let Ok(code) = parts.extract::<String>().await else {
-		// 	return Err(Self::Rejection::BAD_REQUEST);
-		// };
-		let jar = parts.extract::<axum_extra::extract::CookieJar>().await.unwrap();
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
 		let Some(code) = jar.get(SESSION_COOKIE) else {
 			return Ok(None);
 		};
 
-		Ok(Some(Self::try_from_string(code.value().to_string(), &state.db).await.unwrap()))
+		// Does this need to bubble the error or return None?
+		Ok(Some(Self::try_from_string(code.value().to_string(), &state.db).await?))
 	}
 }
