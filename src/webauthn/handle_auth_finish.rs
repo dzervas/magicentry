@@ -41,3 +41,32 @@ pub async fn auth_finish(
 		}
 	))
 }
+
+#[axum::debug_handler]
+pub async fn handle_auth_finish(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	auth: WebAuthnAuthSecret,
+	jar: axum_extra::extract::CookieJar,
+	req: axum::Json<PublicKeyCredential>,
+) -> Result<(axum_extra::extract::CookieJar, impl axum::response::IntoResponse), crate::error::AppError> {
+	let webauthn = state.webauthn.clone();
+
+	let sk = webauthn.finish_passkey_authentication(&req, auth.metadata())
+		.context("Failed to finish passkey authentication")?;
+
+	if !sk.user_verified() {
+		return Err(AuthError::InvalidTargetUser.into());
+	}
+
+	let browser_session: BrowserSessionSecret = auth.exchange(&state.config.into(), &state.db).await?;
+
+	// TODO: How to handle redirects?
+	// TODO: Handle the passkey store counter
+
+	Ok((
+		jar.add(&browser_session),
+		axum::response::Json(AuthFinishResponse {
+			redirect_to: "/".to_string(),
+		})
+	))
+}

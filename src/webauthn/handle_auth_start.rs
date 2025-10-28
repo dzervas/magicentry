@@ -35,3 +35,31 @@ pub async fn auth_start(
 		.cookie(auth.into())
 		.json(resp))
 }
+
+#[axum::debug_handler]
+pub async fn handle_auth_start(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	jar: axum_extra::extract::CookieJar,
+	form: axum::Json<LoginInfo>,
+) -> Result<(axum_extra::extract::CookieJar, impl axum::response::IntoResponse), crate::error::AppError> {
+	let webauthn = state.webauthn.clone();
+
+	// TODO: Handle the errors to avoid leaking (in)valid emails
+	let user = User::from_email(&state.config.clone().into(), &form.email)
+		.ok_or(AuthError::InvalidTargetUser)?;
+	
+	let passkey_stores = PasskeyStore::get_by_user(&user, &state.db).await?;
+	let passkeys = passkey_stores
+		.iter()
+		.map(|p| p.passkey.clone())
+		.collect::<Vec<_>>();
+	let (resp, auth) = webauthn.start_passkey_authentication(passkeys.as_slice())
+		.context("Failed to start passkey authentication")?;
+
+	let auth = WebAuthnAuthSecret::new(user, auth, &state.config.into(), &state.db).await?;
+
+	Ok((
+		jar.add(&auth),
+		axum::response::Json(resp),
+	))
+}

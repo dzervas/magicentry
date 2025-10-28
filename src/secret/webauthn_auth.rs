@@ -43,6 +43,34 @@ impl actix_web::FromRequest for WebAuthnAuthSecret {
 	}
 }
 
+impl From<&WebAuthnAuthSecret> for axum_extra::extract::cookie::Cookie<'_> {
+	fn from(val: &WebAuthnAuthSecret) -> axum_extra::extract::cookie::Cookie<'static> {
+		axum_extra::extract::cookie::Cookie::build((
+			WEBAUTHN_AUTH_COOKIE,
+			val.code().to_str_that_i_wont_print(),
+		))
+		.http_only(true)
+		.path("/")
+		.build()
+	}
+}
+use axum::RequestPartsExt;
+
+impl axum::extract::FromRequestParts<crate::AppState> for WebAuthnAuthSecret {
+	type Rejection = crate::error::AppError;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
+
+		let Some(cookie) = jar.get(WEBAUTHN_AUTH_COOKIE) else {
+			return Err(WebAuthnError::SecretNotFound.into());
+		};
+
+
+		Ok(Self::try_from_string(cookie.value().to_string(), &state.db).await?)
+	}
+}
+
 impl From<WebAuthnAuthSecret> for Cookie<'_> {
 	fn from(val: WebAuthnAuthSecret) -> Cookie<'static> {
 		Cookie::build(

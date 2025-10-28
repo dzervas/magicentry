@@ -20,6 +20,8 @@ use magicentry::oidc::handle_userinfo::handle_userinfo;
 use magicentry::saml::handle_sso::handle_sso;
 use magicentry::saml::handle_metadata::handle_metadata;
 
+use magicentry::webauthn::handle_auth_start::handle_auth_start;
+use magicentry::webauthn::handle_auth_finish::handle_auth_finish;
 use magicentry::webauthn::handle_reg_start::handle_reg_start;
 use magicentry::webauthn::handle_reg_finish::handle_reg_finish;
 
@@ -73,6 +75,8 @@ async fn main() {
 		.route("/oidc/token", post(handle_token))
 		.route("/oidc/userinfo", get(handle_userinfo))
 
+		.route("/webauthn/auth/start", post(handle_auth_start))
+		.route("/webauthn/auth/finish", post(handle_auth_finish))
 		.route("/webauthn/register/start", post(handle_reg_start))
 		.route("/webauthn/register/finish", post(handle_reg_finish))
 
