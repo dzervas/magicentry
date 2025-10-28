@@ -3,16 +3,20 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 
+use magicentry::oidc::handle_jwks::handle_jwks;
+use magicentry::oidc::handle_userinfo::handle_userinfo;
 use magicentry::{CONFIG, AppState};
 use magicentry::handle_login::handle_login;
 use magicentry::handle_login_post::handle_login_post;
 use magicentry::handle_logout::handle_logout;
 use magicentry::handle_magic_link::handle_magic_link;
 use magicentry::handle_index::handle_index;
+use magicentry::oidc::handle_discover::handle_discover;
+use magicentry::saml::handle_sso::handle_sso;
 
 // Issues:
 // - Implement the rest of the endpoints
-// - Add a middleware/extractor that checks the origin of the request - there's a feature flag in axum?
+// - Add a middleware/extractor that checks the origin of the request?
 // - Maybe browser session middleware?
 // - App builder
 // - Test migration & replace main
@@ -20,7 +24,9 @@ use magicentry::handle_index::handle_index;
 // - Per-type token endpoint to split them (PCRE/code/etc.)
 // - HTML & style the email (and the http?)
 // - SAML deflate can be a tokio middleware (already in tower-http)
+// - Clone the config on each request - maybe using FromRef<OuterState> for AppState where OuterState has access to the lock
 // - Cache authurl status?
+// - Use &'static AppState and `&*Box::leak(Box::new(state))` to avoid cloning (since the state will never get freed) and remove Arc from config and link senders
 
 #[tokio::main]
 async fn main() {
@@ -32,6 +38,8 @@ async fn main() {
 		db,
 		config: CONFIG.read().await.clone(),
 		link_senders: vec![],
+		// XXX: Well, yea
+		key: jsonwebtoken::EncodingKey::from_secret(b"secret"),
 	};
 
 	// Set up the router with the typed path
@@ -41,6 +49,13 @@ async fn main() {
 		.route("/login", post(handle_login_post))
 		.route("/logout", get(handle_logout))
 		.typed_get(handle_magic_link)
+
+		.route("/saml/sso", get(handle_sso))
+
+		.route("/.well-known/openid-configuration", get(handle_discover))
+		.route("/oidc/jwks", get(handle_jwks))
+		.route("/oidc/userinfo", get(handle_userinfo))
+
 		.layer(map_response_with_state(state.clone(), magicentry::error::error_handler))
 		.with_state(state);
 

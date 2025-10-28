@@ -16,9 +16,8 @@ fn serialize_vec_with_space<S: Serializer>(
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Discovery<'a> {
-	pub issuer: &'a str,
+	pub issuer: String,
 
-	// These are String because they get constructed with format!
 	pub authorization_endpoint: String,
 	pub token_endpoint: String,
 	pub userinfo_endpoint: String,
@@ -39,9 +38,9 @@ pub struct Discovery<'a> {
 
 impl<'a> Discovery<'a> {
 	#[must_use]
-	pub fn new(base: &'a str, external_url: &'a str) -> Self {
+	pub fn new(base: String, external_url: String) -> Self {
 		Discovery {
-			issuer: base,
+			issuer: base.clone(),
 
 			authorization_endpoint: format!("{external_url}/oidc/authorize"),
 			token_endpoint: format!("{base}/oidc/token"),
@@ -72,11 +71,28 @@ generate_cors_preflight!(
 pub async fn discover(conn: ConnectionInfo, config: LiveConfig) -> impl Responder {
 	let base_url = Config::url_from_request(conn).await;
 	let external_url = config.external_url.clone();
-	let discovery = Discovery::new(&base_url, &external_url);
+	let discovery = Discovery::new(base_url, external_url);
 
 	HttpResponse::Ok()
 		.append_header(("Access-Control-Allow-Origin", "*"))
 		.append_header(("Access-Control-Allow-Methods", "GET, OPTIONS"))
 		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
 		.json(discovery)
+}
+
+#[axum::debug_handler]
+pub async fn handle_discover(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	axum_extra::extract::Host(host): axum_extra::extract::Host,
+) -> impl axum::response::IntoResponse {
+	let discovery = Discovery::new(host, state.config.external_url.clone());
+
+	(
+		[
+			("Access-Control-Allow-Origin", "*"),
+			("Access-Control-Allow-Methods", "GET, OPTIONS"),
+			("Access-Control-Allow-Headers", "Content-Type"),
+		],
+		axum::Json(discovery),
+	)
 }

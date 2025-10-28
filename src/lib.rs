@@ -136,6 +136,8 @@ pub struct AppState {
 	// pub mailer: Option<SmtpTransport>,
 	// pub http_client: Option<reqwest::Client>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
+
+	pub key: jsonwebtoken::EncodingKey,
 }
 
 impl AppState {

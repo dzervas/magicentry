@@ -1,3 +1,4 @@
+use axum::RequestPartsExt;
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
@@ -52,5 +53,17 @@ impl actix_web::FromRequest for OIDCTokenSecret {
 			Self::try_from_string(code, db.get_ref()).await
 				.map_err(Into::into)
 		})
+	}
+}
+
+impl axum::extract::FromRequestParts<crate::AppState> for OIDCTokenSecret {
+	type Rejection = crate::error::AppError;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
+		let Ok(axum_extra::extract::TypedHeader(headers::Authorization(token))) = parts.extract::<axum_extra::extract::TypedHeader<headers::Authorization<headers::authorization::Bearer>>>().await else {
+			return Err(AuthError::MissingLoginLinkCode.into());
+		};
+
+		Ok(Self::try_from_string(token.token().to_string(), &state.db).await?)
 	}
 }
