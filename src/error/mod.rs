@@ -97,7 +97,7 @@ impl ResponseError for AppError {
 	/// Create an error response for HTTP handlers
 	fn error_response(&self) -> HttpResponse {
 		let status = self.status_code();
-		#[allow(unused_mut)] // Since it's used during release builds
+		#[cfg(not(debug_assertions))]
 		let mut description = self.to_string();
 
 		if status.is_server_error() {
