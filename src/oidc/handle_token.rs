@@ -1,6 +1,7 @@
 use actix_web::dev::ConnectionInfo;
 use actix_web::{post, web, HttpResponse};
 use actix_web_httpauth::extractors::basic::BasicAuth;
+use axum::response::IntoResponse;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use jsonwebtoken::EncodingKey;
@@ -202,4 +203,103 @@ pub async fn token(
 	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
 	// TODO: Send error response
 	// Or error=<error>&error_description=<error_description>
+}
+
+// TODO: Refactor this function
+#[axum::debug_handler]
+#[allow(clippy::cognitive_complexity)]
+pub async fn handle_token(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	basic: Option<axum_extra::extract::TypedHeader<headers::Authorization<headers::authorization::Basic>>>,
+	axum::extract::Form(token_req): axum::extract::Form<TokenRequest>,
+) -> Result<axum::response::Response, crate::error::AppError> {
+
+	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &state.db).await?;
+	let auth_req = oidc_authcode.child_metadata();
+
+	let client_id = basic.clone()
+		.map_or_else(
+			|| auth_req.client_id.clone(),
+			|basic_creds| basic_creds.username().to_string()
+		);
+
+	let mut service = state.config
+		.services
+		.from_oidc_client_id(&client_id)
+		.ok_or(AuthError::InvalidClientID)?;
+
+	let mut oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
+
+	if let Some(code_verifier) = token_req.code_verifier.clone() {
+		// We're using PCRE with code_challenge - code_verifier
+		// Client id & secret is not required and only the request origin should be checked
+		info!("Responding to PCRE request for client {}", service.name);
+		let mut hasher = Sha256::new();
+		hasher.update(code_verifier.as_bytes());
+		let generated_code_challenge_bytes = hasher.finalize();
+		let generated_code_challenge = general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
+
+		if Some(generated_code_challenge) != auth_req.code_challenge {
+			return Err(OidcError::InvalidCodeVerifier.into());
+		}
+	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
+		// We're using client_id - client_secret
+		info!("Responding to client_secret_post request for client {}", service.name);
+		let req_client_id = token_req.client_id.clone().ok_or(OidcError::NoClientID)?;
+
+		if oidc.client_secret != req_client_secret {
+			return Err(AuthError::InvalidClientSecret.into());
+		}
+
+		if oidc.client_id != req_client_id {
+			return Err(AuthError::InvalidClientID.into());
+		}
+	} else if let Some(basic_creds) = basic {
+		// We're using client_id - client_secret over basic auth
+		debug!("Responding to client_secret_basic request");
+		let req_client_id = basic_creds.username();
+		let req_client_secret = basic_creds.password();
+		service = state.config
+			.services
+			.from_oidc_client_id(req_client_id)
+			.ok_or(AuthError::InvalidClientID)?;
+
+		if !service.is_user_allowed(oidc_authcode.user()) {
+			return Err(AuthError::Unauthorized.into());
+		}
+
+		oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
+
+		if oidc.client_id != req_client_id || oidc.client_secret != req_client_secret {
+			return Err(AuthError::InvalidClientSecret.into());
+		}
+	} else {
+		return Err(OidcError::NoClientCredentialsProvided.into());
+	}
+
+	let id_token = auth_req.generate_id_token(
+		oidc_authcode.user(),
+		state.config.external_url.clone(),
+		&state.key,
+		&state.config.clone().into()
+	)?;
+	let oidc_token = oidc_authcode.exchange_sibling(&state.config.clone().into(), &state.db).await?;
+
+	let response = TokenResponse {
+		access_token: oidc_token.code().to_str_that_i_wont_print(),
+		token_type: "Bearer".to_string(),
+		expires_in: state.config.session_duration.num_seconds(),
+		id_token,
+		// TODO: Actually have a refresh token
+		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty
+	};
+
+	Ok((
+		[
+			("Access-Control-Allow-Origin", "*"),
+			("Access-Control-Allow-Methods", "GET, OPTIONS"),
+			("Access-Control-Allow-Headers", "Content-Type"),
+		],
+		axum::Json(response),
+	).into_response())
 }

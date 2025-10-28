@@ -56,6 +56,35 @@ impl From<WebAuthnRegSecret> for Cookie<'_> {
 	}
 }
 
+impl From<&WebAuthnRegSecret> for axum_extra::extract::cookie::Cookie<'_> {
+	fn from(val: &WebAuthnRegSecret) -> axum_extra::extract::cookie::Cookie<'static> {
+		axum_extra::extract::cookie::Cookie::build((
+			WEBAUTHN_REG_COOKIE,
+			val.code().to_str_that_i_wont_print(),
+		))
+		.http_only(true)
+		.path("/")
+		.build()
+	}
+}
+
+use axum::RequestPartsExt;
+
+impl axum::extract::FromRequestParts<crate::AppState> for WebAuthnRegSecret {
+	type Rejection = crate::error::AppError;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
+
+		let Some(cookie) = jar.get(WEBAUTHN_REG_COOKIE) else {
+			return Err(WebAuthnError::SecretNotFound.into());
+		};
+
+
+		Ok(Self::try_from_string(cookie.value().to_string(), &state.db).await?)
+	}
+}
+
 impl WebAuthnRegSecret {
 	#[must_use]
 	pub fn unset_cookie() -> Cookie<'static> {

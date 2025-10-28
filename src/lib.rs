@@ -133,11 +133,10 @@ pub struct InFlightConfig(Arc<Config>);
 pub struct AppState {
 	pub db: crate::Database,
 	pub config: Arc<Config>,
-	// pub mailer: Option<SmtpTransport>,
-	// pub http_client: Option<reqwest::Client>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
 
 	pub key: jsonwebtoken::EncodingKey,
+	pub webauthn: webauthn_rs::Webauthn,
 }
 
 impl AppState {

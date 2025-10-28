@@ -3,7 +3,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 
-use magicentry::{CONFIG, AppState};
+use magicentry::{webauthn, AppState, CONFIG};
 
 use magicentry::handle_login::handle_login;
 use magicentry::handle_login_post::handle_login_post;
@@ -14,10 +14,14 @@ use magicentry::handle_index::handle_index;
 use magicentry::oidc::handle_authorize::{handle_authorize_get, handle_authorize_post};
 use magicentry::oidc::handle_discover::handle_discover;
 use magicentry::oidc::handle_jwks::handle_jwks;
+use magicentry::oidc::handle_token::handle_token;
 use magicentry::oidc::handle_userinfo::handle_userinfo;
 
 use magicentry::saml::handle_sso::handle_sso;
 use magicentry::saml::handle_metadata::handle_metadata;
+
+use magicentry::webauthn::handle_reg_start::handle_reg_start;
+use magicentry::webauthn::handle_reg_finish::handle_reg_finish;
 
 // Issues:
 // - Implement the rest of the endpoints
@@ -38,13 +42,17 @@ async fn main() {
 	let db = magicentry::database::init_database("sqlite::memory:")
 		.await
 		.expect("Failed to initialize SQLite database");
+	let config = CONFIG.read().await.clone();
+	let title = config.title.clone();
+	let external_url = config.external_url.clone();
 
 	let state = AppState {
 		db,
-		config: CONFIG.read().await.clone(),
+		config,
 		link_senders: vec![],
 		// XXX: Well, yea
 		key: jsonwebtoken::EncodingKey::from_secret(b"secret"),
+		webauthn: webauthn::init(&title, &external_url).unwrap(),
 	};
 
 	// Set up the router with the typed path
@@ -62,7 +70,11 @@ async fn main() {
 		.route("/oidc/authorize", get(handle_authorize_get))
 		.route("/oidc/authorize", post(handle_authorize_post))
 		.route("/oidc/jwks", get(handle_jwks))
+		.route("/oidc/token", post(handle_token))
 		.route("/oidc/userinfo", get(handle_userinfo))
+
+		.route("/webauthn/register/start", post(handle_reg_start))
+		.route("/webauthn/register/finish", post(handle_reg_finish))
 
 		.layer(map_response_with_state(state.clone(), magicentry::error::error_handler))
 		.with_state(state);

@@ -87,7 +87,7 @@ impl axum::extract::FromRequestParts<crate::AppState> for BrowserSessionSecret {
 	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
 		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
 		let Some(code) = jar.get(SESSION_COOKIE) else {
-			return Err(DatabaseError::InstanceError.into());
+			return Err(AuthError::NotLoggedIn.into());
 		};
 
 		Ok(Self::try_from_string(code.value().to_string(), &state.db).await?)

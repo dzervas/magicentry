@@ -29,3 +29,27 @@ pub async fn reg_start(
 		.cookie(reg.into())
 		.json(ccr))
 }
+
+#[axum::debug_handler]
+pub async fn handle_reg_start(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	browser_session: BrowserSessionSecret,
+	jar: axum_extra::extract::CookieJar,
+) -> Result<(axum_extra::extract::CookieJar, impl axum::response::IntoResponse), crate::error::AppError> {
+	let user = browser_session.user().clone();
+
+	let (ccr, reg_state) = state.webauthn.start_passkey_registration(
+		(&user).into(),
+		&user.email.clone(),
+		&user.name.clone(),
+		None,
+	)
+	.context("Failed to start passkey registration")?;
+
+	let reg = WebAuthnRegSecret::new(user, reg_state, &state.config.into(), &state.db).await?;
+
+	Ok((
+		jar.add(&reg),
+		axum::response::Json(ccr),
+	))
+}
