@@ -238,3 +238,38 @@ impl LinkSender for reqwest::Client {
 		Ok(())
 	}
 }
+
+use axum::http::StatusCode;
+use axum::http::request::Parts;
+use axum::extract::FromRequestParts;
+use url::Url;
+
+#[derive(Debug, Clone)]
+pub struct OriginalUri(pub Url);
+
+// TODO: Error handling
+impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
+	type Rejection = StatusCode;
+
+	async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+		// The list of headers to check, in order of preference.
+		const VALID_HEADERS: &[&str] = &["x-original-uri", "x-original-url", "x-remote-url"];
+
+		// Iterate through the list of valid header names.
+		for header_name in VALID_HEADERS {
+			// Try to get the header value from the request's headers.
+			// Header names are case-insensitive, so this works correctly.
+			if let Some(header_value) = parts.headers.get(*header_name) {
+				// We found a header. Now, try to parse its value into a URI.
+				let uri_str = header_value.to_str().unwrap();
+
+				let uri = uri_str.parse().unwrap();
+
+				return Ok(OriginalUri(uri));
+			}
+		}
+
+		// If the loop completes without finding any of the headers, return an error.
+		Err(StatusCode::BAD_REQUEST)
+	}
+}

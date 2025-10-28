@@ -11,6 +11,8 @@ use magicentry::handle_logout::handle_logout;
 use magicentry::handle_magic_link::handle_magic_link;
 use magicentry::handle_index::handle_index;
 
+use magicentry::auth_url::handle_status::handle_status;
+
 use magicentry::oidc::handle_authorize::{handle_authorize_get, handle_authorize_post};
 use magicentry::oidc::handle_discover::handle_discover;
 use magicentry::oidc::handle_jwks::handle_jwks;
@@ -26,7 +28,6 @@ use magicentry::webauthn::handle_reg_start::handle_reg_start;
 use magicentry::webauthn::handle_reg_finish::handle_reg_finish;
 
 // Issues:
-// - Implement the rest of the endpoints
 // - Add a middleware/extractor that checks the origin of the request?
 // - Maybe browser session middleware?
 // - App builder
@@ -64,6 +65,8 @@ async fn main() {
 		.route("/login", post(handle_login_post))
 		.route("/logout", get(handle_logout))
 		.typed_get(handle_magic_link)
+
+		.route("/auth-url/status", get(handle_status))
 
 		.route("/saml/metadata", get(handle_metadata))
 		.route("/saml/sso", get(handle_sso))

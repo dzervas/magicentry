@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use axum::RequestPartsExt;
 use actix_web::cookie::{Cookie, SameSite};
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
@@ -76,5 +77,48 @@ impl From<&ProxySessionSecret> for Cookie<'_> {
 		.same_site(SameSite::Lax)
 		.path("/")
 		.finish()
+	}
+}
+
+// TODO: Error handling
+impl axum::extract::OptionalFromRequestParts<crate::AppState> for ProxySessionSecret {
+	type Rejection = crate::error::AppError;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Option<Self>, Self::Rejection> {
+		let Ok(crate::OriginalUri(origin_url)) = parts.extract::<crate::OriginalUri>().await else {
+			// return Err(AuthError::MissingLoginLinkCode.into());
+			return Ok(None);
+		};
+
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
+		let Some(code) = jar.get(PROXY_SESSION_COOKIE) else {
+			return Err(AuthError::NotLoggedIn.into());
+		};
+
+
+		let secret = Self::try_from_string(code.value().to_string(), &state.db).await
+			.context("Failed to create proxy code secret from string")?;
+		let service = state.config.services
+				.from_auth_url_origin(&origin_url.origin())
+				.ok_or_else(|| crate::error::AppError::Proxy(ProxyError::operation("Origin not found in service configuration")))?;
+
+		if !service.is_user_allowed(secret.user()) {
+			tracing::warn!("User {} tried to access {} with a proxy code", secret.user().email, service.name);
+			return Err(AuthError::Unauthorized.into());
+		}
+
+		Ok(Some(secret))
+	}
+}
+
+impl From<&ProxySessionSecret> for axum_extra::extract::cookie::Cookie<'_> {
+	fn from(val: &ProxySessionSecret) -> axum_extra::extract::cookie::Cookie<'static> {
+		axum_extra::extract::cookie::Cookie::build((
+			PROXY_SESSION_COOKIE,
+			val.code().to_str_that_i_wont_print(),
+		))
+		.http_only(true)
+		.path("/")
+		.build()
 	}
 }

@@ -1,5 +1,6 @@
 use actix_web::cookie::Cookie;
 use actix_web::{get, web, HttpResponse};
+use axum::response::IntoResponse;
 use tracing::info;
 
 use crate::config::LiveConfig;
@@ -75,4 +76,57 @@ async fn status(
 	drop(config);
 
 	Ok(response.finish())
+}
+
+#[axum::debug_handler]
+pub async fn handle_status(
+	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	mut jar: axum_extra::extract::CookieJar,
+	proxy_code_opt: Option<ProxyCodeSecret>,
+	proxy_session_opt: Option<ProxySessionSecret>,
+) -> Result<(axum_extra::extract::CookieJar, axum::response::Response), crate::error::AppError> {
+	let config: LiveConfig = state.config.into();
+
+	let proxy_session = if let Some(proxy_session) = proxy_session_opt {
+		proxy_session
+	} else if let Some(proxy_code) = proxy_code_opt {
+		info!("Proxied login for {}", &proxy_code.user().email);
+		let proxy_session: ProxySessionSecret = proxy_code
+			.exchange_sibling(&config, &state.db)
+			.await?;
+
+		jar = jar.add(&proxy_session);
+		proxy_session
+	} else {
+		return Ok((
+			jar.remove(PROXY_SESSION_COOKIE),
+			axum::http::StatusCode::UNAUTHORIZED.into_response(),
+		))
+	};
+
+	let mut headers = axum::http::HeaderMap::new();
+	let user = proxy_session.user();
+
+	// TODO: Add cache-control headers
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_email_header.as_bytes()).unwrap(),
+		user.email.parse().unwrap(),
+	);
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_user_header.as_bytes()).unwrap(),
+		user.username.parse().unwrap(),
+	);
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_name_header.as_bytes()).unwrap(),
+		user.name.parse().unwrap(),
+	);
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_realms_header.as_bytes()).unwrap(),
+		user.realms.join(",").parse().unwrap(),
+	);
+
+	Ok((
+		jar,
+		(headers, "OK").into_response(),
+	))
 }

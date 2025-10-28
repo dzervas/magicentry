@@ -68,28 +68,28 @@ pub async fn handle_index(
 		services,
 	}.render().await;
 
-	// TODO: Return the headers
-	// let mut headers = axum::http::HeaderMap::new();
-	//
-	// headers.insert(
-	// 	config.auth_url_email_header.as_str(),
-	// 	browser_session.user().email.parse().unwrap(),
-	// );
-	// headers.insert(
-	// 	config.auth_url_user_header.as_str(),
-	// 	browser_session.user().username.parse().unwrap(),
-	// );
-	// headers.insert(
-	// 	config.auth_url_name_header.as_str(),
-	// 	browser_session.user().name.parse().unwrap(),
-	// );
-	// headers.insert(
-	// 	config.auth_url_realms_header.as_str(),
-	// 	browser_session.user().realms.join(",").parse().unwrap(),
-	// );
+	let mut headers = axum::http::HeaderMap::new();
+	let user = browser_session.user();
 
-	// Ok(headers)
-	axum::response::Html(index_page.into_string())
+	// TODO: Make the config store HeaderName instead of String or handle errors or have a user helper to return headers
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_email_header.as_bytes()).unwrap(),
+		user.email.parse().unwrap(),
+	);
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_user_header.as_bytes()).unwrap(),
+		user.username.parse().unwrap(),
+	);
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_name_header.as_bytes()).unwrap(),
+		user.name.parse().unwrap(),
+	);
+	headers.insert(
+		axum::http::header::HeaderName::from_bytes(config.auth_url_realms_header.as_bytes()).unwrap(),
+		user.realms.join(",").parse().unwrap(),
+	);
+
+	(headers, index_page)
 }
 
 #[cfg(test)]

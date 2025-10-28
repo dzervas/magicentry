@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use axum::RequestPartsExt;
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
@@ -63,5 +64,38 @@ impl actix_web::FromRequest for ProxyCodeSecret {
 
 			Ok(secret)
 		})
+	}
+}
+
+// TODO: Error handling
+impl axum::extract::OptionalFromRequestParts<crate::AppState> for ProxyCodeSecret {
+	type Rejection = crate::error::AppError;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Option<Self>, Self::Rejection> {
+		let Ok(crate::OriginalUri(origin_url)) = parts.extract::<crate::OriginalUri>().await else {
+			// return Err(AuthError::MissingLoginLinkCode.into());
+			return Ok(None);
+		};
+
+		let code = origin_url
+			.query_pairs()
+			.find(|e| e.0.to_lowercase() == PROXY_QUERY_CODE)
+			.ok_or_else(|| crate::error::AppError::Proxy(ProxyError::operation("Missing proxy code in query parameters")))?;
+
+		let secret = Self::try_from_string(code.1.to_string(), &state.db).await
+			.context("Failed to create proxy code secret from string")?;
+		let service = {
+			let config = CONFIG.read().await;
+			config.services
+				.from_auth_url_origin(&origin_url.origin())
+				.ok_or_else(|| crate::error::AppError::Proxy(ProxyError::operation("Origin not found in service configuration")))?
+		};
+
+		if !service.is_user_allowed(secret.user()) {
+			tracing::warn!("User {} tried to access {} with a proxy code", secret.user().email, service.name);
+			return Err(AuthError::Unauthorized.into());
+		}
+
+		Ok(Some(secret))
 	}
 }
