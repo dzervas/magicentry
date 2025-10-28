@@ -3,16 +3,21 @@ use axum::routing::{get, post};
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 
-use magicentry::oidc::handle_jwks::handle_jwks;
-use magicentry::oidc::handle_userinfo::handle_userinfo;
 use magicentry::{CONFIG, AppState};
+
 use magicentry::handle_login::handle_login;
 use magicentry::handle_login_post::handle_login_post;
 use magicentry::handle_logout::handle_logout;
 use magicentry::handle_magic_link::handle_magic_link;
 use magicentry::handle_index::handle_index;
+
+use magicentry::oidc::handle_authorize::{handle_authorize_get, handle_authorize_post};
 use magicentry::oidc::handle_discover::handle_discover;
+use magicentry::oidc::handle_jwks::handle_jwks;
+use magicentry::oidc::handle_userinfo::handle_userinfo;
+
 use magicentry::saml::handle_sso::handle_sso;
+use magicentry::saml::handle_metadata::handle_metadata;
 
 // Issues:
 // - Implement the rest of the endpoints
@@ -50,9 +55,12 @@ async fn main() {
 		.route("/logout", get(handle_logout))
 		.typed_get(handle_magic_link)
 
+		.route("/saml/metadata", get(handle_metadata))
 		.route("/saml/sso", get(handle_sso))
 
 		.route("/.well-known/openid-configuration", get(handle_discover))
+		.route("/oidc/authorize", get(handle_authorize_get))
+		.route("/oidc/authorize", post(handle_authorize_post))
 		.route("/oidc/jwks", get(handle_jwks))
 		.route("/oidc/userinfo", get(handle_userinfo))
 
