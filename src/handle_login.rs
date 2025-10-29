@@ -65,37 +65,3 @@ pub async fn handle_login(
 	let login_page = LoginPage.render().await;
 	Ok(login_page.into_response())
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::utils::tests::*;
-
-	use actix_web::http::header::ContentType;
-	use actix_web::http::StatusCode;
-	use actix_web::{test as actix_test, App};
-
-	#[actix_web::test]
-	async fn test_login_page() {
-		let db = &db_connect().await;
-		let app = actix_test::init_service(
-			App::new()
-				.app_data(web::Data::new(db.clone()))
-				.service(login)
-		)
-		.await;
-
-		let req = actix_test::TestRequest::get().uri("/login").to_request();
-
-		let resp = actix_test::call_service(&app, req).await;
-		assert_eq!(resp.status(), StatusCode::OK);
-		assert_eq!(
-			resp.headers()
-				.get("Content-Type")
-				.unwrap()
-				.to_str()
-				.unwrap(),
-			ContentType::html().to_string().as_str()
-		);
-	}
-}

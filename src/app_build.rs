@@ -131,19 +131,15 @@ pub async fn build(
 
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 pub async fn axum_build(
-	listen: Option<&str>,
 	db: Database,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
-) -> (SocketAddr, Serve<TcpListener, Router, Router>) {
+) -> Router {
 	let config = CONFIG.read().await.clone();
 	let title = config.title.clone();
 	let external_url = config.external_url.clone();
 	let key = oidc::init(&db).await;
 	let webauthn = webauthn::init(&title, &external_url).unwrap();
-
-	let config_listen = format!("{}:{}", config.listen_host.clone(), config.listen_port);
-	let listen = listen.unwrap_or(&config_listen);
 
 	let state = AppState {
 		db,
@@ -181,14 +177,25 @@ pub async fn axum_build(
 
 	let router_fn = router_fn.unwrap_or(|r| r);
 
-	let final_router = router_fn(router)
+	router_fn(router)
 		.layer(map_response_with_state(state.clone(), error_handler))
-		.with_state(state);
+		.with_state(state)
+}
 
+pub async fn axum_run(
+	listen: Option<&str>,
+	db: Database,
+	link_senders: Vec<Arc<dyn LinkSender>>,
+	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
+) -> (SocketAddr, Serve<TcpListener, Router, Router>) {
+	let config = CONFIG.read().await.clone();
+	let router = axum_build(db, link_senders, router_fn).await;
+
+	let config_listen = format!("{}:{}", config.listen_host.clone(), config.listen_port);
+	let listen = listen.unwrap_or(&config_listen);
 	let listener = TcpListener::bind(listen).await.unwrap();
-	let server = axum::serve(listener, final_router);
+	let server = axum::serve(listener, router);
 	let local_addr = server.local_addr().unwrap();
-
 
 	(local_addr, server)
 }

@@ -44,6 +44,9 @@ pub fn random_string() -> String {
 
 #[cfg(test)]
 pub mod tests {
+	use axum_test::TestServer;
+
+	use crate::app_build::axum_build;
 	use crate::{CONFIG, Database};
 	use crate::config::Config;
 	use crate::user::User;
@@ -76,6 +79,12 @@ pub mod tests {
 		assert_eq!(user.realms, user_realms);
 
 		user
+	}
+
+	pub async fn server() -> TestServer {
+		let db = db_connect().await;
+		let server = axum_build(db, vec![], None).await;
+		TestServer::new(server).unwrap()
 	}
 
 	#[test]

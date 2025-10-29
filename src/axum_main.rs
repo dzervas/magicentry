@@ -1,6 +1,10 @@
-use magicentry::{app_build::axum_build, config::Config, database::init_database, CONFIG};
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+
+use magicentry::CONFIG;
+use magicentry::database::init_database;
+use magicentry::config::Config;
+use magicentry::app_build::axum_run;
 
 fn init_tracing() {
 	let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
@@ -56,7 +60,7 @@ async fn main() {
 	// TODO: Have a "server" section for stuff that require a restart
 	// TODO: Handle restarts
 
-	let (addrs, server) = axum_build(Some("127.0.0.1:8080"), db, vec![], None).await;
+	let (addrs, server) = axum_run(Some("127.0.0.1:8080"), db, vec![], None).await;
 
 	info!("Server running on http://{addrs}");
 	server.await.unwrap();

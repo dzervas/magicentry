@@ -9,7 +9,11 @@ listen_host: 0.0.0.0
 listen_port: 8080
 # Path prefix to prepend to the returned URLs (for weird proxied setups)
 path_prefix: /
+
 # URL that the server will be accessible at from the users
+#
+# NOTE: This MUST be a domain if webauthn is enabled, otherwise it will throw the following error:
+# rp_id is not an effective_domain of rp_origin
 external_url: http://localhost:8080
 
 # How long will the magic link be valid for (account for email delivery time too)
