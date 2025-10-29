@@ -73,7 +73,7 @@ mod tests {
 	use super::*;
 	use crate::utils::tests::*;
 
-	#[actix_web::test]
+	#[tokio::test]
 	async fn test_user() {
 		let user = get_valid_user().await;
 

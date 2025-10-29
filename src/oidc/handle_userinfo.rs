@@ -1,8 +1,7 @@
-use actix_web::{get, HttpResponse};
+use axum::{extract::State, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::error::Response;
-use crate::secret::OIDCTokenSecret;
+use crate::{secret::OIDCTokenSecret, AppState};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct UserInfoResponse {
@@ -14,26 +13,11 @@ pub struct UserInfoResponse {
 	pub preferred_username: String,
 }
 
-#[get("/oidc/userinfo")]
-pub async fn userinfo(oidc_token: OIDCTokenSecret) -> Response {
-	let user = oidc_token.user();
-
-	let resp = UserInfoResponse {
-		user: user.email.clone(),
-		name: user.name.clone(),
-		email: user.email.clone(),
-		email_verified: true,
-		preferred_username: user.username.clone(),
-	};
-
-	Ok(HttpResponse::Ok().json(resp))
-}
-
 #[axum::debug_handler]
 pub async fn handle_userinfo(
-	_: axum::extract::State<crate::AppState>,
+	_: State<AppState>,
 	oidc_token: OIDCTokenSecret,
-) -> impl axum::response::IntoResponse {
+) -> impl IntoResponse {
 	let user = oidc_token.user();
 
 	let resp = UserInfoResponse {

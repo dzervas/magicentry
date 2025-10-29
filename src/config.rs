@@ -7,9 +7,7 @@
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use futures::future::BoxFuture;
 
-use actix_web::dev::ConnectionInfo;
 use chrono::Duration;
 use tracing::{error, info};
 use notify::{PollWatcher, Watcher};
@@ -139,28 +137,6 @@ impl Default for Config {
 }
 
 impl Config {
-	/// Return the base URL that magicentry was accessed from
-	///
-	/// Useful to return correct links for proxied requests that do not abide
-	/// by the [`external_url`](ConfigFile::external_url) host
-	#[must_use]
-	pub async fn url_from_request(conn: ConnectionInfo) -> String {
-		let origin = format!("{}://{}",
-			if conn.scheme() == "http" { "http" } else { "https" },
-			conn.host()
-		);
-
-		let config = CONFIG.read().await;
-
-		let path_prefix = if config.path_prefix.ends_with('/') {
-			&config.path_prefix[..config.path_prefix.len() - 1]
-		} else {
-			&config.path_prefix
-		};
-
-		format!("{origin}{path_prefix}")
-	}
-
 	/// Read the config file as dictated by the `CONFIG_FILE` variable
 	/// and replace the current contents
 	///
@@ -257,18 +233,6 @@ impl Config {
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
 pub struct LiveConfig(pub Arc<Config>);
-
-impl actix_web::FromRequest for LiveConfig {
-	type Error = crate::error::AppError;
-	type Future = BoxFuture<'static, Result<Self, Self::Error>>;
-
-	fn from_request(_: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		Box::pin(async {
-			let config = CONFIG.read().await.clone();
-			Ok(Self(config))
-		})
-	}
-}
 
 impl axum::extract::FromRequestParts<crate::AppState> for LiveConfig {
 	type Rejection = axum::http::StatusCode;

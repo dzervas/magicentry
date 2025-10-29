@@ -1,11 +1,8 @@
 use std::fs;
 
-use actix_web::{get, web, HttpResponse};
-
 use crate::error::Response;
 use anyhow::Context as _;
 
-#[get("/static/{filename}")]
 async fn static_files(filename: web::Path<String>) -> Response {
 	let (file, content_type) = match filename.as_str() {
 		"app-placeholder.svg" => ("app-placeholder.svg", "image/svg+xml"),
@@ -21,7 +18,6 @@ async fn static_files(filename: web::Path<String>) -> Response {
 	Ok(HttpResponse::Ok().content_type(content_type).body(content))
 }
 
-#[get("/favicon.ico")]
 async fn favicon() -> Response {
 	let content = fs::read("static/favicon.ico")
 		.context("Failed to read favicon.ico file")?;

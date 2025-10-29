@@ -1,9 +1,7 @@
-use actix_web::{get, HttpResponse, Responder};
-use actix_web::dev::ConnectionInfo;
 use serde::{Serialize, Serializer};
 
-use crate::generate_cors_preflight;
-use crate::config::{Config, LiveConfig};
+// use crate::generate_cors_preflight;
+use crate::config::LiveConfig;
 
 // Serialize a vector of strings as a space-separated string
 #[allow(clippy::ptr_arg)]
@@ -61,24 +59,11 @@ impl<'a> Discovery<'a> {
 	}
 }
 
-generate_cors_preflight!(
-	discover_preflight,
-	"/.well-known/openid-configuration",
-	"GET"
-);
-
-#[get("/.well-known/openid-configuration")]
-pub async fn discover(conn: ConnectionInfo, config: LiveConfig) -> impl Responder {
-	let base_url = Config::url_from_request(conn).await;
-	let external_url = config.external_url.clone();
-	let discovery = Discovery::new(base_url, external_url);
-
-	HttpResponse::Ok()
-		.append_header(("Access-Control-Allow-Origin", "*"))
-		.append_header(("Access-Control-Allow-Methods", "GET, OPTIONS"))
-		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
-		.json(discovery)
-}
+// generate_cors_preflight!(
+// 	discover_preflight,
+// 	"/.well-known/openid-configuration",
+// 	"GET"
+// );
 
 #[axum::debug_handler]
 pub async fn handle_discover(

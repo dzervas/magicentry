@@ -1,5 +1,6 @@
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
 use axum::RequestPartsExt;
-use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -9,8 +10,9 @@ use super::proxy_code::ProxyCodeSecret;
 use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind, SecretType};
 
 use crate::config::LiveConfig;
-use crate::error::{AuthError, DatabaseError, ProxyError, OidcError};
-use crate::{CONFIG, PROXY_QUERY_CODE};
+use crate::error::{AppError, AuthError, OidcError, ProxyError};
+use crate::handle_magic_link::LoginPath;
+use crate::{AppState, CONFIG, PROXY_QUERY_CODE};
 
 // This should have been an enum, but bincode (used by reindeer db) doesn't support it
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,35 +117,11 @@ impl LoginLinkSecret {
 	}
 }
 
-impl actix_web::FromRequest for LoginLinkSecret {
-	type Error = crate::error::AppError;
-	type Future = BoxFuture<'static, std::result::Result<Self, Self::Error>>;
+impl FromRequestParts<AppState> for LoginLinkSecret {
+	type Rejection = AppError;
 
-	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let code = if let Some(code) = req.match_info().get("magic") {
-			code.to_string()
-		} else {
-			return Box::pin(async { Err(AuthError::MissingLoginLinkCode.into()) });
-		};
-
-		let db = if let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>() {
-			db.clone()
-		} else {
-			return Box::pin(async { Err(DatabaseError::InstanceError.into()) });
-		};
-
-		Box::pin(async move {
-			Self::try_from_string(code, db.get_ref()).await
-				.map_err(Into::into)
-		})
-	}
-}
-
-impl axum::extract::FromRequestParts<crate::AppState> for LoginLinkSecret {
-	type Rejection = crate::error::AppError;
-
-	async fn from_request_parts(parts: &mut axum::http::request::Parts, state: &crate::AppState) -> Result<Self, Self::Rejection> {
-		let Ok(crate::handle_magic_link::LoginPath { link }) = parts.extract::<crate::handle_magic_link::LoginPath>().await else {
+	async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+		let Ok(LoginPath { link }) = parts.extract::<LoginPath>().await else {
 			return Err(AuthError::MissingLoginLinkCode.into());
 		};
 

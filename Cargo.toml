@@ -7,15 +7,9 @@ edition = "2024"
 default = []
 kube = ["dep:kube", "dep:k8s-openapi"]
 
-[[bin]]
-name = "axum"
-path = "src/axum_main.rs"
-
 [dependencies]
-actix-web = "4.11"
-actix-web-httpauth = "0.8"
-serde_qs = { version = "0.15", features = ["actix-web4", "axum"] }
-maud = { version = "0.27.0", features = ["actix-web", "axum"] }
+serde_qs = { version = "0.15", features = ["axum"] }
+maud = { version = "0.27", features = ["axum"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.0", features = ["display", "error"] }
@@ -47,7 +41,7 @@ url = { version = "2", features = ["serde"] }
 urlencoding = "2.1"
 uuid = { version = "1.18", features = ["serde", "v4"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
-md5 = "0.8.0"
+md5 = "0.8"
 
 # Dependency of webauthn-rs that needs to be vendored
 openssl = { version = "0.10", features = ["vendored"] }
