@@ -60,8 +60,8 @@ async fn main() {
 	// TODO: Have a "server" section for stuff that require a restart
 	// TODO: Handle restarts
 
-	let (addrs, server) = axum_run(Some("127.0.0.1:8080"), db, vec![], None).await;
+	let (addr, server) = axum_run(Some("127.0.0.1:8080"), db, vec![], None).await;
 
-	info!("Server running on http://{addrs}");
+	info!("Server running on http://{addr}");
 	server.await.unwrap();
 }

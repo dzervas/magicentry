@@ -22,6 +22,9 @@
   env = {
     DATABASE_URL="sqlite://database.db";
     LIBCLANG_PATH="${pkgs.libclang.lib}/lib";
+
+    HURL_base_url = "http://127.0.0.1:8080";
+    HURL_fixture_url = "http://127.0.0.1:8080/secrets";
   };
 
   scripts = {

@@ -149,6 +149,7 @@ pub async fn axum_build(
 		webauthn,
 	};
 
+	// TODO: Static files
 	let router = Router::new()
 		.route("/", get(handle_index))
 		.route("/login", get(handle_login))

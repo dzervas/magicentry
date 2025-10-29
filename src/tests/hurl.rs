@@ -1,74 +1,50 @@
-use std::{fs, net::SocketAddr, time::Duration};
-use hurl::{runner::{RunnerOptionsBuilder, Value}, util::logger::LoggerOptionsBuilder};
-use tiny_http::{Response, Server as TinyServer};
+use std::time::Duration;
+use std::net::SocketAddr;
+use std::fs;
 
+use axum::extract::State;
+use axum::response::IntoResponse;
+use axum::routing::get;
+use axum::serve::Serve;
+use axum::Router;
+use hurl::util::logger::{LoggerOptionsBuilder, Verbosity};
+use hurl::runner::{RunnerOptionsBuilder, Value};
+use hurl_core::input::Input;
+use tokio::net::TcpListener;
+
+use crate::app_build::axum_run;
+use crate::utils::tests::*;
 use crate::*;
 
-pub async fn app_server() -> (actix_web::dev::Server, Vec<SocketAddr>, sqlx::SqlitePool) {
-    Config::reload().await.unwrap();
-	let config = CONFIG.read().await;
-	println!("config: {:?}", config.services);
-	drop(config);
-	let db = database::init_database("sqlite::memory:").await.unwrap();
+#[axum::debug_handler]
+async fn secrets_handler(State(state): State<AppState>) -> impl IntoResponse {
+	let data = sqlx::query!("SELECT code FROM user_secrets WHERE code LIKE 'me_ll_%' ORDER BY created_at DESC LIMIT 1")
+		.fetch_optional(&state.db)
+		.await
+		.unwrap()
+		.map(|row| row.code);
 
-	let (addrs, server) = app_build::build(
-		Some("127.0.0.1:0".to_string()),
-		db.clone(),
-		None,
-		None,
-	).await;
-
-	(server, addrs, db)
+	if let Some(code) = data {
+		let login_link = format!("/login/{code}");
+		eprintln!("Fixture server: Returning login link: {login_link}");
+		login_link
+	} else {
+		eprintln!("Fixture server: No me_ll_ codes found");
+		"No me_ll_ codes found".to_string()
+	}
 }
 
-/// Starts a minimal fixture server using `tiny_http` in a blocking task
-#[must_use]
-pub fn fixture_server(db: Database) -> (tokio::task::JoinHandle<()>, u16) {
-	let server = TinyServer::http("127.0.0.1:0").expect("failed to bind tiny http server");
-	let port = server.server_addr().to_ip().unwrap().port();
+pub async fn app_server() -> (Serve<TcpListener, Router, Router>, SocketAddr, sqlx::SqlitePool) {
+    Config::reload().await.unwrap();
+	let db = db_connect().await;
+	let (addr, server) = axum_run(
+		Some("127.0.0.1:0"),
+		db.clone(),
+		vec![],
+		Some(|router| router.route("/secrets", get(secrets_handler))),
+	).await;
 
-	let handle = tokio::task::spawn_blocking(move || {
-		for req in server.incoming_requests() {
-			let url = req.url().to_string();
-			eprintln!("Fixture server received request: {} {}", req.method().as_str(), url);
-
-			if req.method().as_str() == "GET" && url == "/bye" {
-				eprintln!("Fixture server: Bye");
-				req.respond(Response::from_string("Bye").with_status_code(200)).unwrap();
-				break;
-			}
-
-			if req.method().as_str() != "GET" || url != "/" {
-				eprintln!("Fixture server: Not found");
-				req.respond(Response::from_string("Not Found").with_status_code(404)).unwrap();
-				continue;
-			}
-
-			// Use a blocking runtime to handle the async database query
-			let rt = tokio::runtime::Handle::current();
-			let data = rt.block_on(async {
-				sqlx::query!("SELECT code FROM user_secrets WHERE code LIKE 'me_ll_%' ORDER BY created_at DESC LIMIT 1")
-					.fetch_optional(&db)
-					.await
-					.unwrap()
-					.map(|row| row.code)
-			});
-
-			eprintln!("Fixture server: Looking for me_ll_ codes");
-
-			// Return the me_ll_ secret as plain text
-			if let Some(code) = data {
-				let login_link = format!("/login/{code}");
-				eprintln!("Fixture server: Returning login link: {login_link}");
-				req.respond(Response::from_string(login_link).with_status_code(200)).unwrap();
-			} else {
-				eprintln!("Fixture server: No me_ll_ codes found");
-				req.respond(Response::from_string("No me_ll_ codes found").with_status_code(404)).unwrap();
-			}
-		}
-	});
-
-	(handle, port)
+	(server, addr, db)
 }
 
 pub async fn run_test(hurl_path: &str) {
@@ -76,36 +52,42 @@ pub async fn run_test(hurl_path: &str) {
 
 	eprintln!("Starting app server");
 
-	let (server, addrs, db) = app_server().await;
-	let _server_handle = tokio::spawn(server);
-	let base_url = format!("http://127.0.0.1:{}", addrs[0].port());
+	let (server, addr, db) = app_server().await;
+	let _server_handle = tokio::spawn(async move {
+		server.await.unwrap();
+	});
+	let base_url = format!("http://localhost:{}", addr.port());
+	let fixture_url = format!("{base_url}/secrets");
 
 	// If this is omitted, the server will not start at all
 	eprintln!("Waiting for server to be ready at {base_url}");
 	let client = reqwest::Client::new();
-	client.get(format!("{base_url}/")).send().await.unwrap();
-
-	eprintln!("Starting fixture server");
-	let (_fixture_handle, fixture_port) = fixture_server(db.clone());
-	let fixture_url = format!("http://127.0.0.1:{fixture_port}/");
+	let resp = client.get(format!("{base_url}/login")).send().await.unwrap();
+	assert_eq!(resp.status(), reqwest::StatusCode::OK);
 
 	let content = fs::read_to_string(hurl_path)
 		.unwrap_or_else(|e| panic!("Failed to read {hurl_path}: {e}"));
+
 	let mut variables = hurl::runner::VariableSet::new();
 	variables.insert("base_url".to_string(), Value::String(base_url));
 	variables.insert("fixture_url".to_string(), Value::String(fixture_url.clone()));
+
+	let hurl_input = Input::new(hurl_path);
 	let runner_options = RunnerOptionsBuilder::new()
 		.timeout(Duration::from_secs(2))
 		.build();
-	let logger_options = LoggerOptionsBuilder::new().verbosity(Some(hurl::util::logger::Verbosity::Verbose)).build();
-	let hurl_input = hurl_core::input::Input::new(hurl_path);
+	let logger_options = LoggerOptionsBuilder::new()
+		.verbosity(Some(Verbosity::VeryVerbose))
+		.build();
 
 	eprintln!("Running hurl fr fr");
-	let output = hurl::runner::run(&content, Some(&hurl_input), &runner_options, &variables, &logger_options).unwrap();
-
-	// The fixture server is spawned as blocking task, so we need to kill it gracefully
-	eprintln!("Killing fixture server");
-	client.get(format!("{fixture_url}bye")).send().await.unwrap();
+	let output = hurl::runner::run(
+		&content,
+		Some(&hurl_input),
+		&runner_options,
+		&variables,
+		&logger_options
+	).unwrap();
 
 	// Dump user_secrets table for debugging
 	eprintln!("\n=== Dumping user_secrets table ===");

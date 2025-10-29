@@ -67,7 +67,6 @@ thiserror = "2.0"
 axum = { version = "0.8.6", features = ["http2", "macros", "tokio"] }
 axum-extra = { version = "0.10.3", features = ["cookie", "form", "query", "typed-header", "typed-routing"] }
 headers = "0.4.1"
-scheme = "0.1.0"
 
 [dev-dependencies]
 actix-http = "3.11"
@@ -98,7 +97,8 @@ strip = "symbols"
 unsafe_code = "forbid"
 
 [lints.clippy]
+option_if_let_else = "allow"
 enum_glob_use = "deny"
 # pedantic = "deny"
-nursery = "deny"
+# nursery = "deny"
 # unwrap_used = "deny"
