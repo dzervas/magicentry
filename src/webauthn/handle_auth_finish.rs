@@ -44,6 +44,7 @@ pub async fn auth_finish(
 
 #[axum::debug_handler]
 pub async fn handle_auth_finish(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	auth: WebAuthnAuthSecret,
 	jar: axum_extra::extract::CookieJar,
@@ -58,7 +59,7 @@ pub async fn handle_auth_finish(
 		return Err(AuthError::InvalidTargetUser.into());
 	}
 
-	let browser_session: BrowserSessionSecret = auth.exchange(&state.config.into(), &state.db).await?;
+	let browser_session: BrowserSessionSecret = auth.exchange(&config, &state.db).await?;
 
 	// TODO: How to handle redirects?
 	// TODO: Handle the passkey store counter

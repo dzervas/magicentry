@@ -38,6 +38,7 @@ pub async fn auth_start(
 
 #[axum::debug_handler]
 pub async fn handle_auth_start(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	jar: axum_extra::extract::CookieJar,
 	form: axum::Json<LoginInfo>,
@@ -45,7 +46,7 @@ pub async fn handle_auth_start(
 	let webauthn = state.webauthn.clone();
 
 	// TODO: Handle the errors to avoid leaking (in)valid emails
-	let user = User::from_email(&state.config.clone().into(), &form.email)
+	let user = User::from_email(&config, &form.email)
 		.ok_or(AuthError::InvalidTargetUser)?;
 	
 	let passkey_stores = PasskeyStore::get_by_user(&user, &state.db).await?;
@@ -56,7 +57,7 @@ pub async fn handle_auth_start(
 	let (resp, auth) = webauthn.start_passkey_authentication(passkeys.as_slice())
 		.context("Failed to start passkey authentication")?;
 
-	let auth = WebAuthnAuthSecret::new(user, auth, &state.config.into(), &state.db).await?;
+	let auth = WebAuthnAuthSecret::new(user, auth, &config, &state.db).await?;
 
 	Ok((
 		jar.add(&auth),

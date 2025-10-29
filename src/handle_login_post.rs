@@ -147,12 +147,12 @@ use axum::response::IntoResponse as _;
 
 #[axum::debug_handler]
 pub async fn handle_login_post(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	axum::extract::Query(login_redirect): axum::extract::Query<LoginLinkRedirect>,
 	axum::Form(form): axum::Form<LoginInfo>,
 ) -> Result<axum::response::Response, crate::error::AppError> {
 	let login_action_page = LoginActionPage.render().await;
-	let config = state.config.clone().into();
 
 	// Return 200 to avoid leaking valid emails
 	let Some(user) = User::from_email(&config, &form.email) else {

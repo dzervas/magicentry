@@ -13,7 +13,7 @@ link: body
 
 # Visit the magic link that was sent
 GET {{base_url}}{{link}}
-HTTP 302
+HTTP 303
 Location: /
 [Captures]
 session: cookie "session_id"
@@ -37,7 +37,7 @@ session: cookie "session_id"
 # redirect_uri: {{redirect urlEncode}}
 # scope: openid
 # response_type: code
-# HTTP 302
+# HTTP 303
 # [Captures]
 # login: header "Location"
 #
@@ -56,7 +56,7 @@ session: cookie "session_id"
 #
 # # Visit the magic link that was sent
 # GET {{link}}
-# HTTP 302
+# HTTP 303
 # [Asserts]
 # header "Location" startsWith "/oidc/authorize?"
 # [Captures]

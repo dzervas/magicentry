@@ -13,7 +13,7 @@ link: body
 
 # Visit the magic link that was sent
 GET {{base_url}}{{link}}
-HTTP 302
+HTTP 303
 [Captures]
 session: cookie "session_id"
 proxy_link: header "Location"
@@ -54,5 +54,5 @@ link: body
 
 # Visit the magic link that was sent
 GET {{base_url}}{{link}}
-HTTP 302
+HTTP 303
 Location: /

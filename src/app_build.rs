@@ -10,6 +10,7 @@ use axum::serve::Serve;
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 use tokio::net::TcpListener;
+use tower_http::trace::TraceLayer;
 
 use crate::error::error_handler;
 use crate::{webauthn, AppState, CONFIG};
@@ -132,18 +133,20 @@ pub async fn build(
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 pub async fn axum_build(
 	db: Database,
+	config: RwLock<Arc<Config>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> Router {
-	let config = CONFIG.read().await.clone();
-	let title = config.title.clone();
-	let external_url = config.external_url.clone();
+	let config_ref = config.read().await;
+	let title = config_ref.title.clone();
+	let external_url = config_ref.external_url.clone();
 	let key = oidc::init(&db).await;
 	let webauthn = webauthn::init(&title, &external_url).unwrap();
+	drop(config_ref);
 
 	let state = AppState {
 		db,
-		config,
+		config: Arc::new(config),
 		link_senders,
 		key,
 		webauthn,
@@ -180,19 +183,24 @@ pub async fn axum_build(
 
 	router_fn(router)
 		.layer(map_response_with_state(state.clone(), error_handler))
+		.layer(axum::middleware::from_fn_with_state(state.clone(), AppState::config_middleware))
+		.layer(TraceLayer::new_for_http())
 		.with_state(state)
 }
 
 pub async fn axum_run(
 	listen: Option<&str>,
 	db: Database,
+	config: RwLock<Arc<Config>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> (SocketAddr, Serve<TcpListener, Router, Router>) {
-	let config = CONFIG.read().await.clone();
-	let router = axum_build(db, link_senders, router_fn).await;
+	let config_listen = {
+		let config_ref = config.read().await;
+		format!("{}:{}", config_ref.listen_host.clone(), config_ref.listen_port)
+	};
 
-	let config_listen = format!("{}:{}", config.listen_host.clone(), config.listen_port);
+	let router = axum_build(db, config, link_senders, router_fn).await;
 	let listen = listen.unwrap_or(&config_listen);
 	let listener = TcpListener::bind(listen).await.unwrap();
 	let server = axum::serve(listener, router);

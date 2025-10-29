@@ -64,9 +64,10 @@ async-trait = "0.1"
 anyhow = "1.0"
 thiserror = "2.0"
 
-axum = { version = "0.8.6", features = ["http2", "macros", "tokio"] }
-axum-extra = { version = "0.10.3", features = ["cookie", "form", "query", "typed-header", "typed-routing"] }
-headers = "0.4.1"
+axum = { version = "0.8", features = ["http2", "macros", "tokio"] }
+axum-extra = { version = "0.10", features = ["cookie", "form", "query", "typed-header", "typed-routing"] }
+headers = "0.4"
+tower-http = { version = "0.6", features = ["tokio", "trace"] }
 
 [dev-dependencies]
 actix-http = "3.11"

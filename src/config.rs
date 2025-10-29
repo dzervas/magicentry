@@ -256,7 +256,7 @@ impl Config {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(transparent)]
-pub struct LiveConfig(Arc<Config>);
+pub struct LiveConfig(pub Arc<Config>);
 
 impl actix_web::FromRequest for LiveConfig {
 	type Error = crate::error::AppError;
@@ -267,6 +267,19 @@ impl actix_web::FromRequest for LiveConfig {
 			let config = CONFIG.read().await.clone();
 			Ok(Self(config))
 		})
+	}
+}
+
+impl axum::extract::FromRequestParts<crate::AppState> for LiveConfig {
+	type Rejection = axum::http::StatusCode;
+
+	async fn from_request_parts(parts: &mut axum::http::request::Parts, _state: &crate::AppState) -> Result<Self, Self::Rejection> {
+		parts
+			.extensions
+			.get::<Arc<Config>>()
+			.cloned()
+			.map(Self)
+			.ok_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
 	}
 }
 

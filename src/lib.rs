@@ -48,6 +48,8 @@
 
 use std::sync::{Arc, LazyLock};
 
+use axum::middleware::Next;
+use axum::response::IntoResponse;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
@@ -132,7 +134,7 @@ pub struct InFlightConfig(Arc<Config>);
 #[derive(Clone)]
 pub struct AppState {
 	pub db: crate::Database,
-	pub config: Arc<Config>,
+	config: Arc<RwLock<Arc<Config>>>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
 
 	pub key: jsonwebtoken::EncodingKey,
@@ -142,11 +144,29 @@ pub struct AppState {
 impl AppState {
 	pub async fn send_magic_link(&self, user: &User, link: &str) -> anyhow::Result<()> {
 		// TODO: Make this concurrent and return multiple errors
+		// It's ok to re-read the config here since it only uses the link_senders
 		for sender in &self.link_senders {
-			sender.send_magic_link(user, link, &self.config).await?;
+			sender.send_magic_link(user, link, self.config.read().await.as_ref()).await?;
 		}
 
 		Ok(())
+	}
+
+	// pub async fn config(&self) -> Arc<Config> {
+	// 	self.config.read().await.clone()
+	// }
+
+	async fn config_middleware(
+		State(state): State<Self>,
+		request: axum::http::Request<axum::body::Body>,
+		next: Next,
+	) -> impl IntoResponse {
+		let config_arc = state.config.read().await.clone();
+
+		let mut request = request;
+		request.extensions_mut().insert(config_arc);
+
+		next.run(request).await
 	}
 }
 
@@ -241,7 +261,7 @@ impl LinkSender for reqwest::Client {
 
 use axum::http::StatusCode;
 use axum::http::request::Parts;
-use axum::extract::FromRequestParts;
+use axum::extract::{FromRequestParts, State};
 use url::Url;
 
 #[derive(Debug, Clone)]

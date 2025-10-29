@@ -11,6 +11,7 @@ use hurl::util::logger::{LoggerOptionsBuilder, Verbosity};
 use hurl::runner::{RunnerOptionsBuilder, Value};
 use hurl_core::input::Input;
 use tokio::net::TcpListener;
+use tokio::task::spawn_blocking;
 
 use crate::app_build::axum_run;
 use crate::utils::tests::*;
@@ -30,19 +31,28 @@ async fn secrets_handler(State(state): State<AppState>) -> impl IntoResponse {
 		login_link
 	} else {
 		eprintln!("Fixture server: No me_ll_ codes found");
-		"No me_ll_ codes found".to_string()
+		"/none".to_string()
 	}
 }
 
 pub async fn app_server() -> (Serve<TcpListener, Router, Router>, SocketAddr, sqlx::SqlitePool) {
     Config::reload().await.unwrap();
+	let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
 	let db = db_connect().await;
+
 	let (addr, server) = axum_run(
 		Some("127.0.0.1:0"),
 		db.clone(),
+		config,
 		vec![],
 		Some(|router| router.route("/secrets", get(secrets_handler))),
 	).await;
+
+	// {
+	// 	let mut config_mut = config.write().await;
+	// 	let config_ref = Arc::get_mut(&mut config_mut).unwrap();
+	// 	config_ref.external_url = format!("http://localhost:{}", addr.port());
+	// }
 
 	(server, addr, db)
 }
@@ -56,7 +66,7 @@ pub async fn run_test(hurl_path: &str) {
 	let _server_handle = tokio::spawn(async move {
 		server.await.unwrap();
 	});
-	let base_url = format!("http://localhost:{}", addr.port());
+	let base_url = format!("http://127.0.0.1:{}", addr.port());
 	let fixture_url = format!("{base_url}/secrets");
 
 	// If this is omitted, the server will not start at all
@@ -77,17 +87,20 @@ pub async fn run_test(hurl_path: &str) {
 		.timeout(Duration::from_secs(2))
 		.build();
 	let logger_options = LoggerOptionsBuilder::new()
-		.verbosity(Some(Verbosity::VeryVerbose))
+		.verbosity(Some(Verbosity::Verbose))
+		.color(true)
 		.build();
-
-	eprintln!("Running hurl fr fr");
-	let output = hurl::runner::run(
-		&content,
-		Some(&hurl_input),
-		&runner_options,
-		&variables,
-		&logger_options
-	).unwrap();
+	
+	let output = spawn_blocking(move || {
+		eprintln!("Running hurl fr fr");
+		hurl::runner::run(
+			&content,
+			Some(&hurl_input),
+			&runner_options,
+			&variables,
+			&logger_options
+		).unwrap()
+	}).await.unwrap();
 
 	// Dump user_secrets table for debugging
 	eprintln!("\n=== Dumping user_secrets table ===");

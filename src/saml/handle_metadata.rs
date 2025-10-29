@@ -30,10 +30,11 @@ pub async fn metadata(config: LiveConfig) -> Response {
 
 #[axum::debug_handler]
 pub async fn handle_metadata(
-	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	config: LiveConfig,
+	axum::extract::State(_state): axum::extract::State<crate::AppState>,
 ) -> Result<impl axum::response::IntoResponse, crate::error::AppError> {
-	let external_url = state.config.external_url.clone();
-	let cert_x509 = state.config.get_saml_cert()
+	let external_url = config.external_url.clone();
+	let cert_x509 = config.get_saml_cert()
 		.context("Failed to get SAML certificate from configuration")?;
 
 	let discovery = EntityDescriptor::new(&external_url, &cert_x509);

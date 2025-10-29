@@ -32,6 +32,7 @@ pub async fn reg_start(
 
 #[axum::debug_handler]
 pub async fn handle_reg_start(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	browser_session: BrowserSessionSecret,
 	jar: axum_extra::extract::CookieJar,
@@ -46,7 +47,7 @@ pub async fn handle_reg_start(
 	)
 	.context("Failed to start passkey registration")?;
 
-	let reg = WebAuthnRegSecret::new(user, reg_state, &state.config.into(), &state.db).await?;
+	let reg = WebAuthnRegSecret::new(user, reg_state, &config, &state.db).await?;
 
 	Ok((
 		jar.add(&reg),

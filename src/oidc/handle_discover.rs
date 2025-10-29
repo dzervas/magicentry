@@ -82,10 +82,11 @@ pub async fn discover(conn: ConnectionInfo, config: LiveConfig) -> impl Responde
 
 #[axum::debug_handler]
 pub async fn handle_discover(
-	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	config: LiveConfig,
+	axum::extract::State(_state): axum::extract::State<crate::AppState>,
 	axum_extra::extract::Host(host): axum_extra::extract::Host,
 ) -> impl axum::response::IntoResponse {
-	let discovery = Discovery::new(host, state.config.external_url.clone());
+	let discovery = Discovery::new(host, config.external_url.clone());
 
 	(
 		[

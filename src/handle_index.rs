@@ -52,10 +52,10 @@ async fn index(
 
 #[axum::debug_handler]
 pub async fn handle_index(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	browser_session: BrowserSessionSecret,
 ) -> impl axum::response::IntoResponse  {
-	let config: LiveConfig = state.config.into();
 	let realmed_services = config.services.from_user(browser_session.user());
 	let services: Vec<ServiceInfo> = realmed_services.0.into_iter()
 		.map(|service| ServiceInfo {

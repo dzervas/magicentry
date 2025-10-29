@@ -95,12 +95,11 @@ pub async fn sso(
 
 #[axum::debug_handler]
 pub async fn handle_sso(
-	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	config: LiveConfig,
+	axum::extract::State(_state): axum::extract::State<crate::AppState>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	axum::extract::Query(data): axum::extract::Query<SAMLRequest>,
 ) -> Result<impl axum::response::IntoResponse, crate::error::AppError>  {
-	let config: LiveConfig = state.config.into();
-
 	let authn_request = AuthnRequest::from_encoded_string(&data.request)?;
 
 	let Some(browser_session) = browser_session_opt else {
@@ -112,7 +111,7 @@ pub async fn handle_sso(
 			.append_pair("saml", &serde_json::to_string(&data)
 				.context("Failed to serialize SAML request for query parameter")?);
 
-		return Ok(axum::response::Redirect::temporary(target_url.as_ref()));
+		return Ok(axum::response::Redirect::to(target_url.as_ref()));
 	};
 
 	let service = config.services.from_saml_entity_id(&authn_request.issuer)
@@ -120,7 +119,7 @@ pub async fn handle_sso(
 
 	if !service.is_user_allowed(browser_session.user()) {
 		warn!("User {} is not allowed to access SAML service {}", browser_session.user().email, service.name);
-		return Ok(axum::response::Redirect::temporary("/login"));
+		return Ok(axum::response::Redirect::to("/login"));
 	}
 
 	let mut response = authn_request.to_response(
@@ -138,5 +137,5 @@ pub async fn handle_sso(
 	)
 		.context("Failed to sign SAML response")?;
 
-	Ok(axum::response::Redirect::temporary("/"))
+	Ok(axum::response::Redirect::to("/"))
 }

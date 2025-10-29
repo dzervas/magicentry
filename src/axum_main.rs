@@ -50,17 +50,16 @@ async fn main() {
 	init_tracing();
 	Config::reload().await.expect("Failed to reload config file");
 
-	let config = CONFIG.read().await;
+	let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
 	let db = init_database(&config.database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
-	drop(config);
 
 	// TODO: Add link senders
 	// TODO: Have a "server" section for stuff that require a restart
 	// TODO: Handle restarts
 
-	let (addr, server) = axum_run(Some("127.0.0.1:8080"), db, vec![], None).await;
+	let (addr, server) = axum_run(Some("127.0.0.1:8080"), db, config, vec![], None).await;
 
 	info!("Server running on http://{addr}");
 	server.await.unwrap();

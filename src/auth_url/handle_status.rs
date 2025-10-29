@@ -80,13 +80,12 @@ async fn status(
 
 #[axum::debug_handler]
 pub async fn handle_status(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	mut jar: axum_extra::extract::CookieJar,
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
 ) -> Result<(axum_extra::extract::CookieJar, axum::response::Response), crate::error::AppError> {
-	let config: LiveConfig = state.config.into();
-
 	let proxy_session = if let Some(proxy_session) = proxy_session_opt {
 		proxy_session
 	} else if let Some(proxy_code) = proxy_code_opt {

@@ -106,32 +106,35 @@ pub async fn authorize_post(
 
 #[axum::debug_handler]
 pub async fn handle_authorize_get(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	jar: axum_extra::extract::CookieJar,
 	axum::extract::Query(auth_req): axum::extract::Query<AuthorizeRequest>,
 ) -> Result<(axum_extra::extract::CookieJar, axum::response::Response), crate::error::AppError> {
-	handle_authorize(state, browser_session_opt, jar, auth_req).await
+	handle_authorize(config, state, browser_session_opt, jar, auth_req).await
 }
 
 #[axum::debug_handler]
 pub async fn handle_authorize_post(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	jar: axum_extra::extract::CookieJar,
 	axum::extract::Form(auth_req): axum::extract::Form<AuthorizeRequest>,
 ) -> Result<(axum_extra::extract::CookieJar, axum::response::Response), crate::error::AppError> {
-	handle_authorize(state, browser_session_opt, jar, auth_req).await
+	handle_authorize(config, state, browser_session_opt, jar, auth_req).await
 }
 
 pub async fn handle_authorize(
+	config: LiveConfig,
 	state: crate::AppState,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	jar: axum_extra::extract::CookieJar,
 	auth_req: AuthorizeRequest,
 ) -> Result<(axum_extra::extract::CookieJar, axum::response::Response), crate::error::AppError> {
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
-	let external_url = state.config.external_url.clone();
+	let external_url = config.external_url.clone();
 
 	let Some(browser_session) = browser_session_opt else {
 		let mut target_url = url::Url::parse(&external_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
@@ -140,10 +143,10 @@ pub async fn handle_authorize(
 			.append_pair("oidc", &serde_json::to_string(&auth_req)
 				.with_context(|| format!("Failed to serialize OIDC auth request for client {}", auth_req.client_id))?);
 
-		return Ok((jar, axum::response::Redirect::temporary(target_url.as_ref()).into_response()));
+		return Ok((jar, axum::response::Redirect::to(target_url.as_ref()).into_response()));
 	};
 
-	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &state.config.into(), &state.db).await?;
+	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &config.into(), &state.db).await?;
 
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?

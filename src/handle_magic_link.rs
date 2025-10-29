@@ -42,11 +42,11 @@ pub struct LoginPath {
 pub async fn handle_magic_link(
 	_: LoginPath,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
+	config: LiveConfig,
 	jar: axum_extra::extract::CookieJar,
 	login_secret: LoginLinkSecret,
 ) -> Result<(axum_extra::extract::CookieJar, impl axum::response::IntoResponse), crate::error::AppError> {
 	info!("User {} logged in", &login_secret.user().email);
-	let config = state.config.into();
 	let login_redirect_opt = login_secret.metadata().clone();
 	let browser_session: BrowserSessionSecret = login_secret.exchange(&config, &state.db).await?;
 	let cookie: axum_extra::extract::cookie::Cookie<'static> = (&browser_session).into();
@@ -62,6 +62,6 @@ pub async fn handle_magic_link(
 
 	Ok((
 		jar.add(cookie),
-		axum::response::Redirect::temporary(&redirect_url),
+		axum::response::Redirect::to(&redirect_url),
 	))
 }

@@ -55,5 +55,5 @@ pub async fn handle_logout(
 			.to_string());
 
 	// TODO: Remove the cookie as well
-	Ok(axum::response::Redirect::temporary(&target_url))
+	Ok(axum::response::Redirect::to(&target_url))
 }

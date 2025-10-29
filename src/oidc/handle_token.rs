@@ -209,6 +209,7 @@ pub async fn token(
 #[axum::debug_handler]
 #[allow(clippy::cognitive_complexity)]
 pub async fn handle_token(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	basic: Option<axum_extra::extract::TypedHeader<headers::Authorization<headers::authorization::Basic>>>,
 	axum::extract::Form(token_req): axum::extract::Form<TokenRequest>,
@@ -223,7 +224,7 @@ pub async fn handle_token(
 			|basic_creds| basic_creds.username().to_string()
 		);
 
-	let mut service = state.config
+	let mut service = config
 		.services
 		.from_oidc_client_id(&client_id)
 		.ok_or(AuthError::InvalidClientID)?;
@@ -259,7 +260,7 @@ pub async fn handle_token(
 		debug!("Responding to client_secret_basic request");
 		let req_client_id = basic_creds.username();
 		let req_client_secret = basic_creds.password();
-		service = state.config
+		service = config
 			.services
 			.from_oidc_client_id(req_client_id)
 			.ok_or(AuthError::InvalidClientID)?;
@@ -279,16 +280,16 @@ pub async fn handle_token(
 
 	let id_token = auth_req.generate_id_token(
 		oidc_authcode.user(),
-		state.config.external_url.clone(),
+		config.external_url.clone(),
 		&state.key,
-		&state.config.clone().into()
+		&config
 	)?;
-	let oidc_token = oidc_authcode.exchange_sibling(&state.config.clone().into(), &state.db).await?;
+	let oidc_token = oidc_authcode.exchange_sibling(&config, &state.db).await?;
 
 	let response = TokenResponse {
 		access_token: oidc_token.code().to_str_that_i_wont_print(),
 		token_type: "Bearer".to_string(),
-		expires_in: state.config.session_duration.num_seconds(),
+		expires_in: config.session_duration.num_seconds(),
 		id_token,
 		// TODO: Actually have a refresh token
 		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty

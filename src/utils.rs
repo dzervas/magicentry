@@ -44,7 +44,10 @@ pub fn random_string() -> String {
 
 #[cfg(test)]
 pub mod tests {
-	use axum_test::TestServer;
+	use std::sync::Arc;
+
+use axum_test::TestServer;
+use tokio::sync::RwLock;
 
 	use crate::app_build::axum_build;
 	use crate::{CONFIG, Database};
@@ -83,7 +86,8 @@ pub mod tests {
 
 	pub async fn server() -> TestServer {
 		let db = db_connect().await;
-		let server = axum_build(db, vec![], None).await;
+		let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
+		let server = axum_build(db, config, vec![], None).await;
 		TestServer::new(server).unwrap()
 	}
 

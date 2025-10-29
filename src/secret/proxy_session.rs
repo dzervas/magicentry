@@ -98,7 +98,8 @@ impl axum::extract::OptionalFromRequestParts<crate::AppState> for ProxySessionSe
 
 		let secret = Self::try_from_string(code.value().to_string(), &state.db).await
 			.context("Failed to create proxy code secret from string")?;
-		let service = state.config.services
+		let Ok(config) = parts.extract::<LiveConfig>().await;
+		let service = config.services
 				.from_auth_url_origin(&origin_url.origin())
 				.ok_or_else(|| crate::error::AppError::Proxy(ProxyError::operation("Origin not found in service configuration")))?;
 

@@ -45,6 +45,7 @@ use axum::response::IntoResponse;
 
 #[axum::debug_handler]
 pub async fn handle_login(
+	config: LiveConfig,
 	axum::extract::State(state): axum::extract::State<crate::AppState>,
 	browser_session_opt: Option<BrowserSessionSecret>,
 	axum::extract::Query(login_redirect): axum::extract::Query<LoginLinkRedirect>,
@@ -53,12 +54,12 @@ pub async fn handle_login(
 	if browser_session_opt.is_some() {
 		// Already authorized, back to the index OR redirect to the service
 		// Make sure that the redirect URL is valid (based on redirect_urls and origins)
-		let Ok(redirect_url) = login_redirect.into_redirect_url(browser_session_opt, &state.config.into(), &state.db).await else {
+		let Ok(redirect_url) = login_redirect.into_redirect_url(browser_session_opt, &config, &state.db).await else {
 			// If not, back to index
-			return Ok(axum::response::Redirect::temporary("/").into_response());
+			return Ok(axum::response::Redirect::to("/").into_response());
 		};
 
-		return Ok(axum::response::Redirect::temporary(&redirect_url).into_response());
+		return Ok(axum::response::Redirect::to(&redirect_url).into_response());
 	}
 
 	// Unauthorized, show the login page
