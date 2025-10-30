@@ -40,7 +40,7 @@ use crate::*;
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 pub async fn axum_build(
 	db: Database,
-	config: RwLock<Arc<Config>>,
+	config: Arc<RwLock<Arc<Config>>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> Router {
@@ -53,7 +53,7 @@ pub async fn axum_build(
 
 	let state = AppState {
 		db,
-		config: Arc::new(config),
+		config,
 		link_senders,
 		key,
 		webauthn,
@@ -98,7 +98,7 @@ pub async fn axum_build(
 pub async fn axum_run(
 	listen: Option<&str>,
 	db: Database,
-	config: RwLock<Arc<Config>>,
+	config: Arc<RwLock<Arc<Config>>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> (SocketAddr, Serve<TcpListener, Router, Router>) {

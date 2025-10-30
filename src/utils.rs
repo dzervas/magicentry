@@ -1,5 +1,4 @@
-use crate::error::{AuthError};
-use crate::{PROXY_ORIGIN_HEADER, RANDOM_STRING_LEN};
+use crate::RANDOM_STRING_LEN;
 
 pub fn random_string() -> String {
 	let mut buffer = [0u8; RANDOM_STRING_LEN];
@@ -15,7 +14,8 @@ pub mod tests {
 	use tokio::sync::RwLock;
 
 	use crate::app_build::axum_build;
-	use crate::{CONFIG, Database};
+	use crate::database::init_database;
+	use crate::{Database, CONFIG};
 	use crate::config::Config;
 	use crate::user::User;
 
@@ -23,7 +23,7 @@ pub mod tests {
 
 	pub async fn db_connect() -> Database {
 		// Use in-memory database for tests to avoid file system issues
-		database::init_database("sqlite::memory:")
+		init_database("sqlite::memory:")
 			.await
 			.expect("Failed to initialize SQLite database")
 	}
@@ -51,7 +51,7 @@ pub mod tests {
 
 	pub async fn server() -> TestServer {
 		let db = db_connect().await;
-		let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
+		let config: Arc<RwLock<Arc<Config>>> = Arc::new(RwLock::new(crate::CONFIG.read().await.clone()));
 		let server = axum_build(db, config, vec![], None).await;
 		TestServer::new(server).unwrap()
 	}

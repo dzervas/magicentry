@@ -39,20 +39,21 @@ pub async fn app_server() -> (Serve<TcpListener, Router, Router>, SocketAddr, sq
     Config::reload().await.unwrap();
 	let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
 	let db = db_connect().await;
+	let config_arc = Arc::new(config);
 
 	let (addr, server) = axum_run(
 		Some("127.0.0.1:0"),
 		db.clone(),
-		config,
+		config_arc.clone(),
 		vec![],
 		Some(|router| router.route("/secrets", get(secrets_handler))),
 	).await;
 
-	// {
-	// 	let mut config_mut = config.write().await;
-	// 	let config_ref = Arc::get_mut(&mut config_mut).unwrap();
-	// 	config_ref.external_url = format!("http://localhost:{}", addr.port());
-	// }
+	{
+		let mut config_mut = config_arc.write().await;
+		let config_ref = Arc::get_mut(&mut config_mut).unwrap();
+		config_ref.external_url = format!("http://localhost:{}", addr.port());
+	}
 
 	(server, addr, db)
 }

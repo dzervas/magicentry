@@ -8,6 +8,9 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use axum::http::StatusCode;
 use chrono::Duration;
 use tracing::{error, info};
 use notify::{PollWatcher, Watcher};
@@ -234,16 +237,16 @@ impl Config {
 #[serde(transparent)]
 pub struct LiveConfig(pub Arc<Config>);
 
-impl axum::extract::FromRequestParts<crate::AppState> for LiveConfig {
-	type Rejection = axum::http::StatusCode;
+impl<S: Send + Sync> FromRequestParts<S> for LiveConfig {
+	type Rejection = StatusCode;
 
-	async fn from_request_parts(parts: &mut axum::http::request::Parts, _state: &crate::AppState) -> Result<Self, Self::Rejection> {
+	async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
 		parts
 			.extensions
 			.get::<Arc<Config>>()
 			.cloned()
 			.map(Self)
-			.ok_or(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+			.ok_or(StatusCode::INTERNAL_SERVER_ERROR)
 	}
 }
 

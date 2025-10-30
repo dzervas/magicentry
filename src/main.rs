@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use tokio::sync::RwLock;
 use tracing::info;
 use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -48,9 +51,10 @@ fn init_tracing() {
 async fn main() {
 	init_tracing();
 	Config::reload().await.expect("Failed to reload config file");
+	let database_url = CONFIG.read().await.database_url.clone();
 
-	let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
-	let db = init_database(&config.database_url)
+	let config: Arc<RwLock<Arc<Config>>> = Arc::new(RwLock::new(crate::CONFIG.read().await.clone()));
+	let db = init_database(&database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
 

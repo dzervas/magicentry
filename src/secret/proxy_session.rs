@@ -44,7 +44,9 @@ impl OptionalFromRequestParts<AppState> for ProxySessionSecret {
 
 		let secret = Self::try_from_string(code.value().to_string(), &state.db).await
 			.context("Failed to create proxy code secret from string")?;
-		let Ok(config) = parts.extract::<LiveConfig>().await;
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 		let service = config.services
 				.from_auth_url_origin(&origin_url.origin())
 				.ok_or_else(|| AppError::Proxy(ProxyError::operation("Origin not found in service configuration")))?;

@@ -2,7 +2,8 @@ use std::borrow::Cow;
 
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect};
-use axum::extract::{Query, State};
+use axum::extract::State;
+use axum_extra::extract::OptionalQuery;
 use tracing::warn;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +18,7 @@ pub struct LogoutRequest {
 pub async fn handle_logout(
 	State(state): State<AppState>,
 	browser_session: BrowserSessionSecret,
-	Query(post_logout_redirect_uri): Query<Option<String>>,
+	OptionalQuery(post_logout_redirect_uri): OptionalQuery<String>,
 ) -> Result<impl IntoResponse, StatusCode>  {
 	browser_session.delete(&state.db).await.unwrap();
 
@@ -26,7 +27,7 @@ pub async fn handle_logout(
 		.as_ref()
 		.map_or_else(|| "/login".to_string(), |target| urlencoding::decode(&target.clone())
 			.unwrap_or_else(|_| {
-				warn!("Invalid logout redirect URL: {}", &target);
+				warn!("Invalid logout redirect URL: {target}");
 				Cow::from("/login")
 			})
 			.to_string());
