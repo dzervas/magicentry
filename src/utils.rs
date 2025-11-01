@@ -1,6 +1,7 @@
 use crate::RANDOM_STRING_LEN;
 
 pub fn random_string() -> String {
+	// TODO: Maybe tokio::task::spawn_blocking to execute this on a separate threadpool?
 	let mut buffer = [0u8; RANDOM_STRING_LEN];
 	rand::fill(&mut buffer);
 	hex::encode(buffer)
@@ -10,8 +11,8 @@ pub fn random_string() -> String {
 pub mod tests {
 	use std::sync::Arc;
 
+	use arc_swap::ArcSwap;
 	use axum_test::TestServer;
-	use tokio::sync::RwLock;
 
 	use crate::app_build::axum_build;
 	use crate::database::init_database;
@@ -51,7 +52,7 @@ pub mod tests {
 
 	pub async fn server() -> TestServer {
 		let db = db_connect().await;
-		let config: Arc<RwLock<Arc<Config>>> = Arc::new(RwLock::new(crate::CONFIG.read().await.clone()));
+		let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
 		let server = axum_build(db, config, vec![], None).await;
 		TestServer::new(server).unwrap()
 	}

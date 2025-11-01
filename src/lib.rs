@@ -48,6 +48,7 @@
 
 use std::sync::{Arc, LazyLock};
 
+use arc_swap::ArcSwap;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
 use tokio::sync::RwLock;
@@ -134,7 +135,7 @@ pub struct InFlightConfig(Arc<Config>);
 #[derive(Clone)]
 pub struct AppState {
 	pub db: crate::Database,
-	config: Arc<RwLock<Arc<Config>>>,
+	config: Arc<ArcSwap<Config>>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
 
 	pub key: jsonwebtoken::EncodingKey,
@@ -145,8 +146,9 @@ impl AppState {
 	pub async fn send_magic_link(&self, user: &User, link: &str) -> anyhow::Result<()> {
 		// TODO: Make this concurrent and return multiple errors
 		// It's ok to re-read the config here since it only uses the link_senders
+		let config = self.config.load();
 		for sender in &self.link_senders {
-			sender.send_magic_link(user, link, self.config.read().await.as_ref()).await?;
+			sender.send_magic_link(user, link, &config).await?;
 		}
 
 		Ok(())
@@ -161,7 +163,7 @@ impl AppState {
 		request: axum::http::Request<axum::body::Body>,
 		next: Next,
 	) -> impl IntoResponse {
-		let config_arc = state.config.read().await.clone();
+		let config_arc = state.config.load_full();
 
 		let mut request = request;
 		request.extensions_mut().insert(config_arc);

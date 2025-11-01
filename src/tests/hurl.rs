@@ -37,23 +37,21 @@ async fn secrets_handler(State(state): State<AppState>) -> impl IntoResponse {
 
 pub async fn app_server() -> (Serve<TcpListener, Router, Router>, SocketAddr, sqlx::SqlitePool) {
     Config::reload().await.unwrap();
-	let config: RwLock<Arc<Config>> = RwLock::new(crate::CONFIG.read().await.clone());
+	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
 	let db = db_connect().await;
-	let config_arc = Arc::new(config);
 
 	let (addr, server) = axum_run(
 		Some("127.0.0.1:0"),
 		db.clone(),
-		config_arc.clone(),
+		config.clone(),
 		vec![],
 		Some(|router| router.route("/secrets", get(secrets_handler))),
 	).await;
 
-	{
-		let mut config_mut = config_arc.write().await;
-		let config_ref = Arc::get_mut(&mut config_mut).unwrap();
-		config_ref.external_url = format!("http://localhost:{}", addr.port());
-	}
+	let config_full = config.load_full();
+	let mut config_mut = Arc::unwrap_or_clone(config_full);
+	config_mut.external_url = format!("http://localhost:{}", addr.port());
+	config.store(Arc::new(config_mut));
 
 	(server, addr, db)
 }

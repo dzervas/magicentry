@@ -40,11 +40,11 @@ use crate::*;
 #[allow(clippy::unwrap_used)] // Panics on boot are fine (right?)
 pub async fn axum_build(
 	db: Database,
-	config: Arc<RwLock<Arc<Config>>>,
+	config: Arc<ArcSwap<Config>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> Router {
-	let config_ref = config.read().await;
+	let config_ref = config.load();
 	let title = config_ref.title.clone();
 	let external_url = config_ref.external_url.clone();
 	let key = oidc::init(&db).await;
@@ -98,12 +98,12 @@ pub async fn axum_build(
 pub async fn axum_run(
 	listen: Option<&str>,
 	db: Database,
-	config: Arc<RwLock<Arc<Config>>>,
+	config: Arc<ArcSwap<Config>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> (SocketAddr, Serve<TcpListener, Router, Router>) {
 	let config_listen = {
-		let config_ref = config.read().await;
+		let config_ref = config.load();
 		format!("{}:{}", config_ref.listen_host.clone(), config_ref.listen_port)
 	};
 

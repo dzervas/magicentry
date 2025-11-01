@@ -53,7 +53,7 @@ pub async fn handle_authorize(
 		return Ok((jar, axum::response::Redirect::to(target_url.as_ref()).into_response()));
 	};
 
-	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &config.into(), &state.db).await?;
+	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &config, &state.db).await?;
 
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?
