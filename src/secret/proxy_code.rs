@@ -32,14 +32,14 @@ impl OptionalFromRequestParts<AppState> for ProxyCodeSecret {
 
 	async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Option<Self>, Self::Rejection> {
 		let Ok(OriginalUri(origin_url)) = parts.extract::<OriginalUri>().await else {
-			// return Err(AuthError::MissingLoginLinkCode.into());
 			return Ok(None);
 		};
 
-		let code = origin_url
+		let Some(code) = origin_url
 			.query_pairs()
-			.find(|e| e.0.to_lowercase() == PROXY_QUERY_CODE)
-			.ok_or_else(|| AppError::Proxy(ProxyError::operation("Missing proxy code in query parameters")))?;
+			.find(|e| e.0.to_lowercase() == PROXY_QUERY_CODE) else {
+			return Ok(None);
+		};
 
 		let secret = Self::try_from_string(code.1.to_string(), &state.db).await
 			.context("Failed to create proxy code secret from string")?;

@@ -26,19 +26,17 @@ impl UserSecretKind for ProxySessionSecretKind {
 
 pub type ProxySessionSecret = UserSecret<ProxySessionSecretKind>;
 
-// TODO: Error handling
 impl OptionalFromRequestParts<AppState> for ProxySessionSecret {
 	type Rejection = AppError;
 
 	async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Option<Self>, Self::Rejection> {
 		let Ok(OriginalUri(origin_url)) = parts.extract::<OriginalUri>().await else {
-			// return Err(AuthError::MissingLoginLinkCode.into());
 			return Ok(None);
 		};
 
 		let Ok(jar) = parts.extract::<CookieJar>().await;
 		let Some(code) = jar.get(PROXY_SESSION_COOKIE) else {
-			return Err(AuthError::NotLoggedIn.into());
+			return Ok(None);
 		};
 
 

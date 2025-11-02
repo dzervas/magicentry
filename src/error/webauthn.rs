@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// WebAuthn-related errors
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum WebAuthnError {
     #[error("Passkey already registered")]
     AlreadyRegistered,

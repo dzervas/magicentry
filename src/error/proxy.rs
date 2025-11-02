@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Proxy authentication-related errors
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum ProxyError {
     #[error("Missing auth_url code in (query string or cookie)")]
     MissingCode,

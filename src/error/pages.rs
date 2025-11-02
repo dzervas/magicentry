@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Page rendering-related errors
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum PageError {
     #[error("Page rendering error: {message}")]
     Render { message: String },

@@ -23,7 +23,7 @@ pub struct AuthorizePage {
 
 #[async_trait]
 impl Page for AuthorizePage {
-	fn render_partial(&self, _config: &Config) -> Markup {
+	fn render_partial(&self) -> Markup {
 		html! {
 			div {
 				h3 { (format!("Log-in to {{{}}} {}", self.client, self.client)) }

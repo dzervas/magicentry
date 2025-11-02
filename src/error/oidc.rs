@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// OIDC protocol-related errors
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum OidcError {
     #[error("OIDC Client sent a redirect_uri different from the one in the config")]
     InvalidRedirectUrl,

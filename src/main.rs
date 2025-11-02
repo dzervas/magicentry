@@ -2,39 +2,11 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use tracing::info;
-use tracing_subscriber::{fmt, EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use magicentry::CONFIG;
+use magicentry::{init_tracing, CONFIG};
 use magicentry::database::init_database;
 use magicentry::config::Config;
 use magicentry::app_build::axum_run;
-
-fn init_tracing() {
-	let log_level = std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
-	let log_format = std::env::var("LOG_FORMAT").unwrap_or_else(|_| "compact".to_string());
-	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level));
-
-	match log_format.as_str() {
-		"json" => {
-			tracing_subscriber::registry()
-				.with(filter)
-				.with(fmt::layer().json())
-				.init();
-		}
-		"pretty" => {
-			tracing_subscriber::registry()
-				.with(filter)
-				.with(fmt::layer().pretty())
-				.init();
-		}
-		_ => {
-			tracing_subscriber::registry()
-				.with(filter)
-				.with(fmt::layer().compact())
-				.init();
-		}
-	}
-}
 
 // Issues:
 // - Fix the fucking config
@@ -49,7 +21,7 @@ fn init_tracing() {
 
 #[tokio::main]
 async fn main() {
-	init_tracing();
+	init_tracing(None);
 	Config::reload().await.expect("Failed to reload config file");
 	let database_url = CONFIG.read().await.database_url.clone();
 

@@ -2,9 +2,7 @@
 
 use maud::{Markup, html};
 use async_trait::async_trait;
-use crate::pages::partials::{script, PageLayout};
 use crate::pages::Page;
-use crate::config::Config;
 
 /// Service information for index page
 #[derive(Debug, Clone)]
@@ -22,8 +20,7 @@ pub struct IndexPage {
 
 #[async_trait]
 impl Page for IndexPage {
-	fn render_partial(&self, config: &Config) -> Markup {
-		let layout = get_page_layout_from_config(config);
+	fn render_partial(&self) -> Markup {
 		html! {
 			header {
 				p { b { (format!("Welcome back {}", self.email)) } }
@@ -36,7 +33,7 @@ impl Page for IndexPage {
 						tr {
 							td {
 								object data=(format!("{}/favicon.ico", service.url)) type="image/x-icon" {
-									img src=(format!("{}/static/app-placeholder.svg", layout.path_prefix)) {}
+									img src=("/static/app-placeholder.svg") {}
 								}
 								div {
 									a href=(&service.url) {
@@ -49,29 +46,7 @@ impl Page for IndexPage {
 					}
 				}
 			}
-			(script(&layout, "webauthn"))
+			//(script(&layout, "webauthn"))
 		}
-	}
-
-	fn get_title<'a>(&'a self, config: &'a Config) -> &'a str {
-		&config.title
-	}
-
-	fn get_path_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
-		&config.path_prefix
-	}
-}
-
-/// Helper function to create [`PageLayout`] from config
-fn get_page_layout_from_config(config: &Config) -> PageLayout {
-	let path_prefix = if config.path_prefix.ends_with('/') {
-		&config.path_prefix[..config.path_prefix.len() - 1]
-	} else {
-		&config.path_prefix
-	};
-
-	PageLayout {
-		title: config.title.clone(),
-		path_prefix: path_prefix.to_string(),
 	}
 }

@@ -34,6 +34,8 @@ pub async fn handle_login(
 	}
 
 	// Unauthorized, show the login page
-	let login_page = LoginPage.render().await;
+	let login_page = LoginPage {
+		title: config.title.clone(),
+	}.render().await;
 	Ok(login_page.into_response())
 }

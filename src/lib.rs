@@ -53,6 +53,9 @@ use axum::middleware::Next;
 use axum::response::IntoResponse;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
+use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::layer::SubscriberExt;
 
 use crate::{config::Config, user::User};
 
@@ -293,5 +296,36 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 
 		// If the loop completes without finding any of the headers, return an error.
 		Err(StatusCode::BAD_REQUEST)
+	}
+}
+
+pub fn init_tracing(level: Option<&str>) {
+	let log_level = if let Some(level) = level {
+		level.to_string()
+	} else {
+		std::env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string())
+	};
+	let log_format = std::env::var("LOG_FORMAT").unwrap_or_else(|_| "compact".to_string());
+	let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&log_level));
+
+	match log_format.as_str() {
+		"json" => {
+			tracing_subscriber::registry()
+				.with(filter)
+				.with(fmt::layer().json())
+				.init();
+		}
+		"pretty" => {
+			tracing_subscriber::registry()
+				.with(filter)
+				.with(fmt::layer().pretty())
+				.init();
+		}
+		_ => {
+			tracing_subscriber::registry()
+				.with(filter)
+				.with(fmt::layer().compact().with_target(false))
+				.init();
+		}
 	}
 }

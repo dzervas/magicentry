@@ -1,14 +1,14 @@
 use std::net::SocketAddr;
 
-use axum::middleware::map_response_with_state;
 use axum::routing::{get, post};
 use axum::serve::Serve;
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 use tokio::net::TcpListener;
+use tower_http::trace;
 use tower_http::trace::TraceLayer;
+use tracing::Level;
 
-use crate::error::error_handler;
 use crate::{webauthn, AppState};
 
 use crate::handle_login::handle_login;
@@ -89,9 +89,12 @@ pub async fn axum_build(
 	let router_fn = router_fn.unwrap_or(|r| r);
 
 	router_fn(router)
-		.layer(map_response_with_state(state.clone(), error_handler))
+		// .layer(map_response_with_state(state.clone(), error_handler))
 		.layer(axum::middleware::from_fn_with_state(state.clone(), AppState::config_middleware))
-		.layer(TraceLayer::new_for_http())
+		.layer(TraceLayer::new_for_http()
+			.make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+			.on_response(trace::DefaultOnResponse::new().level(Level::INFO))
+		)
 		.with_state(state)
 }
 

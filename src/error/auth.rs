@@ -3,7 +3,7 @@
 use thiserror::Error;
 
 /// Authentication and secret-related errors
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum AuthError {
     // Authentication & secret errors
     #[error("The provided secret is bound to a token that no longer exists")]

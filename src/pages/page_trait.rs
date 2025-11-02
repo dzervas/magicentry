@@ -18,7 +18,7 @@ pub trait Page {
 	///
 	/// This method receives config data and should
 	/// render only the page content (without the full HTML structure)
-	fn render_partial(&self, config: &Config) -> Markup;
+	fn render_partial(&self) -> Markup;
 
 	/// Render the complete HTML page with layout
 	///
@@ -32,7 +32,7 @@ pub trait Page {
 	}
 
 	fn render_with_config(&self, config: &Config) -> Markup {
-		let content = self.render_partial(config);
+		let content = self.render_partial();
 		let layout = PageLayout {
 			title: self.get_title(config).to_string(),
 			path_prefix: self.get_path_prefix(config).to_string(),

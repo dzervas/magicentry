@@ -3,12 +3,10 @@
 //! This module provides a modular error handling approach using anyhow and thiserror.
 //! Each domain has its own error type, and they're all unified under the core [`AppError`].
 
-use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{Html, IntoResponse, Response};
 use thiserror::Error;
-
-use crate::AppState;
+use tracing::{error, warn};
 
 pub use self::database::DatabaseError;
 pub use self::auth::AuthError;
@@ -90,33 +88,42 @@ impl AppError {
 
 impl IntoResponse for AppError {
 	fn into_response(self) -> Response {
-		let status_num = self.status_code().as_u16();
-		let status = axum::http::StatusCode::from_u16(status_num).unwrap();
+		eprintln!("Into response: {self}");
+		let status = self.status_code();
+
+		if status.is_server_error() {
+			error!("Internal Server error: {self}");
+		} else if status != StatusCode::NOT_FOUND {
+			warn!("Client error: {self}");
+		}
+
+		if status == StatusCode::FOUND {
+			eprintln!("Found");
+			return (status, "/login").into_response();
+		}
+
 		let body = format!("Error {}: {}", status.as_u16(), self);
 
-		(status, axum::response::Html(body)).into_response()
+		(status, Html(body)).into_response()
 	}
 }
 
-impl AppError {
-	pub fn render_with_state(&self, _state: &AppState) -> impl IntoResponse {
-		// let config = &state.config;
-		// let status_num = self.status_code().as_u16();
-		// let status = axum::http::StatusCode::from_u16(status_num).unwrap();
-		//
-		// let error = crate::pages::error::ErrorPage {
-		// 	code: status_num.to_string(),
-		// 	error: self.to_string(),
-		// 	description: self.to_string(),
-		// };
-
-		// let body = error.render_with_config(config);
-
-		// (status, body)
-		// todo!()
-		"todo"
-	}
-  }
+// impl AppError {
+// 	pub fn render_with_state(&self, config: &LiveConfig) -> impl IntoResponse {
+// 		let status_num = self.status_code().as_u16();
+// 		let status = StatusCode::from_u16(status_num).unwrap();
+//
+// 		let error = ErrorPage {
+// 			code: status_num.to_string(),
+// 			error: self.to_string(),
+// 			description: self.to_string(),
+// 		};
+//
+// 		let body = error.render_with_config(config);
+//
+// 		(status, body)
+// 	}
+//   }
 
 // Legacy compatibility - allow conversion from string
 impl From<String> for AppError {
@@ -130,22 +137,22 @@ impl From<&'static str> for AppError {
 		Self::Internal(anyhow::anyhow!(error))
 	}
 }
-
-pub async fn error_handler(
-	State(state): State<AppState>,
-	response: Response,
-) -> impl IntoResponse {
-    // let (parts, body) = response.into_parts();
-
-    // let status_num = parts.status.as_u16();
-    // if status_num < 400 {
-    //     // We only care about client or server errors
-    //     return axum::response::Response::from_parts(parts, body);
-    // }
-
-	// Check if response is an error and handle it
-	match response.extensions().get::<AppError>() {
-		Some(error) => error.render_with_state(&state).into_response(),
-		None => response,
-	}
-}
+//
+// pub async fn error_handler(
+// 	State(_state): State<AppState>,
+// 	response: Response,
+// ) -> impl IntoResponse {
+// 	let Some(error) = response.extensions().get::<AppError>().cloned() else {
+// 		return response;
+// 	};
+//
+// 	let (parts, _body) = response.into_parts();
+// 	let status_num = parts.status.as_u16();
+// 	if status_num < 400 {
+// 		return response;
+// 	}
+//
+// 	let error_page = ErrorPage::render_sync(status_num, error.to_string(), error.to_string());
+//
+// 	error_page
+// }
