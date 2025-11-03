@@ -5,7 +5,10 @@
 
 use std::path::Path;
 use std::fs;
+use anyhow::Context;
+
 use crate::config::Config;
+use crate::error::AppError;
 use crate::pages::*;
 
 /// Mock configuration for testing
@@ -47,7 +50,7 @@ fn create_mock_config() -> Config {
 }
 
 /// Helper function to render pages with mock config
-fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> anyhow::Result<()> {
+fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> Result<(), AppError> {
 	// For this example, we'll simulate the global CONFIG with a local Arc<RwLock>
 	// In a real application, the global CONFIG would be properly initialized
 
@@ -64,7 +67,8 @@ fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> anyhow::Result<
 	};
 
 	let html = crate::pages::partials::render_page(&layout, &content);
-	save_html(filename, &html.into_string())?;
+	save_html(filename, &html.into_string())
+		.context("Failed to save HTML file")?;
 
 	Ok(())
 }
@@ -88,7 +92,7 @@ fn save_html(filename: &str, content: &str) -> Result<(), std::io::Error> {
 }
 
 /// Render and save error page
-fn render_error_page() -> anyhow::Result<()> {
+fn render_error_page() -> Result<(), AppError> {
 	let error_page = ErrorPage {
 		code: "404".to_string(),
 		error: "Page Not Found".to_string(),
@@ -99,7 +103,7 @@ fn render_error_page() -> anyhow::Result<()> {
 }
 
 /// Render and save login page
-fn render_login_page() -> anyhow::Result<()> {
+fn render_login_page() -> Result<(), AppError> {
 	let login_page = LoginPage {
 		title: "Login".to_string(),
 	};
@@ -108,14 +112,14 @@ fn render_login_page() -> anyhow::Result<()> {
 }
 
 /// Render and save login action page
-fn render_login_action_page() -> anyhow::Result<()> {
+fn render_login_action_page() -> Result<(), AppError> {
 	let login_action_page = LoginActionPage;
 
 	render_with_mock_config(&login_action_page, "login_action.html")
 }
 
 /// Render and save index page
-fn render_index_page() -> anyhow::Result<()> {
+fn render_index_page() -> Result<(), AppError> {
 	let index_page = IndexPage {
 		email: "user@example.com".to_string(),
 		services: vec![
@@ -138,7 +142,7 @@ fn render_index_page() -> anyhow::Result<()> {
 }
 
 /// Render and save authorization page (OIDC)
-fn render_authorize_page_oidc() -> anyhow::Result<()> {
+fn render_authorize_page_oidc() -> Result<(), AppError> {
 	let auth_page = AuthorizePage {
 		client: "OAuth Client".to_string(),
 		name: "John Doe".to_string(),
@@ -154,7 +158,7 @@ fn render_authorize_page_oidc() -> anyhow::Result<()> {
 }
 
 /// Render and save authorization page (SAML)
-fn render_authorize_page_saml() -> anyhow::Result<()> {
+fn render_authorize_page_saml() -> Result<(), AppError> {
 	let auth_page = AuthorizePage {
 		client: "SAML Service Provider".to_string(),
 		name: "Jane Smith".to_string(),

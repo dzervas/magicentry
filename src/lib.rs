@@ -57,6 +57,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::layer::SubscriberExt;
 
+use crate::error::AppError;
 use crate::{config::Config, user::User};
 
 pub mod app_build;
@@ -146,7 +147,7 @@ pub struct AppState {
 }
 
 impl AppState {
-	pub async fn send_magic_link(&self, user: &User, link: &str) -> anyhow::Result<()> {
+	pub async fn send_magic_link(&self, user: &User, link: &str) -> Result<(), AppError> {
 		// TODO: Make this concurrent and return multiple errors
 		// It's ok to re-read the config here since it only uses the link_senders
 		let config = self.config.load();
@@ -177,12 +178,12 @@ impl AppState {
 
 #[async_trait::async_trait]
 pub trait LinkSender: Send + Sync {
-	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> anyhow::Result<()>;
+	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> Result<(), AppError>;
 }
 
 #[async_trait::async_trait]
 impl LinkSender for crate::SmtpTransport {
-	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> anyhow::Result<()> {
+	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> Result<(), AppError> {
 		use anyhow::Context as _;
 		use lettre::{AsyncTransport, Message};
 		use lettre::message::header::ContentType as LettreContentType;
@@ -215,7 +216,7 @@ impl LinkSender for crate::SmtpTransport {
 
 #[async_trait::async_trait]
 impl LinkSender for reqwest::Client {
-	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> anyhow::Result<()> {
+	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> Result<(), AppError> {
 		use anyhow::Context as _;
 		use reqwest::header::CONTENT_TYPE;
 		use formatx::formatx;

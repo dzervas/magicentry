@@ -205,7 +205,7 @@ mod tests {
 
 	use super::*;
 
-	async fn setup_test_db() -> anyhow::Result<Database> {
+	async fn setup_test_db() -> Result<Database, AppError> {
 		// Use in-memory database for tests
 		init_database("sqlite::memory:").await
 	}

@@ -287,13 +287,13 @@ impl ConfigKV {
 			updated_at: None,
 		};
 		
-		row.save(db).await
+		Ok(row.save(db).await?)
 	}
 	
 	/// Get a config value by key
 	pub async fn get(key: &ConfigKeys, db: &Database) -> anyhow::Result<Option<String>> {
 		let key_str = serde_json::to_string(key)?;
-		ConfigKVRow::get(&key_str, db).await
+		Ok(ConfigKVRow::get(&key_str, db).await?)
 	}
 }
 

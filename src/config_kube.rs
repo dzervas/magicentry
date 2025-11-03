@@ -21,7 +21,7 @@ use kube::{api::{Patch, PatchParams}, Api, Client};
 use kube::core::ObjectMeta;
 use serde::{Deserialize, Serialize};
 
-use crate::error::AuthError;
+use crate::error::{AppError, AuthError};
 use crate::service::{Service, ServiceAuthUrl, ServiceOIDC};
 use crate::utils::random_string;
 use crate::CONFIG;
@@ -75,7 +75,7 @@ impl IngressConfig {
 	// TODO: Refactor this function
 	#[allow(clippy::cognitive_complexity)]
 	#[allow(clippy::too_many_lines)]
-	pub async fn process(&self, ingress: &Ingress) -> anyhow::Result<()> {
+	pub async fn process(&self, ingress: &Ingress) -> Result<(), AppError> {
 		let no_name = String::new();
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
 
@@ -113,10 +113,12 @@ impl IngressConfig {
 
 		let oidc = if let Some(secret_name) = &self.oidc_target_secret {
 			let namespace = ingress.metadata.namespace.as_deref().unwrap_or("default");
-			let client = Client::try_default().await?;
+			let client = Client::try_default().await
+				.context("Could not open the default kubernetes client")?;
 			let secrets: Api<Secret> = Api::namespaced(client, namespace);
 
-			let existing = secrets.get_opt(secret_name).await?;
+			let existing = secrets.get_opt(secret_name).await
+				.context("Failed to get the kubernetes secret")?;
 			let client_id = existing
 				.as_ref()
 				.and_then(|s| s.data.as_ref())
@@ -149,7 +151,8 @@ impl IngressConfig {
 
 			let pp = PatchParams::apply("magicentry").force();
 			let patch = Patch::Apply(&secret);
-			secrets.patch(secret_name, &pp, &patch).await?;
+			secrets.patch(secret_name, &pp, &patch).await
+				.context("Failed to patch the kubernetes secret")?;
 
 			Some(ServiceOIDC {
 				client_id,
@@ -290,8 +293,9 @@ async fn process_ingress(ingress: &Ingress) {
 ///
 /// This function is asynchronously ran alongside the main actix-web server
 /// and will update the config file in the background
-pub async fn watch() -> anyhow::Result<()> {
-	let client = Client::try_default().await?;
+pub async fn watch() -> Result<(), AppError> {
+	let client = Client::try_default().await
+		.context("Could not open the default kubernetes client for watching")?;
 	let ingresses: Api<Ingress> = Api::all(client);
 
 	tracing::info!("Watching for Ingresses");

@@ -4,13 +4,13 @@ use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use crate::user::User;
+use crate::{error::AppError, user::User};
 
 /// `SQLite` database connection pool
 pub type Database = SqlitePool;
 
 /// Initialize the database connection and run migrations
-pub async fn init_database(database_url: &str) -> anyhow::Result<Database> {
+pub async fn init_database(database_url: &str) -> Result<Database, AppError> {
 	let options = SqliteConnectOptions::from_str(database_url)
 		.with_context(|| format!("Failed to parse database URL: {database_url}"))?
 		.journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
@@ -38,7 +38,7 @@ pub struct PasskeyRow {
 
 impl PasskeyRow {
 	/// Save a passkey to the database
-	pub async fn save(&mut self, db: &Database) -> anyhow::Result<()> {
+	pub async fn save(&mut self, db: &Database) -> Result<(), AppError> {
 		let result = sqlx::query!(
 			"INSERT INTO passkeys (user_data, passkey_data) VALUES (?, ?)",
 			self.user_data,
@@ -53,7 +53,7 @@ impl PasskeyRow {
 	}
 	
 	/// Get all passkeys for a user
-	pub async fn get_by_user(user: &User, db: &Database) -> anyhow::Result<Vec<Self>> {
+	pub async fn get_by_user(user: &User, db: &Database) -> Result<Vec<Self>, AppError> {
 		let user_str = serde_json::to_string(user)
 			.with_context(|| format!("Failed to serialize user data for passkey lookup: {}", user.email))?;
 
@@ -80,7 +80,7 @@ pub struct ConfigKVRow {
 
 impl ConfigKVRow {
 	/// Save or update a config KV pair
-	pub async fn save(&self, db: &Database) -> anyhow::Result<()> {
+	pub async fn save(&self, db: &Database) -> Result<(), AppError> {
 		sqlx::query!(
 			"INSERT INTO config_kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP",
 			self.key,
@@ -95,7 +95,7 @@ impl ConfigKVRow {
 	}
 	
 	/// Get a config value by key
-	pub async fn get(key: &str, db: &Database) -> anyhow::Result<Option<String>> {
+	pub async fn get(key: &str, db: &Database) -> Result<Option<String>, AppError> {
 		let row = sqlx::query!("SELECT value FROM config_kv WHERE key = ?", key)
 		.fetch_optional(db)
 		.await
@@ -105,7 +105,7 @@ impl ConfigKVRow {
 	}
 	
 	/// Remove a config KV pair by key
-	pub async fn remove(key: &str, db: &Database) -> anyhow::Result<()> {
+	pub async fn remove(key: &str, db: &Database) -> Result<(), AppError> {
 		sqlx::query!("DELETE FROM config_kv WHERE key = ?", key)
 		.execute(db)
 		.await
@@ -119,7 +119,7 @@ impl ConfigKVRow {
 mod tests {
 	use super::*;
 
-	async fn setup_test_db() -> anyhow::Result<Database> {
+	async fn setup_test_db() -> Result<Database, AppError> {
 		// Use in-memory database for tests
 		init_database("sqlite::memory:").await
 	}

@@ -41,9 +41,9 @@ pub fn spawn_cleanup_job(db: crate::Database) {
 mod tests {
 	use super::*;
 
-	use crate::database::init_database;
+	use crate::{database::init_database, error::AppError};
 
-	async fn setup_test_db() -> anyhow::Result<crate::Database> {
+	async fn setup_test_db() -> Result<crate::Database, AppError> {
 		init_database("sqlite::memory:").await
 	}
 
