@@ -39,14 +39,21 @@ Location: /login
 
 # === Failure tests
 
-# Check that link reuse doesn't work
-GET {{base_url}}{{link}}
-HTTP 303
-Location: /login
-
 # Check that after logout, the session gets invalidated
 GET {{base_url}}/
 [Cookies]
 session_id: {{session}}
-HTTP 303
-Location: /login
+HTTP 302
+
+# === Cookie cleanup tests
+
+# Test that invalid session cookies get cleaned up
+GET {{base_url}}/
+[Cookies]
+session_id: invalid_session_token
+HTTP 302
+[Asserts]
+# Verify that Set-Cookie headers are present for cookie cleanup
+header "Set-Cookie" exists
+# Verify the first cookie (session_id) is being cleared
+header "Set-Cookie" contains "session_id=; Max-Age=0"

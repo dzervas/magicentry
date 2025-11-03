@@ -92,7 +92,7 @@ impl LoginLinkRedirect {
 }
 
 impl MetadataKind for LoginLinkRedirect {
-	async fn validate(&self, _: &crate::Database) -> anyhow::Result<()> {
+	async fn validate(&self, _: &crate::Database) -> Result<(), AppError> {
 		self.validate_internal().await?;
 		Ok(())
 	}
@@ -125,6 +125,6 @@ impl FromRequestParts<AppState> for LoginLinkSecret {
 			return Err(AuthError::MissingLoginLinkCode.into());
 		};
 
-		Ok(Self::try_from_string(link, &state.db).await?)
+		Self::try_from_string(link, &state.db).await
 	}
 }

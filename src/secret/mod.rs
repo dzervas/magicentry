@@ -26,7 +26,7 @@ pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use serde::{Deserialize, Serialize};
 
-use crate::utils::random_string;
+use crate::{error::AuthError, utils::random_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Encode, sqlx::Decode)]
 pub enum SecretType {
@@ -124,7 +124,7 @@ impl TryFrom<String> for SecretString {
 	fn try_from(value: String) -> Result<Self, Self::Error> {
 		let parts: Vec<_> = value.split('_').collect();
 		if parts.len() != 3 || parts[0] != "me" {
-			return Err(crate::error::AuthError::InvalidSecret.into());
+			return Err(AuthError::InvalidSecret.into());
 		}
 
 		let kind = match parts[1] {
@@ -138,7 +138,7 @@ impl TryFrom<String> for SecretString {
 			"ps" => SecretType::ProxySession,
 			"wa" => SecretType::WebAuthnAuth,
 			"wr" => SecretType::WebAuthnReg,
-			_ => return Err(crate::error::AuthError::InvalidSecret.into()),
+			_ => return Err(AuthError::InvalidSecret.into()),
 		};
 
 		Ok(Self(kind, parts[2].to_string()))

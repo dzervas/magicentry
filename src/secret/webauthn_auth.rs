@@ -45,6 +45,6 @@ impl axum::extract::FromRequestParts<crate::AppState> for WebAuthnAuthSecret {
 		};
 
 
-		Ok(Self::try_from_string(cookie.value().to_string(), &state.db).await?)
+		Self::try_from_string(cookie.value().to_string(), &state.db).await
 	}
 }

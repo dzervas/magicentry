@@ -300,6 +300,7 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 }
 
 pub fn init_tracing(level: Option<&str>) {
+	// TODO: set max_level_debug feature flag
 	let log_level = if let Some(level) = level {
 		level.to_string()
 	} else {

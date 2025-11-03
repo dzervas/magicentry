@@ -50,7 +50,7 @@ impl FromRequestParts<AppState> for BrowserSessionSecret {
 			return Err(AuthError::NotLoggedIn.into());
 		};
 
-		Ok(Self::try_from_string(code.value().to_string(), &state.db).await?)
+		Self::try_from_string(code.value().to_string(), &state.db).await
 	}
 }
 

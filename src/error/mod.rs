@@ -4,7 +4,7 @@
 //! Each domain has its own error type, and they're all unified under the core [`AppError`].
 
 use axum::http::StatusCode;
-use axum::response::{Html, IntoResponse, Response};
+use axum::response::{IntoResponse, Response};
 use thiserror::Error;
 use tracing::{error, warn};
 
@@ -15,12 +15,39 @@ pub use self::webauthn::WebAuthnError;
 pub use self::proxy::ProxyError;
 pub use self::pages::PageError;
 
+use crate::pages::ErrorPage;
+use crate::{
+    SESSION_COOKIE,
+    PROXY_SESSION_COOKIE,
+    AUTHORIZATION_COOKIE,
+    webauthn::{WEBAUTHN_AUTH_COOKIE, WEBAUTHN_REG_COOKIE},
+};
+
 mod database;
 mod auth;
 mod oidc;
 mod webauthn;
 mod proxy;
 mod pages;
+
+/// Create cookie removal headers for all authentication cookies
+fn create_cookie_removal_headers() -> Vec<String> {
+    let auth_cookies = [
+        SESSION_COOKIE,
+        PROXY_SESSION_COOKIE,
+        AUTHORIZATION_COOKIE,
+        WEBAUTHN_AUTH_COOKIE,
+        WEBAUTHN_REG_COOKIE,
+    ];
+
+    auth_cookies
+        .iter()
+        .map(|&name| {
+            // Create a removal cookie with empty value and expiration in the past
+            format!("{}=; Max-Age=0", name)
+        })
+        .collect()
+}
 
 /// Core application error that unifies all domain errors
 #[derive(Debug, Error)]
@@ -88,8 +115,9 @@ impl AppError {
 
 impl IntoResponse for AppError {
 	fn into_response(self) -> Response {
-		eprintln!("Into response: {self}");
 		let status = self.status_code();
+		eprintln!("Is invalidsecret: {}", matches!(self, Self::Auth(AuthError::InvalidSecretType)));
+		eprintln!("AppError: {self} status: {status}");
 
 		if status.is_server_error() {
 			error!("Internal Server error: {self}");
@@ -97,14 +125,25 @@ impl IntoResponse for AppError {
 			warn!("Client error: {self}");
 		}
 
-		if status == StatusCode::FOUND {
-			eprintln!("Found");
-			return (status, "/login").into_response();
+		if status != StatusCode::FOUND {
+			// TODO: Correct description
+			return (status, ErrorPage::render_sync(status.as_u16(), self.to_string(), self.to_string())).into_response();
 		}
 
-		let body = format!("Error {}: {}", status.as_u16(), self);
+		eprintln!("Found");
+		let mut response = (status, "/login").into_response();
 
-		(status, Html(body)).into_response()
+		// Add cookie removal headers to clean up invalid authentication
+		if matches!(self, Self::Auth(AuthError::NotLoggedIn | AuthError::ExpiredSecret | AuthError::InvalidSecret)) {
+			let headers = response.headers_mut();
+			for cookie_header in create_cookie_removal_headers() {
+				if let Ok(header_value) = cookie_header.parse() {
+					headers.append("Set-Cookie", header_value);
+				}
+			}
+		}
+
+		response
 	}
 }
 

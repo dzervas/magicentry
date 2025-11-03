@@ -32,6 +32,6 @@ impl FromRequestParts<crate::AppState> for OIDCTokenSecret {
 			return Err(AuthError::MissingLoginLinkCode.into());
 		};
 
-		Ok(Self::try_from_string(token.token().to_string(), &state.db).await?)
+		Self::try_from_string(token.token().to_string(), &state.db).await
 	}
 }
