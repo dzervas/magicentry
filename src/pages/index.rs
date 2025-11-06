@@ -32,7 +32,7 @@ impl Page for IndexPage {
 					@for service in &self.services {
 						tr {
 							td {
-								object data=(format!("{}/favicon.ico", service.url)) type="image/x-icon" {
+								object data=(format!("{}/favicon.ico", service.url.trim_end_matches('/'))) type="image/x-icon" {
 									img src=("/static/app-placeholder.svg") {}
 								}
 								div {

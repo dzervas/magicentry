@@ -5,6 +5,7 @@ use axum::serve::Serve;
 use axum::Router;
 use axum_extra::routing::RouterExt as _;
 use tokio::net::TcpListener;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace;
 use tower_http::trace::TraceLayer;
 use tracing::Level;
@@ -82,7 +83,10 @@ pub async fn axum_build(
 		.route("/webauthn/auth/start", post(handle_auth_start))
 		.route("/webauthn/auth/finish", post(handle_auth_finish))
 		.route("/webauthn/register/start", post(handle_reg_start))
-		.route("/webauthn/register/finish", post(handle_reg_finish));
+		.route("/webauthn/register/finish", post(handle_reg_finish))
+
+		.route_service("/favicon.ico", ServeFile::new("static/favicon.ico"))
+		.nest_service("/static", ServeDir::new("static"));
 
 	// TODO: Add a fallback route (404)
 

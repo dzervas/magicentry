@@ -116,8 +116,6 @@ impl AppError {
 impl IntoResponse for AppError {
 	fn into_response(self) -> Response {
 		let status = self.status_code();
-		eprintln!("Is invalidsecret: {}", matches!(self, Self::Auth(AuthError::InvalidSecretType)));
-		eprintln!("AppError: {self} status: {status}");
 
 		if status.is_server_error() {
 			error!("Internal Server error: {self}");
@@ -130,12 +128,13 @@ impl IntoResponse for AppError {
 			return (status, ErrorPage::render_sync(status.as_u16(), self.to_string(), self.to_string())).into_response();
 		}
 
-		eprintln!("Found");
-		let mut response = (status, "/login").into_response();
+		let mut response = status.into_response();
+
+		let headers = response.headers_mut();
+		headers.append("Location", "/login".parse().unwrap());
 
 		// Add cookie removal headers to clean up invalid authentication
 		if matches!(self, Self::Auth(AuthError::NotLoggedIn | AuthError::ExpiredSecret | AuthError::InvalidSecret)) {
-			let headers = response.headers_mut();
 			for cookie_header in create_cookie_removal_headers() {
 				if let Ok(header_value) = cookie_header.parse() {
 					headers.append("Set-Cookie", header_value);
