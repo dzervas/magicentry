@@ -13,6 +13,7 @@
     watchexec
     sqlx-cli
     tailwindcss_4
+    k3d
 
     openssl.dev perl
     libxml2
