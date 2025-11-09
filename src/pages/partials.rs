@@ -40,9 +40,8 @@ pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
 }
 
 /// Script inclusion utility
-#[must_use]
-pub fn script(layout: &PageLayout, name: &str) -> Markup {
+pub fn script(name: &str) -> Markup {
 	html! {
-		script src=(format!("{}/static/{}.js", layout.path_prefix, name)) type="module" {}
+		script src=(format!("/static/{name}.js")) type="module" {}
 	}
 }

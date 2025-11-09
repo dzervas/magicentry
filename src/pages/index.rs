@@ -1,8 +1,9 @@
 //! Index page template (shown after successful login)
 
-use maud::{Markup, html};
 use async_trait::async_trait;
-use crate::pages::Page;
+use maud::{Markup, html};
+
+use super::{script, Page};
 
 /// Service information for index page
 #[derive(Debug, Clone)]
@@ -65,7 +66,7 @@ impl Page for IndexPage {
 					}
 				}
 			}
-			//(script(&layout, "webauthn"))
+			(script("webauthn"))
 		}
 	}
 }

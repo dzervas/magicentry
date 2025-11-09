@@ -1,8 +1,9 @@
 //! Login page template
 
-use maud::{Markup, html};
 use async_trait::async_trait;
-use crate::pages::Page;
+use maud::{Markup, html};
+
+use super::{Page, script};
 
 /// Login page data
 #[derive(Debug, Clone)]
@@ -41,8 +42,7 @@ impl Page for LoginPage {
 					}
 				}
 			}
-			// TODO: Add webauthn back
-			// (script(&layout, "webauthn"))
+			(script("webauthn"))
 		}
 	}
 }

@@ -5,7 +5,7 @@ use axum::response::IntoResponse;
 use axum_extra::extract::CookieJar;
 
 use crate::config::LiveConfig;
-use crate::error::{AppError, AuthError};
+use crate::error::{AppError, WebAuthnError};
 use crate::handle_login_post::LoginInfo;
 use crate::user::User;
 use crate::secret::WebAuthnAuthSecret;
@@ -24,8 +24,8 @@ pub async fn handle_auth_start(
 
 	// TODO: Handle the errors to avoid leaking (in)valid emails
 	let user = User::from_email(&config, &form.email)
-		.ok_or(AuthError::InvalidTargetUser)?;
-	
+		.ok_or(WebAuthnError::SecretNotFound)?;
+
 	let passkey_stores = PasskeyStore::get_by_user(&user, &state.db).await?;
 	let passkeys = passkey_stores
 		.iter()
