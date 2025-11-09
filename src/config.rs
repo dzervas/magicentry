@@ -140,16 +140,12 @@ impl Default for Config {
 }
 
 impl Config {
-	/// Read the config file as dictated by the `CONFIG_FILE` variable
-	/// and replace the current contents
-	///
-	/// Note that live-updating the `CONFIG_FILE` environment variable
-	/// is **NOT** supported (and is probably impossible anyway)
-	pub async fn reload() -> anyhow::Result<()> {
-		info!("Reloading config from {}", CONFIG_FILE.as_str());
+	/// Read the config file from the specified path and return the loaded config
+	pub async fn reload_from_path(path: &str) -> anyhow::Result<Self> {
+		info!("Loading config from {}", path);
 
 		let mut new_config = serde_yaml::from_str::<Self>(
-			&std::fs::read_to_string(CONFIG_FILE.as_str())?
+			&std::fs::read_to_string(path)?
 		)?;
 
 		if let Some(users_file) = &new_config.users_file {
@@ -159,6 +155,17 @@ impl Config {
 				)?
 			);
 		}
+
+		Ok(new_config)
+	}
+
+	/// Read the config file as dictated by the `CONFIG_FILE` variable
+	/// and replace the current contents
+	///
+	/// Note that live-updating the `CONFIG_FILE` environment variable
+	/// is **NOT** supported (and is probably impossible anyway)
+	pub async fn reload() -> anyhow::Result<()> {
+		let new_config = Self::reload_from_path(CONFIG_FILE.as_str()).await?;
 
 		let mut config = CONFIG.write().await;
 		if new_config.users_file != config.users_file {
@@ -171,36 +178,45 @@ impl Config {
 		Ok(())
 	}
 
-	/// Set up a file watcher that fires the [reload](ConfigFile::reload) method so
-	/// that config file changes get automatically picked up
-	pub fn watch() -> PollWatcher {
+	/// Set up a file watcher for the specified config file path
+	pub fn watch(config_path: &str) -> PollWatcher {
+		Self::watch_with_interval(config_path, std::time::Duration::from_secs(2))
+	}
+
+	/// Set up a file watcher for the specified config file path with custom interval
+	pub fn watch_with_interval(config_path: &str, poll_interval: std::time::Duration) -> PollWatcher {
+		let config_path_clone = config_path.to_owned();
 		let watcher_config = notify::Config::default()
 			.with_compare_contents(true)
-			.with_poll_interval(std::time::Duration::from_secs(2))
+			.with_poll_interval(poll_interval)
 			.with_follow_symlinks(true);
 
-		let mut watcher = notify::PollWatcher::new(move |_| {
-			info!("Config file changed, reloading");
-			futures::executor::block_on(async {
-				if let Err(e) = Self::reload().await {
-					error!("Failed to reload config file: {e}");
-				}
-			});
+		let mut watcher = notify::PollWatcher::new(move |res| {
+			match res {
+			 Ok(_) => {
+				info!("Config file changed, reloading");
+				futures::executor::block_on(async {
+					if let Err(e) = Self::reload_from_path(&config_path_clone).await {
+						error!("Failed to reload config file: {e}");
+					}
+				});
+			}
+			Err(e) => error!("Watch error: {:?}", e),
+			}
 		}, watcher_config)
 			.expect("Failed to create watcher for the config file");
 
 		watcher
-			.watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
+			.watch(Path::new(config_path), notify::RecursiveMode::NonRecursive)
 			.expect("Failed to watch config file for changes");
 
-		if let Some(users_file) = CONFIG
-			.try_read()
-			.ok()
-			.and_then(|c| c.users_file.clone())
-		{
-			watcher
-				.watch(Path::new(&users_file), notify::RecursiveMode::NonRecursive)
-				.expect("Failed to watch users file for changes");
+		// Watch users file if it exists in current config
+		if let Ok(config_guard) = CONFIG.try_read() {
+			if let Some(users_file) = &config_guard.users_file {
+				watcher
+					.watch(Path::new(users_file), notify::RecursiveMode::NonRecursive)
+					.expect("Failed to watch users file for changes");
+			}
 		}
 
 		watcher

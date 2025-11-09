@@ -120,7 +120,7 @@ pub type SmtpTransport = lettre::transport::smtp::AsyncSmtpTransport<lettre::Tok
 /// or defaulting to `config.yaml` if not set
 // Needs lazy_static because we want to read the env var on runtime
 #[cfg(not(test))]
-static CONFIG_FILE: LazyLock<String> = LazyLock::new(|| std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yaml".to_string()));
+pub static CONFIG_FILE: LazyLock<String> = LazyLock::new(|| std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yaml".to_string()));
 
 #[cfg(test)]
 pub type SmtpTransport = lettre::transport::stub::AsyncStubTransport;

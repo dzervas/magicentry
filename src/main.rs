@@ -8,13 +8,11 @@ use tracing::info;
 use magicentry::app_build::axum_run;
 use magicentry::config::Config;
 use magicentry::database::init_database;
-use magicentry::{init_tracing, SmtpTransport, CONFIG};
+use magicentry::{init_tracing, SmtpTransport, CONFIG, CONFIG_FILE};
 
 // Issues:
-// - Download the webauthn library on build time
 // - Make webauthn not require an email?
 // - Test webauthn
-// - Test hot reload with hurl (actual file editing)
 // - Test kube e2e
 // - Bring back the benchmark (maybe axum-test instead of hurl)
 // - Clean architecture
@@ -59,7 +57,7 @@ async fn main() {
 
 	let (addr, server) = axum_run(None, db.clone(), config, link_senders, None).await;
 
-	let _watcer = Config::watch();
+	let _watcer = Config::watch(CONFIG_FILE.as_str());
 	spawn_cleanup_job(db.clone());
 
 	info!("Server running on http://{addr}");
