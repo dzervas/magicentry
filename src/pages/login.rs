@@ -16,16 +16,21 @@ impl Page for LoginPage {
 		html! {
 			h2 { (self.title) }
 
-			form action="" method="post" {
-				input
-					type="email"
-					name="email"
-					required="required"
-					autocomplete="email webauthn"
-					placeholder="Enter your email" {}
-				button id="webauthn-auth" type="button" { "🔑 PassKey" }
-				button type="submit" { "✉️ Login" }
+			article {
+				form action="" method="post" {
+					fieldset role="group" {
+						input
+							type="email"
+							name="email"
+							required="required"
+							autocomplete="email webauthn"
+							placeholder="Enter your email" {}
+						button id="webauthn-auth" type="button" class="secondary" { "PassKey" }
+						button type="submit" { "Login" }
+					}
+				}
 			}
+			// TODO: Add webauthn back
 			// (script(&layout, "webauthn"))
 		}
 	}

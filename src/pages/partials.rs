@@ -1,6 +1,6 @@
 //! Page layout utilities for maud templates
 
-use maud::{Markup, html, DOCTYPE};
+use maud::{DOCTYPE, Markup, html};
 
 /// Page layout data for common page elements
 #[derive(Debug, Clone)]
@@ -12,25 +12,29 @@ pub struct PageLayout {
 /// Create a complete HTML page with content
 #[must_use]
 pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
-	let path_prefix = layout.path_prefix.trim_end_matches('/');
 	html! {
 		(DOCTYPE)
 		html lang="en" {
 			head {
 				meta charset="UTF-8";
 				meta name="viewport" content="width=device-width, initial-scale=1.0";
+				meta name="color-scheme" content="light dark";
 				title { (&layout.title) }
-				link rel="stylesheet" href=(format!("{}/static/main.css", path_prefix));
+				// link rel="stylesheet" href="/static/main.css";
+				// link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css";
+				link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css";
 			}
 			body {
-				main {
+				main class="container" {
 					(content)
 				}
 
-				footer {
-					"Powered by ";
-					a href="https://github.com/dzervas/magicentry" { "MagicEntry" }
-					"."
+				footer class="container" {
+					small {
+						"Powered by ";
+						a href="https://github.com/dzervas/magicentry" { "MagicEntry" }
+						"."
+					}
 				}
 			}
 		}

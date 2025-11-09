@@ -93,6 +93,7 @@ pub async fn axum_build(
 	let router_fn = router_fn.unwrap_or(|r| r);
 
 	router_fn(router)
+		// TODO: Does this make sense?
 		// .layer(map_response_with_state(state.clone(), error_handler))
 		.layer(axum::middleware::from_fn_with_state(state.clone(), AppState::config_middleware))
 		.layer(TraceLayer::new_for_http()
