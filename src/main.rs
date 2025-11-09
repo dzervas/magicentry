@@ -11,20 +11,23 @@ use magicentry::database::init_database;
 use magicentry::{init_tracing, SmtpTransport, CONFIG};
 
 // Issues:
+// - Download the webauthn library on build time
+// - Make webauthn not require an email?
 // - Test webauthn
-// - Finish the styling
-// - Maybe browser session middleware?
 // - Test hot reload with hurl (actual file editing)
 // - Test kube e2e
+// - Bring back the benchmark (maybe axum-test instead of hurl)
+// - Clean architecture
 // - Per-type token endpoint to split them (PCRE/code/etc.)
 // - HTML & style the email (and the http?)
 // - SAML deflate can be a tokio middleware (already in tower-http)
+// - Maybe browser session middleware?
 // - End up on concrete error-handling (strings or enum or whatever)
 // - Cache authurl status?
 // - Use &'static AppState and `&*Box::leak(Box::new(state))` to avoid cloning (since the state will never get freed) and remove Arc from config and link senders
-// - Clean architecture
 // - Have a "server" section for stuff that require a restart
 // - Handle restarts
+// - Split up the page styling madness (and use p.class-name instead of p class="class-name")
 
 #[tokio::main]
 async fn main() {

@@ -20,20 +20,18 @@ pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
 				meta name="viewport" content="width=device-width, initial-scale=1.0";
 				meta name="color-scheme" content="light dark";
 				title { (&layout.title) }
-				// link rel="stylesheet" href="/static/main.css";
-				// link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css";
-				link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css";
+				link rel="stylesheet" href="/static/main.bundle.css";
 			}
 			body {
-				main class="container" {
-					(content)
-				}
+				section class="h-full bg-white dark:bg-gray-900" {
+					main class="flex flex-col h-screen justify-center items-center" {
+						(content)
 
-				footer class="container" {
-					small {
-						"Powered by ";
-						a href="https://github.com/dzervas/magicentry" { "MagicEntry" }
-						"."
+						footer class="mx-auto max-w-(--breakpoint-sm) text-sm text-left text-gray-500 dark:text-gray-300 bottom-0 absolute my-6" {
+							"Powered by ";
+							a href="https://github.com/dzervas/magicentry" class="font-medium text-primary-600 dark:text-primary-500 hover:underline" { "MagicEntry" }
+							"."
+						}
 					}
 				}
 			}

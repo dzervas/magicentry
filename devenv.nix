@@ -12,6 +12,7 @@
     hurl
     watchexec
     sqlx-cli
+    tailwindcss_4
 
     openssl.dev perl
     libxml2
