@@ -29,7 +29,7 @@ jobs:
       app: ${{ steps.new_app.outputs.new_version }}
       new_ref: ${{ steps.commit.outputs.commit }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Current versions
         id: version
@@ -76,7 +76,7 @@ jobs:
           - default
           - kube
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.bump.outputs.new_ref }}
 
@@ -141,7 +141,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.bump.outputs.new_ref }}
 
