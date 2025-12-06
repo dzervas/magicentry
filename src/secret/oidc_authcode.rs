@@ -16,7 +16,9 @@ impl UserSecretKind for OIDCAuthCodeSecretKind {
 	const PREFIX: SecretType = SecretType::OIDCAuthCode;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, AuthorizeRequest>;
 
-	async fn duration(config: &LiveConfig) -> chrono::Duration { config.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration {
+		config.session_duration
+	}
 }
 
 pub type OIDCAuthCodeSecret = EphemeralUserSecret<OIDCAuthCodeSecretKind, OIDCTokenSecretKind>;

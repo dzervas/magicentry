@@ -2,8 +2,8 @@
 
 use maud::Markup;
 
-use crate::config::Config;
 use crate::CONFIG;
+use crate::config::Config;
 
 use super::partials::{PageLayout, render_page};
 
@@ -43,9 +43,13 @@ pub trait Page {
 
 	/// Get the page title from config or use a default
 	/// This can be overridden by implementors for custom title logic
-	fn get_title<'a>(&'a self, config: &'a Config) -> &'a str { &config.title }
+	fn get_title<'a>(&'a self, config: &'a Config) -> &'a str {
+		&config.title
+	}
 
 	/// Get the path prefix from config or use a default
 	/// This can be overridden by implementors for custom path prefix logic
-	fn get_path_prefix<'a>(&'a self, config: &'a Config) -> &'a str { &config.path_prefix }
+	fn get_path_prefix<'a>(&'a self, config: &'a Config) -> &'a str {
+		&config.path_prefix
+	}
 }

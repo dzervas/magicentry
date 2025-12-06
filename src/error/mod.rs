@@ -8,45 +8,43 @@ use axum::response::{IntoResponse, Response};
 use thiserror::Error;
 use tracing::{error, warn};
 
-pub use self::database::DatabaseError;
 pub use self::auth::AuthError;
+pub use self::database::DatabaseError;
 pub use self::oidc::OidcError;
-pub use self::webauthn::WebAuthnError;
-pub use self::proxy::ProxyError;
 pub use self::pages::PageError;
+pub use self::proxy::ProxyError;
+pub use self::webauthn::WebAuthnError;
 
 use crate::pages::ErrorPage;
 use crate::{
-    SESSION_COOKIE,
-    PROXY_SESSION_COOKIE,
-    AUTHORIZATION_COOKIE,
-    webauthn::{WEBAUTHN_AUTH_COOKIE, WEBAUTHN_REG_COOKIE},
+	AUTHORIZATION_COOKIE, PROXY_SESSION_COOKIE, SESSION_COOKIE,
+	webauthn::{WEBAUTHN_AUTH_COOKIE, WEBAUTHN_REG_COOKIE},
 };
 
-mod database;
 mod auth;
+mod database;
 mod oidc;
-mod webauthn;
-mod proxy;
 mod pages;
+mod proxy;
+mod webauthn;
 
 /// Create cookie removal headers for all authentication cookies
 fn create_cookie_removal_headers() -> Vec<String> {
-    let auth_cookies = [
-        SESSION_COOKIE,
-        PROXY_SESSION_COOKIE,
-        AUTHORIZATION_COOKIE,
-        WEBAUTHN_AUTH_COOKIE,
-        WEBAUTHN_REG_COOKIE,
-    ];
+	let auth_cookies = [
+		SESSION_COOKIE,
+		PROXY_SESSION_COOKIE,
+		AUTHORIZATION_COOKIE,
+		WEBAUTHN_AUTH_COOKIE,
+		WEBAUTHN_REG_COOKIE,
+	];
 
-    auth_cookies
-        .iter()
-        .map(|&name| {
-            // Create a removal cookie with empty value and expiration in the past
-            format!("{}=; Max-Age=0", name)
-        })
-        .collect()
+	auth_cookies
+		.iter()
+		.map(|&name| {
+			// Create a removal cookie with empty value and expiration in the past
+			format!("{}=; Max-Age=0", name)
+		})
+		.collect()
 }
 
 /// Core application error that unifies all domain errors
@@ -84,18 +82,19 @@ impl AppError {
 			Self::Database(
 				DatabaseError::Connection { .. }
 				| DatabaseError::Migration { .. }
-				| DatabaseError::Query { .. }
-			) | Self::Auth(
-				AuthError::InvalidTargetUser
-				| AuthError::InvalidParentToken
-			) => StatusCode::INTERNAL_SERVER_ERROR,
+				| DatabaseError::Query { .. },
+			)
+			| Self::Auth(AuthError::InvalidTargetUser | AuthError::InvalidParentToken) => {
+				StatusCode::INTERNAL_SERVER_ERROR
+			}
 
-			Self::Auth(AuthError::NotLoggedIn
+			Self::Auth(
+				AuthError::NotLoggedIn
 				| AuthError::ExpiredSecret
 				| AuthError::InvalidSecret
 				| AuthError::InvalidSecretType
 				| AuthError::InvalidSecretMetadata
-				| AuthError::MissingLoginLinkCode
+				| AuthError::MissingLoginLinkCode,
 			)
 			| Self::WebAuthn(WebAuthnError::SecretNotFound) => StatusCode::FOUND,
 
@@ -103,7 +102,7 @@ impl AppError {
 				AuthError::Unauthorized
 				| AuthError::InvalidClientSecret
 				| AuthError::InvalidOIDCCode
-				| AuthError::InvalidClientID
+				| AuthError::InvalidClientID,
 			) => StatusCode::UNAUTHORIZED,
 
 			Self::Auth(AuthError::NotFound) => StatusCode::NOT_FOUND,
@@ -125,7 +124,11 @@ impl IntoResponse for AppError {
 
 		if status != StatusCode::FOUND {
 			// TODO: Correct description
-			return (status, ErrorPage::render_sync(status.as_u16(), self.to_string(), self.to_string())).into_response();
+			return (
+				status,
+				ErrorPage::render_sync(status.as_u16(), self.to_string(), self.to_string()),
+			)
+				.into_response();
 		}
 
 		let mut response = status.into_response();
@@ -134,7 +137,12 @@ impl IntoResponse for AppError {
 		headers.append("Location", "/login".parse().unwrap());
 
 		// Add cookie removal headers to clean up invalid authentication
-		if matches!(self, Self::Auth(AuthError::NotLoggedIn | AuthError::ExpiredSecret | AuthError::InvalidSecret)) {
+		if matches!(
+			self,
+			Self::Auth(
+				AuthError::NotLoggedIn | AuthError::ExpiredSecret | AuthError::InvalidSecret
+			)
+		) {
 			for cookie_header in create_cookie_removal_headers() {
 				if let Ok(header_value) = cookie_header.parse() {
 					headers.append("Set-Cookie", header_value);

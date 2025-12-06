@@ -19,10 +19,15 @@ impl Service {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct ServiceAuthUrl {
 	// TODO: Use url::Origin with custom de/serialization
 	pub origins: Vec<String>,
+	/// Optional endpoint to ask the protected application whether the incoming
+	/// user is authenticated.
+	pub status_url: Option<url::Url>,
+	/// Cookie name forwarded to `status_url` when performing the auth check.
+	pub status_cookie: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,19 +49,19 @@ pub struct Services(pub Vec<Service>);
 impl Services {
 	#[must_use]
 	pub fn get(&self, name: &str) -> Option<&Service> {
-		self.0.iter()
-			.find(|s| s.name == name)
+		self.0.iter().find(|s| s.name == name)
 	}
 
 	pub fn get_mut(&mut self, name: &str) -> Option<&mut Service> {
-		self.0.iter_mut()
-			.find(|s| s.name == name)
+		self.0.iter_mut().find(|s| s.name == name)
 	}
 
 	/// Returns all the services that the provided user has access to
 	#[must_use]
 	pub fn from_user(&self, user: &User) -> Self {
-		let res = self.0.iter()
+		let res = self
+			.0
+			.iter()
 			.filter(|s| user.has_any_realm(&s.realms))
 			.cloned()
 			.collect();
@@ -67,47 +72,58 @@ impl Services {
 	/// Returns the first service that matches the given OIDC client ID
 	#[must_use]
 	pub fn from_oidc_client_id(&self, client_id: &str) -> Option<Service> {
-		self.0.iter()
-			.find(|s| s.oidc.as_ref()
-				.is_some_and(|o| o.client_id == client_id))
+		self.0
+			.iter()
+			.find(|s| s.oidc.as_ref().is_some_and(|o| o.client_id == client_id))
 			.cloned()
 	}
 
 	/// Returns the first service that matches the given OIDC redirect URL
 	#[must_use]
 	pub fn from_oidc_redirect_url(&self, redirect_url: &url::Url) -> Option<Service> {
-		self.0.iter()
-			.find(|s| s.oidc.as_ref()
-				.is_some_and(|o| o.redirect_urls.contains(redirect_url)))
+		self.0
+			.iter()
+			.find(|s| {
+				s.oidc
+					.as_ref()
+					.is_some_and(|o| o.redirect_urls.contains(redirect_url))
+			})
 			.cloned()
 	}
 
 	/// Returns the first service that matches the given SAML entity ID
 	#[must_use]
 	pub fn from_saml_entity_id(&self, entity_id: &str) -> Option<Service> {
-		self.0.iter()
-			.find(|s| s.saml.as_ref()
-				.is_some_and(|o| o.entity_id == entity_id))
+		self.0
+			.iter()
+			.find(|s| s.saml.as_ref().is_some_and(|o| o.entity_id == entity_id))
 			.cloned()
 	}
 
 	/// Returns the first service that matches the given redirect URL
 	#[must_use]
 	pub fn from_saml_redirect_url(&self, redirect_url: &url::Url) -> Option<Service> {
-		self.0.iter()
-			.find(|s| s.saml.as_ref()
-				.is_some_and(|o| o.redirect_urls.contains(redirect_url)))
+		self.0
+			.iter()
+			.find(|s| {
+				s.saml
+					.as_ref()
+					.is_some_and(|o| o.redirect_urls.contains(redirect_url))
+			})
 			.cloned()
 	}
-
 
 	/// Returns the first service that matches the given redirect URL
 	#[must_use]
 	pub fn from_auth_url_origin(&self, origin: &url::Origin) -> Option<Service> {
 		let origin_str = origin.ascii_serialization();
-		self.0.iter()
-			.find(|s| s.auth_url.as_ref()
-				.is_some_and(|o| o.origins.contains(&origin_str)))
+		self.0
+			.iter()
+			.find(|s| {
+				s.auth_url
+					.as_ref()
+					.is_some_and(|o| o.origins.contains(&origin_str))
+			})
 			.cloned()
 	}
 }

@@ -12,19 +12,22 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::TryStreamExt;
+use k8s_openapi::ByteString;
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::api::networking::v1::Ingress;
-use k8s_openapi::ByteString;
+use kube::core::ObjectMeta;
 use kube::runtime::watcher;
 use kube::runtime::watcher::Event;
-use kube::{api::{Patch, PatchParams}, Api, Client};
-use kube::core::ObjectMeta;
+use kube::{
+	Api, Client,
+	api::{Patch, PatchParams},
+};
 use serde::{Deserialize, Serialize};
 
+use crate::CONFIG;
 use crate::error::{AppError, AuthError};
 use crate::service::{Service, ServiceAuthUrl, ServiceOIDC};
 use crate::utils::random_string;
-use crate::CONFIG;
 
 /// The prefix for all magicentry-related annotations
 const ANNOTATION_PREFIX: &str = "magicentry.rs/";
@@ -80,20 +83,17 @@ impl IngressConfig {
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
 
 		let tls = ingress.spec.as_ref().and_then(|spec| spec.tls.as_ref());
-		let urls = ingress.spec
+		let urls = ingress
+			.spec
 			.as_ref()
 			.and_then(|spec| spec.rules.as_ref())
 			.and_then(|rules| rules.first())
 			.and_then(|rule| rule.host.as_ref())
 			.map(|host| {
-				let has_tls = tls.is_some_and(|tls|
-					tls.iter().any(|tls| {
-						tls.hosts
-							.as_ref()
-							.unwrap_or(&Vec::new())
-							.contains(host)
-					})
-				);
+				let has_tls = tls.is_some_and(|tls| {
+					tls.iter()
+						.any(|tls| tls.hosts.as_ref().unwrap_or(&Vec::new()).contains(host))
+				});
 
 				let mut url = url::Url::parse(host).unwrap_or_else(|_| {
 					tracing::error!("Ingress {name:?} has invalid host {host}");
@@ -101,11 +101,14 @@ impl IngressConfig {
 					url::Url::parse("http://localhost").unwrap()
 				});
 				#[allow(clippy::unwrap_used)] // const
-				url.set_scheme(if has_tls { "https" } else { "http" }).unwrap();
+				url.set_scheme(if has_tls { "https" } else { "http" })
+					.unwrap();
 
 				url
 			})
-			.iter().cloned().collect::<Vec<_>>();
+			.iter()
+			.cloned()
+			.collect::<Vec<_>>();
 		let Some(service_url) = urls.first().cloned() else {
 			tracing::warn!("Ingress {name} has no host");
 			return Err(AuthError::IngressHasNoHost.into());
@@ -113,11 +116,14 @@ impl IngressConfig {
 
 		let oidc = if let Some(secret_name) = &self.oidc_target_secret {
 			let namespace = ingress.metadata.namespace.as_deref().unwrap_or("default");
-			let client = Client::try_default().await
+			let client = Client::try_default()
+				.await
 				.context("Could not open the default kubernetes client")?;
 			let secrets: Api<Secret> = Api::namespaced(client, namespace);
 
-			let existing = secrets.get_opt(secret_name).await
+			let existing = secrets
+				.get_opt(secret_name)
+				.await
 				.context("Failed to get the kubernetes secret")?;
 			let client_id = existing
 				.as_ref()
@@ -133,10 +139,17 @@ impl IngressConfig {
 				.unwrap_or_else(random_string);
 
 			let mut data = BTreeMap::new();
-			data.insert("clientID".to_string(), ByteString(client_id.clone().into_bytes()));
-			data.insert("clientSecret".to_string(), ByteString(client_secret.clone().into_bytes()));
+			data.insert(
+				"clientID".to_string(),
+				ByteString(client_id.clone().into_bytes()),
+			);
+			data.insert(
+				"clientSecret".to_string(),
+				ByteString(client_secret.clone().into_bytes()),
+			);
 
-			let annotations = BTreeMap::from([("app.kubernetes.io/part-of".to_string(), self.name.clone())]);
+			let annotations =
+				BTreeMap::from([("app.kubernetes.io/part-of".to_string(), self.name.clone())]);
 
 			let secret = Secret {
 				metadata: ObjectMeta {
@@ -151,7 +164,9 @@ impl IngressConfig {
 
 			let pp = PatchParams::apply("magicentry").force();
 			let patch = Patch::Apply(&secret);
-			secrets.patch(secret_name, &pp, &patch).await
+			secrets
+				.patch(secret_name, &pp, &patch)
+				.await
 				.context("Failed to patch the kubernetes secret")?;
 
 			Some(ServiceOIDC {
@@ -170,10 +185,8 @@ impl IngressConfig {
 			realms: self.realms.clone(),
 			auth_url: if self.auth_url {
 				Some(ServiceAuthUrl {
-					origins: urls
-						.iter()
-						.map(ToString::to_string)
-						.collect(),
+					origins: urls.iter().map(ToString::to_string).collect(),
+					..ServiceAuthUrl::default()
 				})
 			} else {
 				None
@@ -185,11 +198,14 @@ impl IngressConfig {
 		// Take the write lock at the last possible moment and drop it
 		// as soon as possible to avoid blocking other threads/contexts
 		let mut config_ref = CONFIG.write().await;
-		let config = Arc::get_mut(&mut config_ref).context("Failed to get mutable reference to config")?;
+		let config =
+			Arc::get_mut(&mut config_ref).context("Failed to get mutable reference to config")?;
 		if config.services.get(name).is_none() {
 			tracing::info!("Adding service {name} to config");
 			config.services.0.push(service.clone());
-		} else if let Some(existing_service) = config.services.get_mut(name) && existing_service != &service  {
+		} else if let Some(existing_service) = config.services.get_mut(name)
+			&& existing_service != &service
+		{
 			tracing::info!("Updating service {name} in config");
 			*existing_service = service.clone();
 		}
@@ -213,16 +229,12 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 			.collect::<HashMap<String, &str>>();
 
 		Self {
-			enable: filtered_map
-				.get("enable")
-				.is_some_and(|v| *v == "true"),
+			enable: filtered_map.get("enable").is_some_and(|v| *v == "true"),
 			name: filtered_map
 				.get("name")
 				.map(|v| (*v).to_string())
 				.unwrap_or_default(),
-			auth_url: filtered_map
-				.get("auth_url")
-				.is_some_and(|v| *v == "true"),
+			auth_url: filtered_map.get("auth_url").is_some_and(|v| *v == "true"),
 			realms: filtered_map
 				.get("realms")
 				.map(|v| v.split(",").map(ToString::to_string).collect())
@@ -238,9 +250,7 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 						.collect()
 				})
 				.unwrap_or_default(),
-			saml_entity_id: filtered_map
-				.get("saml_entity_id")
-				.map(|v| (*v).to_string()),
+			saml_entity_id: filtered_map.get("saml_entity_id").map(|v| (*v).to_string()),
 			saml_redirect_urls: filtered_map
 				.get("saml_redirect_urls")
 				.map(|v| {
@@ -258,7 +268,9 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 
 impl From<&Ingress> for IngressConfig {
 	fn from(ingress: &Ingress) -> Self {
-		let map: &BTreeMap<String, String> = &ingress.metadata.annotations
+		let map: &BTreeMap<String, String> = &ingress
+			.metadata
+			.annotations
 			.as_ref()
 			.unwrap_or(&BTreeMap::new())
 			.iter()
@@ -294,7 +306,8 @@ async fn process_ingress(ingress: &Ingress) {
 /// This function is asynchronously ran alongside the main actix-web server
 /// and will update the config file in the background
 pub async fn watch() -> Result<(), AppError> {
-	let client = Client::try_default().await
+	let client = Client::try_default()
+		.await
 		.context("Could not open the default kubernetes client for watching")?;
 	let ingresses: Api<Ingress> = Api::all(client);
 
@@ -320,7 +333,9 @@ pub async fn watch() -> Result<(), AppError> {
 			tracing::error!("Ingress watch stream ended unexpectedly: {e:?}");
 		});
 
-		tracing::warn!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
+		tracing::warn!(
+			"Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying"
+		);
 		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 	}
 }

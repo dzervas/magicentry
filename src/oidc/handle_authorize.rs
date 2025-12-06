@@ -3,11 +3,11 @@ use axum::http::Uri;
 use axum::response::IntoResponse;
 use tracing::info;
 
+use crate::AUTHORIZATION_COOKIE;
 use crate::config::LiveConfig;
 use crate::error::OidcError;
-use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 use crate::pages::{AuthorizePage, Page};
-use crate::AUTHORIZATION_COOKIE;
+use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 
 use super::AuthorizeRequest;
 
@@ -44,25 +44,41 @@ pub async fn handle_authorize(
 	let external_url = config.external_url.clone();
 
 	let Some(browser_session) = browser_session_opt else {
-		let mut target_url = url::Url::parse(&external_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
+		let mut target_url =
+			url::Url::parse(&external_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
 		target_url.set_path("/login");
-		target_url.query_pairs_mut()
-			.append_pair("oidc", &serde_json::to_string(&auth_req)
-				.with_context(|| format!("Failed to serialize OIDC auth request for client {}", auth_req.client_id))?);
+		target_url.query_pairs_mut().append_pair(
+			"oidc",
+			&serde_json::to_string(&auth_req).with_context(|| {
+				format!(
+					"Failed to serialize OIDC auth request for client {}",
+					auth_req.client_id
+				)
+			})?,
+		);
 
-		return Ok((jar, axum::response::Redirect::to(target_url.as_ref()).into_response()));
+		return Ok((
+			jar,
+			axum::response::Redirect::to(target_url.as_ref()).into_response(),
+		));
 	};
 
-	let oidc_authcode = OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &config, &state.db).await?;
+	let oidc_authcode =
+		OIDCAuthCodeSecret::new_child(browser_session, auth_req.clone(), &config, &state.db)
+			.await?;
 
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?
 	let redirect_url = auth_req
-		.get_redirect_url(&oidc_authcode.code().to_str_that_i_wont_print(), oidc_authcode.user())
+		.get_redirect_url(
+			&oidc_authcode.code().to_str_that_i_wont_print(),
+			oidc_authcode.user(),
+		)
 		.await
 		.ok_or(OidcError::InvalidRedirectUrl)?;
-	let redirect_url_uri = redirect_url.parse::<Uri>()
-			.context("Failed to parse redirect URL as URI")?;
+	let redirect_url_uri = redirect_url
+		.parse::<Uri>()
+		.context("Failed to parse redirect URL as URI")?;
 	let redirect_url_scheme = redirect_url_uri
 		.scheme_str()
 		.ok_or(OidcError::InvalidRedirectUrl)?;
@@ -80,16 +96,22 @@ pub async fn handle_authorize(
 		saml_relay_state: None,
 		saml_acs: None,
 		link: Some(redirect_url),
-	}.render().await;
+	}
+	.render()
+	.await;
 
-	let cookie = axum_extra::extract::cookie::Cookie::build((AUTHORIZATION_COOKIE, serde_json::to_string(&auth_req)
-			.with_context(|| format!("Failed to serialize OIDC auth request for cookie: {}", auth_req.client_id))?))
-		.http_only(true)
-		.path("/")
-		.build();
-
-	Ok((
-		jar.add(cookie),
-		authorize_page.into_response()
+	let cookie = axum_extra::extract::cookie::Cookie::build((
+		AUTHORIZATION_COOKIE,
+		serde_json::to_string(&auth_req).with_context(|| {
+			format!(
+				"Failed to serialize OIDC auth request for cookie: {}",
+				auth_req.client_id
+			)
+		})?,
 	))
+	.http_only(true)
+	.path("/")
+	.build();
+
+	Ok((jar.add(cookie), authorize_page.into_response()))
 }

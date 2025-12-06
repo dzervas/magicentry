@@ -1,28 +1,28 @@
 #![allow(async_fn_in_trait)]
-pub mod primitive;
+pub mod cleanup;
 pub mod ephemeral_primitive;
 pub mod metadata;
-pub mod cleanup;
+pub mod primitive;
 
 // Secret types
 pub mod browser_session;
 pub mod login_link;
+pub mod oidc_authcode;
+pub mod oidc_token;
 pub mod proxy_code;
 pub mod proxy_session;
-pub mod oidc_token;
-pub mod oidc_authcode;
 pub mod webauthn_auth;
 pub mod webauthn_reg;
 
 pub use browser_session::BrowserSessionSecret;
 pub use login_link::LoginLinkSecret;
-pub use proxy_code::ProxyCodeSecret;
-pub use proxy_session::ProxySessionSecret;
+pub use metadata::{ChildSecretMetadata, EmptyMetadata, MetadataKind};
 pub use oidc_authcode::OIDCAuthCodeSecret;
 pub use oidc_token::OIDCTokenSecret;
+pub use proxy_code::ProxyCodeSecret;
+pub use proxy_session::ProxySessionSecret;
 pub use webauthn_auth::WebAuthnAuthSecret;
 pub use webauthn_reg::WebAuthnRegSecret;
-pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use serde::{Deserialize, Serialize};
 
@@ -70,10 +70,14 @@ impl SecretString {
 	}
 
 	#[must_use]
-	pub const fn get_type(&self) -> &SecretType { &self.0 }
+	pub const fn get_type(&self) -> &SecretType {
+		&self.0
+	}
 
 	#[allow(clippy::must_use_candidate)]
-	pub fn to_str_that_i_wont_print(&self) -> String { self.with_prefix() }
+	pub fn to_str_that_i_wont_print(&self) -> String {
+		self.with_prefix()
+	}
 
 	#[must_use]
 	fn with_prefix(&self) -> String {
@@ -83,7 +87,10 @@ impl SecretString {
 
 /// Store the secret as a normal string in the db with the prefix (e.g. `me_bs_XXXX`)
 impl sqlx::Encode<'_, sqlx::Sqlite> for SecretString {
-	fn encode_by_ref(&self, buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+	fn encode_by_ref(
+		&self,
+		buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+	) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
 		sqlx::Encode::<sqlx::Sqlite>::encode_by_ref(&self.with_prefix(), buf)
 	}
 }
@@ -91,7 +98,9 @@ impl sqlx::Encode<'_, sqlx::Sqlite> for SecretString {
 /// Retrieve the secret from the db as a normal string and parse it,
 /// populating its type in the process
 impl sqlx::Decode<'_, sqlx::Sqlite> for SecretString {
-	fn decode(value: <sqlx::Sqlite as sqlx::Database>::ValueRef<'_>) -> Result<Self, sqlx::error::BoxDynError> {
+	fn decode(
+		value: <sqlx::Sqlite as sqlx::Database>::ValueRef<'_>,
+	) -> Result<Self, sqlx::error::BoxDynError> {
 		let s = <String as sqlx::Decode<'_, sqlx::Sqlite>>::decode(value)?;
 		Ok(s.try_into()?)
 	}

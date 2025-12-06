@@ -1,18 +1,21 @@
+use anyhow::Context as _;
 use axum::extract::State;
-use axum::http::header::HeaderName;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
+use axum::http::header::HeaderName;
 use axum::response::IntoResponse;
 use axum::response::Response;
 use axum_extra::extract::CookieJar;
+use reqwest::header::COOKIE;
 use tracing::info;
 
+use crate::AppState;
+use crate::OriginalUri;
+use crate::PROXY_SESSION_COOKIE;
 use crate::config::LiveConfig;
 use crate::error::AppError;
-use crate::secret::ProxySessionSecret;
 use crate::secret::ProxyCodeSecret;
-use crate::AppState;
-use crate::PROXY_SESSION_COOKIE;
+use crate::secret::ProxySessionSecret;
 
 /// This endpoint is used to check weather a user is logged in from a proxy
 /// running in a different domain.
@@ -32,22 +35,49 @@ pub async fn handle_status(
 	mut jar: CookieJar,
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
+	OriginalUri(origin_url): OriginalUri,
 ) -> Result<(CookieJar, Response), AppError> {
 	let proxy_session = if let Some(proxy_session) = proxy_session_opt {
 		proxy_session
 	} else if let Some(proxy_code) = proxy_code_opt {
 		info!("Proxied login for {}", &proxy_code.user().email);
-		let proxy_session: ProxySessionSecret = proxy_code
-			.exchange_sibling(&config, &state.db)
-			.await?;
+		let proxy_session: ProxySessionSecret =
+			proxy_code.exchange_sibling(&config, &state.db).await?;
 
 		jar = jar.add(&proxy_session);
 		proxy_session
 	} else {
+		if let Some(service) = config.services.from_auth_url_origin(&origin_url.origin()) {
+			if let Some(auth_url_cfg) = &service.auth_url {
+				if let (Some(status_url), Some(status_cookie)) =
+					(&auth_url_cfg.status_url, &auth_url_cfg.status_cookie)
+				{
+					let Some(cookie) = jar.get(status_cookie) else {
+						return Ok((
+							jar.remove(PROXY_SESSION_COOKIE),
+							StatusCode::UNAUTHORIZED.into_response(),
+						));
+					};
+
+					let response_status = reqwest::Client::new()
+						.get(status_url.clone())
+						.header(COOKIE, format!("{status_cookie}={}", cookie.value()))
+						.send()
+						.await
+						.context("Failed to call external auth-url status endpoint")?
+						.status();
+
+					if response_status == StatusCode::OK {
+						return Ok((jar, StatusCode::OK.into_response()));
+					}
+				}
+			}
+		}
+
 		return Ok((
 			jar.remove(PROXY_SESSION_COOKIE),
 			StatusCode::UNAUTHORIZED.into_response(),
-		))
+		));
 	};
 
 	let mut headers = HeaderMap::new();
@@ -71,8 +101,5 @@ pub async fn handle_status(
 		user.realms.join(",").parse().unwrap(),
 	);
 
-	Ok((
-		jar,
-		(headers, "OK").into_response(),
-	))
+	Ok((jar, (headers, "OK").into_response()))
 }

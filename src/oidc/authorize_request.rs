@@ -1,16 +1,15 @@
 use anyhow::Context as _;
-use jsonwebtoken::{encode, Header, EncodingKey};
+use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 use url::Url;
 
+use crate::CONFIG;
 use crate::config::LiveConfig;
 use crate::error::{AppError, OidcError};
 use crate::oidc::handle_token::JWTData;
-use crate::user::User;
 use crate::secret::MetadataKind;
-use crate::CONFIG;
-
+use crate::user::User;
 
 /// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,12 +55,13 @@ impl AuthorizeRequest {
 
 		// Use the Url type
 		Some(
-			redirect_url.clone()
+			redirect_url
+				.clone()
 				.query_pairs_mut()
 				.append_pair("code", code)
 				.append_pair("state", &self.state.clone().unwrap_or_default())
 				.finish()
-				.to_string()
+				.to_string(),
 		)
 	}
 
@@ -136,7 +136,7 @@ pub mod as_string {
 
 		opt_json.as_ref().map_or_else(
 			|| Ok(None),
-			|json| serde_json::from_str(json).map(Some).map_err(Error::custom)
+			|json| serde_json::from_str(json).map(Some).map_err(Error::custom),
 		)
 	}
 }

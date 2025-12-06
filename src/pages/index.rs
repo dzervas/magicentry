@@ -3,7 +3,7 @@
 use async_trait::async_trait;
 use maud::{Markup, html};
 
-use super::{script, Page};
+use super::{Page, script};
 
 /// Service information for index page
 #[derive(Debug, Clone)]

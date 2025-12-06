@@ -95,8 +95,14 @@ services:
       # Omit the paths, only the scheme, host and port and a leading /
       origins:
         - https://openidconnect.net
-        - http://localhost:8080  # Used in the flow_scoped.rs test
-        - http://localhost:8081  # Used in hurl
+        - http://localhost:8080 # Used in the flow_scoped.rs test
+        - http://localhost:8081 # Used in hurl
+      # (Optional) When protecting an external service that already has its own
+      # session, MagicEntry can check its auth status by calling an endpoint
+      # with the service's cookie. If that endpoint returns 200, MagicEntry
+      # also returns 200.
+      status_url: http://example.com/check
+      status_cookie: HELLO
     # OIDC configuration (optional)
     # All of the settings below are tightly coupled with the service config
     oidc:

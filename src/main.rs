@@ -8,7 +8,7 @@ use tracing::info;
 use magicentry::app_build::axum_run;
 use magicentry::config::Config;
 use magicentry::database::init_database;
-use magicentry::{init_tracing, SmtpTransport, CONFIG, CONFIG_FILE};
+use magicentry::{CONFIG, CONFIG_FILE, SmtpTransport, init_tracing};
 
 // Issues:
 // - Make webauthn not require an email?
@@ -44,10 +44,11 @@ async fn main() {
 
 	let config_inst = config.load();
 	if config_inst.smtp_enable {
-		let smtp_inst: SmtpTransport = smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config_inst.smtp_url)
-			.expect("Failed to create mailer - is the `smtp_url` correct?")
-			.pool_config(smtp::PoolConfig::new())
-			.build();
+		let smtp_inst: SmtpTransport =
+			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config_inst.smtp_url)
+				.expect("Failed to create mailer - is the `smtp_url` correct?")
+				.pool_config(smtp::PoolConfig::new())
+				.build();
 		link_senders.push(Arc::new(smtp_inst));
 	}
 	if config_inst.request_enable {

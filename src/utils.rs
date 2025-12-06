@@ -15,10 +15,10 @@ pub mod tests {
 	use axum_test::TestServer;
 
 	use crate::app_build::axum_build;
-	use crate::database::init_database;
-	use crate::{Database, CONFIG};
 	use crate::config::Config;
+	use crate::database::init_database;
 	use crate::user::User;
+	use crate::{CONFIG, Database};
 
 	use super::*;
 
@@ -37,7 +37,8 @@ pub mod tests {
 		let user_realms = vec!["example".to_string()];
 		let user = {
 			let config = CONFIG.read().await;
-			config.users
+			config
+				.users
 				.iter()
 				.find(|u| u.email == user_email)
 				.unwrap()
@@ -52,7 +53,8 @@ pub mod tests {
 
 	pub async fn server() -> TestServer {
 		let db = db_connect().await;
-		let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
+		let config: Arc<ArcSwap<Config>> =
+			Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
 		let server = axum_build(db, config, vec![], None).await;
 		TestServer::new(server).unwrap()
 	}

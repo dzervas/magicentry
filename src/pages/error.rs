@@ -1,7 +1,7 @@
 //! Error page template
 
-use maud::{Markup, html};
 use async_trait::async_trait;
+use maud::{Markup, html};
 
 use super::Page;
 use super::partials::{PageLayout, render_page};

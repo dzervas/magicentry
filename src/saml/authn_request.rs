@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose, Engine};
+use base64::{Engine, engine::general_purpose};
 use flate2::read::DeflateDecoder;
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -92,7 +92,7 @@ pub mod as_string {
 
 		opt_json.as_ref().map_or_else(
 			|| Ok(None),
-			|json| serde_json::from_str(json).map(Some).map_err(Error::custom)
+			|json| serde_json::from_str(json).map(Some).map_err(Error::custom),
 		)
 	}
 }

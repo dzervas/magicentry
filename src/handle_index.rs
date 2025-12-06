@@ -3,23 +3,25 @@
 //! It also shows the services that the user has access to
 
 use axum::extract::State;
-use axum::http::header::HeaderName;
 use axum::http::HeaderMap;
+use axum::http::header::HeaderName;
 use axum::response::IntoResponse;
 
-use crate::secret::BrowserSessionSecret;
-use crate::pages::{IndexPage, ServiceInfo, Page};
-use crate::config::LiveConfig;
 use crate::AppState;
+use crate::config::LiveConfig;
+use crate::pages::{IndexPage, Page, ServiceInfo};
+use crate::secret::BrowserSessionSecret;
 
 #[axum::debug_handler]
 pub async fn handle_index(
 	config: LiveConfig,
 	State(_state): State<AppState>,
 	browser_session: BrowserSessionSecret,
-) -> impl IntoResponse  {
+) -> impl IntoResponse {
 	let realmed_services = config.services.from_user(browser_session.user());
-	let services: Vec<ServiceInfo> = realmed_services.0.into_iter()
+	let services: Vec<ServiceInfo> = realmed_services
+		.0
+		.into_iter()
 		.map(|service| ServiceInfo {
 			name: service.name,
 			url: service.url.to_string(),
@@ -28,7 +30,9 @@ pub async fn handle_index(
 	let index_page = IndexPage {
 		email: browser_session.user().email.clone(),
 		services,
-	}.render().await;
+	}
+	.render()
+	.await;
 
 	let mut headers = HeaderMap::new();
 	let user = browser_session.user();

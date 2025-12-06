@@ -1,7 +1,7 @@
 use axum::{extract::State, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::{secret::OIDCTokenSecret, AppState};
+use crate::{AppState, secret::OIDCTokenSecret};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct UserInfoResponse {
@@ -14,10 +14,7 @@ pub struct UserInfoResponse {
 }
 
 #[axum::debug_handler]
-pub async fn handle_userinfo(
-	_: State<AppState>,
-	oidc_token: OIDCTokenSecret,
-) -> impl IntoResponse {
+pub async fn handle_userinfo(_: State<AppState>, oidc_token: OIDCTokenSecret) -> impl IntoResponse {
 	let user = oidc_token.user();
 
 	let resp = UserInfoResponse {

@@ -8,11 +8,11 @@ use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 
-use crate::config::LiveConfig;
-use crate::secret::login_link::LoginLinkRedirect;
-use crate::secret::BrowserSessionSecret;
-use crate::pages::{LoginPage, Page};
 use crate::AppState;
+use crate::config::LiveConfig;
+use crate::pages::{LoginPage, Page};
+use crate::secret::BrowserSessionSecret;
+use crate::secret::login_link::LoginLinkRedirect;
 
 #[axum::debug_handler]
 pub async fn handle_login(
@@ -25,7 +25,10 @@ pub async fn handle_login(
 	if browser_session_opt.is_some() {
 		// Already authorized, back to the index OR redirect to the service
 		// Make sure that the redirect URL is valid (based on redirect_urls and origins)
-		let Ok(redirect_url) = login_redirect.into_redirect_url(browser_session_opt, &config, &state.db).await else {
+		let Ok(redirect_url) = login_redirect
+			.into_redirect_url(browser_session_opt, &config, &state.db)
+			.await
+		else {
 			// If not, back to index
 			return Ok(Redirect::to("/").into_response());
 		};
@@ -36,6 +39,8 @@ pub async fn handle_login(
 	// Unauthorized, show the login page
 	let login_page = LoginPage {
 		title: config.title.clone(),
-	}.render().await;
+	}
+	.render()
+	.await;
 	Ok(login_page.into_response())
 }

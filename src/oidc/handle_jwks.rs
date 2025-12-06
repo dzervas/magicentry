@@ -1,10 +1,10 @@
 use anyhow::Context as _;
-use axum::response::IntoResponse;
 use axum::extract::State;
+use axum::response::IntoResponse;
 use jsonwebtoken::jwk::{Jwk, JwkSet};
 
-use crate::{AppState, JWT_ALGORITHM};
 use crate::error::AppError;
+use crate::{AppState, JWT_ALGORITHM};
 
 #[axum::debug_handler]
 pub async fn handle_jwks(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {

@@ -1,8 +1,8 @@
 //! Login action page template (shown after email is sent)
 
-use maud::{Markup, html};
-use async_trait::async_trait;
 use crate::pages::Page;
+use async_trait::async_trait;
+use maud::{Markup, html};
 
 /// Login action page data
 #[derive(Debug, Clone)]

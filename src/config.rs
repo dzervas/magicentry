@@ -9,12 +9,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use chrono::Duration;
-use tracing::{error, info};
 use notify::{PollWatcher, Watcher};
 use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
@@ -41,12 +41,12 @@ pub struct Config {
 
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub link_duration: Duration,
-    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-    pub session_duration: Duration,
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub session_duration: Duration,
 
-    /// Interval for periodic cleanup of expired secrets
-    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-    pub secrets_cleanup_interval: Duration,
+	/// Interval for periodic cleanup of expired secrets
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub secrets_cleanup_interval: Duration,
 
 	pub title: String,
 	pub static_path: String,
@@ -87,8 +87,8 @@ pub struct Config {
 impl Default for Config {
 	#[allow(clippy::or_fun_call)]
 	#[allow(clippy::unwrap_used)] // All the cases are either const or on start (e.g. port)
-    fn default() -> Self {
-        Self {
+	fn default() -> Self {
+		Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
 
 			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
@@ -136,7 +136,7 @@ impl Default for Config {
 
 			services: Services(vec![]),
         }
-    }
+	}
 }
 
 impl Config {
@@ -144,16 +144,12 @@ impl Config {
 	pub async fn reload_from_path(path: &str) -> anyhow::Result<Self> {
 		info!("Loading config from {}", path);
 
-		let mut new_config = serde_yaml::from_str::<Self>(
-			&std::fs::read_to_string(path)?
-		)?;
+		let mut new_config = serde_yaml::from_str::<Self>(&std::fs::read_to_string(path)?)?;
 
 		if let Some(users_file) = &new_config.users_file {
-			new_config.users.extend(
-				serde_yaml::from_str::<Vec<User>>(
-					&std::fs::read_to_string(users_file)?
-				)?
-			);
+			new_config.users.extend(serde_yaml::from_str::<Vec<User>>(
+				&std::fs::read_to_string(users_file)?,
+			)?);
 		}
 
 		Ok(new_config)
@@ -169,7 +165,9 @@ impl Config {
 
 		let mut config = CONFIG.write().await;
 		if new_config.users_file != config.users_file {
-			error!("Users file path changed, live watching new paths is not supported, please restart the server");
+			error!(
+				"Users file path changed, live watching new paths is not supported, please restart the server"
+			);
 		}
 		// XXX: Does this memleak? I don't think so, but I'm not sure
 		*config = Arc::new(new_config);
@@ -184,27 +182,31 @@ impl Config {
 	}
 
 	/// Set up a file watcher for the specified config file path with custom interval
-	pub fn watch_with_interval(config_path: &str, poll_interval: std::time::Duration) -> PollWatcher {
+	pub fn watch_with_interval(
+		config_path: &str,
+		poll_interval: std::time::Duration,
+	) -> PollWatcher {
 		let config_path_clone = config_path.to_owned();
 		let watcher_config = notify::Config::default()
 			.with_compare_contents(true)
 			.with_poll_interval(poll_interval)
 			.with_follow_symlinks(true);
 
-		let mut watcher = notify::PollWatcher::new(move |res| {
-			match res {
-			 Ok(_) => {
-				info!("Config file changed, reloading");
-				futures::executor::block_on(async {
-					if let Err(e) = Self::reload_from_path(&config_path_clone).await {
-						error!("Failed to reload config file: {e}");
-					}
-				});
-			}
-			Err(e) => error!("Watch error: {:?}", e),
-			}
-		}, watcher_config)
-			.expect("Failed to create watcher for the config file");
+		let mut watcher = notify::PollWatcher::new(
+			move |res| match res {
+				Ok(_) => {
+					info!("Config file changed, reloading");
+					futures::executor::block_on(async {
+						if let Err(e) = Self::reload_from_path(&config_path_clone).await {
+							error!("Failed to reload config file: {e}");
+						}
+					});
+				}
+				Err(e) => error!("Watch error: {:?}", e),
+			},
+			watcher_config,
+		)
+		.expect("Failed to create watcher for the config file");
 
 		watcher
 			.watch(Path::new(config_path), notify::RecursiveMode::NonRecursive)
@@ -241,9 +243,7 @@ impl Config {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
 		Ok(data
 			.lines()
-			.filter(|line| {
-				!line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY")
-			})
+			.filter(|line| !line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY"))
 			.collect::<String>()
 			.replace("\n", ""))
 	}
@@ -296,16 +296,16 @@ impl ConfigKV {
 	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> anyhow::Result<()> {
 		let key_str = serde_json::to_string(&key)?;
 		let value_str = value.unwrap_or_default();
-		
+
 		let row = ConfigKVRow {
 			key: key_str,
 			value: value_str,
 			updated_at: None,
 		};
-		
+
 		Ok(row.save(db).await?)
 	}
-	
+
 	/// Get a config value by key
 	pub async fn get(key: &ConfigKeys, db: &Database) -> anyhow::Result<Option<String>> {
 		let key_str = serde_json::to_string(key)?;

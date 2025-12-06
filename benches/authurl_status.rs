@@ -1,26 +1,33 @@
-#![allow(clippy::unwrap_used, clippy::missing_panics_doc, clippy::missing_errors_doc, clippy::future_not_send)]
+#![allow(
+	clippy::unwrap_used,
+	clippy::missing_panics_doc,
+	clippy::missing_errors_doc,
+	clippy::future_not_send
+)]
 
-use actix_web::{web, App};
-use actix_web::test::{call_service, init_service, TestRequest};
-use actix_web::dev::ServiceResponse;
 use actix_web::cookie::Cookie;
-use criterion::{criterion_group, criterion_main, Criterion};
+use actix_web::dev::ServiceResponse;
+use actix_web::test::{TestRequest, call_service, init_service};
+use actix_web::{App, web};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 use std::hint::black_box;
 
-use magicentry::{CONFIG, PROXY_SESSION_COOKIE};
-use magicentry::secret::{BrowserSessionSecret, EmptyMetadata};
-use magicentry::secret::proxy_session::ProxySessionSecret;
-use magicentry::user::User;
-use magicentry::config::ConfigFile;
 use magicentry::auth_url::{self};
+use magicentry::config::ConfigFile;
+use magicentry::secret::proxy_session::ProxySessionSecret;
+use magicentry::secret::{BrowserSessionSecret, EmptyMetadata};
+use magicentry::user::User;
+use magicentry::{CONFIG, PROXY_SESSION_COOKIE};
 pub async fn db_connect() -> magicentry::Database {
 	magicentry::database::init_database(&CONFIG.read().await.database_url)
 		.await
 		.expect("Failed to initialize SQLite database")
 }
 
-async fn setup_app(db: magicentry::Database) -> impl actix_web::dev::Service<
+async fn setup_app(
+	db: magicentry::Database,
+) -> impl actix_web::dev::Service<
 	actix_http::Request,
 	Response = ServiceResponse,
 	Error = actix_web::Error,
@@ -28,8 +35,9 @@ async fn setup_app(db: magicentry::Database) -> impl actix_web::dev::Service<
 	init_service(
 		App::new()
 			.app_data(web::Data::new(db.clone()))
-			.service(auth_url::handle_status::status)
-	).await
+			.service(auth_url::handle_status::status),
+	)
+	.await
 }
 
 pub async fn get_valid_user() -> User {
@@ -39,7 +47,12 @@ pub async fn get_valid_user() -> User {
 	let user_email = "valid@example.com";
 	let user_realms = vec!["example".to_string()];
 	let config = CONFIG.read().await;
-	let user = config.users.iter().find(|u| u.email == user_email).unwrap().clone();
+	let user = config
+		.users
+		.iter()
+		.find(|u| u.email == user_email)
+		.unwrap()
+		.clone();
 	drop(config);
 
 	assert_eq!(user.email, user_email);
@@ -56,12 +69,12 @@ fn bench_status_endpoint(c: &mut Criterion) {
 		let db = db_connect().await;
 		let app = setup_app(db.clone()).await;
 		let user = get_valid_user().await;
-		let browser_session = BrowserSessionSecret::new(user, EmptyMetadata(), &db).await.unwrap();
-		let proxy_session = ProxySessionSecret::new_child(
-			browser_session,
-			EmptyMetadata(),
-			&db,
-		).await.unwrap();
+		let browser_session = BrowserSessionSecret::new(user, EmptyMetadata(), &db)
+			.await
+			.unwrap();
+		let proxy_session = ProxySessionSecret::new_child(browser_session, EmptyMetadata(), &db)
+			.await
+			.unwrap();
 
 		(app, proxy_session)
 	});
@@ -69,12 +82,14 @@ fn bench_status_endpoint(c: &mut Criterion) {
 	let mut group = c.benchmark_group("authurl_status");
 	group.throughput(criterion::Throughput::Elements(1));
 
-
 	group.bench_function("auth_url_status_with_session", |b| {
 		b.to_async(&rt).iter(|| async {
 			let req = TestRequest::get()
 				.uri("/auth-url/status")
-				.cookie(Cookie::new(PROXY_SESSION_COOKIE, proxy_session.code().to_str_that_i_wont_print()))
+				.cookie(Cookie::new(
+					PROXY_SESSION_COOKIE,
+					proxy_session.code().to_str_that_i_wont_print(),
+				))
 				.to_request();
 
 			black_box(call_service(&app, req).await)
@@ -83,9 +98,7 @@ fn bench_status_endpoint(c: &mut Criterion) {
 
 	group.bench_function("auth_url_status_unauthorized", |b| {
 		b.to_async(&rt).iter(|| async {
-			let req = TestRequest::get()
-				.uri("/auth-url/status")
-				.to_request();
+			let req = TestRequest::get().uri("/auth-url/status").to_request();
 
 			black_box(call_service(&app, req).await)
 		});

@@ -53,9 +53,9 @@ use axum::middleware::Next;
 use axum::response::IntoResponse;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
-use tracing_subscriber::{fmt, EnvFilter};
-use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::error::AppError;
 use crate::{config::Config, user::User};
@@ -69,17 +69,17 @@ pub mod database;
 pub mod error;
 pub mod oidc;
 pub mod saml;
+pub mod secret;
 pub mod service;
 pub mod user;
-pub mod secret;
 pub mod utils;
 pub mod webauthn;
 
 pub mod handle_index;
-pub mod handle_login_post;
-pub mod handle_magic_link;
 pub mod handle_login;
+pub mod handle_login_post;
 pub mod handle_logout;
+pub mod handle_magic_link;
 // pub mod handle_static;
 
 pub mod pages;
@@ -120,7 +120,8 @@ pub type SmtpTransport = lettre::transport::smtp::AsyncSmtpTransport<lettre::Tok
 /// or defaulting to `config.yaml` if not set
 // Needs lazy_static because we want to read the env var on runtime
 #[cfg(not(test))]
-pub static CONFIG_FILE: LazyLock<String> = LazyLock::new(|| std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yaml".to_string()));
+pub static CONFIG_FILE: LazyLock<String> =
+	LazyLock::new(|| std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yaml".to_string()));
 
 #[cfg(test)]
 pub type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
@@ -178,24 +179,42 @@ impl AppState {
 
 #[async_trait::async_trait]
 pub trait LinkSender: Send + Sync {
-	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> Result<(), AppError>;
+	async fn send_magic_link(
+		&self,
+		user: &User,
+		link: &str,
+		config: &Config,
+	) -> Result<(), AppError>;
 }
 
 #[async_trait::async_trait]
 impl LinkSender for crate::SmtpTransport {
-	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> Result<(), AppError> {
+	async fn send_magic_link(
+		&self,
+		user: &User,
+		link: &str,
+		config: &Config,
+	) -> Result<(), AppError> {
 		use anyhow::Context as _;
-		use lettre::{AsyncTransport, Message};
-		use lettre::message::header::ContentType as LettreContentType;
 		use formatx::formatx;
+		use lettre::message::header::ContentType as LettreContentType;
+		use lettre::{AsyncTransport, Message};
 
 		let email = Message::builder()
-			.from(config.smtp_from.parse()
-				.context("Failed to parse SMTP 'from' address")?)
-			.to(user.email.parse()
+			.from(
+				config
+					.smtp_from
+					.parse()
+					.context("Failed to parse SMTP 'from' address")?,
+			)
+			.to(user
+				.email
+				.parse()
 				.context("Failed to parse user email address")?)
-			.subject(formatx!(&config.smtp_subject, title = &config.title)
-				.context("Failed to format SMTP subject template")?)
+			.subject(
+				formatx!(&config.smtp_subject, title = &config.title)
+					.context("Failed to format SMTP subject template")?,
+			)
 			.header(LettreContentType::TEXT_HTML)
 			.body(
 				formatx!(
@@ -204,10 +223,13 @@ impl LinkSender for crate::SmtpTransport {
 					magic_link = &link,
 					name = user.name.clone(),
 					username = user.username.clone()
-				).context("Failed to format SMTP body template")?
-			).context("Failed to build email message")?;
+				)
+				.context("Failed to format SMTP body template")?,
+			)
+			.context("Failed to build email message")?;
 
-		self.send(email).await
+		self.send(email)
+			.await
 			.context("Failed to send email via SMTP")?;
 
 		Ok(())
@@ -216,10 +238,15 @@ impl LinkSender for crate::SmtpTransport {
 
 #[async_trait::async_trait]
 impl LinkSender for reqwest::Client {
-	async fn send_magic_link(&self, user: &User, link: &str, config: &Config) -> Result<(), AppError> {
+	async fn send_magic_link(
+		&self,
+		user: &User,
+		link: &str,
+		config: &Config,
+	) -> Result<(), AppError> {
 		use anyhow::Context as _;
-		use reqwest::header::CONTENT_TYPE;
 		use formatx::formatx;
+		use reqwest::header::CONTENT_TYPE;
 
 		let method = reqwest::Method::from_bytes(config.request_method.as_bytes())
 			.expect("Invalid request_method provided in the config");
@@ -230,7 +257,8 @@ impl LinkSender for reqwest::Client {
 			email = &user.email,
 			name = user.name.clone(),
 			username = user.username.clone()
-		).context("Failed to format HTTP request URL template")?;
+		)
+		.context("Failed to format HTTP request URL template")?;
 		let mut req = self.request(method, url);
 
 		if let Some(data) = &config.request_data {
@@ -241,7 +269,8 @@ impl LinkSender for reqwest::Client {
 				email = &user.email,
 				name = user.name.clone(),
 				username = user.username.clone()
-			).context("Failed to format HTTP request body template")?;
+			)
+			.context("Failed to format HTTP request body template")?;
 			req = req
 				// TODO: Make this configurable
 				.header(CONTENT_TYPE, config.request_content_type.as_str())
@@ -249,7 +278,9 @@ impl LinkSender for reqwest::Client {
 		}
 
 		info!("Sending request for user {}", &user.email);
-		let resp = req.send().await
+		let resp = req
+			.send()
+			.await
 			.context("Failed to send HTTP request for magic link notification")?;
 
 		if !resp.status().is_success() {
@@ -265,9 +296,9 @@ impl LinkSender for reqwest::Client {
 	}
 }
 
+use axum::extract::{FromRequestParts, State};
 use axum::http::StatusCode;
 use axum::http::request::Parts;
-use axum::extract::{FromRequestParts, State};
 use url::Url;
 
 #[derive(Debug, Clone)]

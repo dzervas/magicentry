@@ -1,14 +1,13 @@
-
 use base64::Engine;
 use base64::engine::general_purpose;
-use tracing::debug;
 use rsa::RsaPrivateKey;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::signature::{SignatureEncoding, Signer};
 use rsa::sha2::Sha256;
-use sha2::{Digest, Sha256 as Sha256Hasher};
+use rsa::signature::{SignatureEncoding, Signer};
 use serde::Serialize;
+use sha2::{Digest, Sha256 as Sha256Hasher};
+use tracing::debug;
 
 #[allow(clippy::wildcard_imports)]
 use super::authn_response::*;
@@ -22,7 +21,7 @@ impl AuthnResponse {
 		certificate_x509: &str,
 	) -> Result<()> {
 		let private_key = RsaPrivateKey::from_pkcs8_pem(private_key_x509)
-		.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_x509))?;
+			.or_else(|_| RsaPrivateKey::from_pkcs1_pem(private_key_x509))?;
 
 		// Serialize to calculate digest
 		let mut xml = String::new();
@@ -47,8 +46,13 @@ impl AuthnResponse {
 				uri: reference_uri,
 				transforms: Transforms {
 					transform: vec![
-					Transform { algorithm: "http://www.w3.org/2000/09/xmldsig#enveloped-signature".to_string() },
-					Transform { algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string() },
+						Transform {
+							algorithm: "http://www.w3.org/2000/09/xmldsig#enveloped-signature"
+								.to_string(),
+						},
+						Transform {
+							algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
+						},
 					],
 				},
 				digest_method: DigestMethod {
@@ -60,7 +64,8 @@ impl AuthnResponse {
 
 		// Serialize SignedInfo to XML for signing
 		let mut signed_info_xml = String::new();
-		let mut ser = quick_xml::se::Serializer::with_root(&mut signed_info_xml, Some("ds:SignedInfo"))?;
+		let mut ser =
+			quick_xml::se::Serializer::with_root(&mut signed_info_xml, Some("ds:SignedInfo"))?;
 		ser.expand_empty_elements(true);
 		signed_info.serialize(ser)?;
 		debug!("SignedInfo XML: {signed_info_xml}");
@@ -105,5 +110,4 @@ impl AuthnResponse {
 		let signature = signing_key.sign(data.as_bytes());
 		general_purpose::STANDARD.encode(signature.to_bytes())
 	}
-
 }

@@ -1,14 +1,14 @@
 use tracing::debug;
 
-use base64::engine::general_purpose;
 use base64::Engine;
-use serde::{Deserialize, Serialize};
+use base64::engine::general_purpose;
 use chrono::Utc;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::authn_request::AuthnRequest;
-use anyhow::Result;
 use crate::user::User;
+use anyhow::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthnResponse {
@@ -286,20 +286,31 @@ impl AuthnRequest {
 		let last_name = split_name.next().unwrap_or_default();
 
 		let attributes: Vec<Attribute> = [
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", vec![user.email.clone()]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn", vec![user.username.clone()]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname", vec![first_name.to_string()]),
-			("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname", vec![last_name.to_string()])
-		].into_iter()
-		.map(|(name, values)| {
-			Attribute {
-				name: name.to_string(),
-				name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
-				attribute_values: values
+			(
+				"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+				vec![user.email.clone()],
+			),
+			(
+				"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn",
+				vec![user.username.clone()],
+			),
+			(
+				"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/firstname",
+				vec![first_name.to_string()],
+			),
+			(
+				"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/lastname",
+				vec![last_name.to_string()],
+			),
+		]
+		.into_iter()
+		.map(|(name, values)| Attribute {
+			name: name.to_string(),
+			name_format: Some("urn:oasis:names:tc:SAML:2.0:attrname-format:basic".to_string()),
+			attribute_values: values
 				.into_iter()
 				.map(|v| AttributeValue { value: v })
 				.collect(),
-			}
 		})
 		.collect();
 
@@ -312,11 +323,13 @@ impl AuthnRequest {
 			in_response_to: self.id.clone(),
 			issuer: Issuer {
 				saml_ns: "urn:oasis:names:tc:SAML:2.0:assertion".to_string(),
-				name: idp_metadata.to_string()
+				name: idp_metadata.to_string(),
 			},
 			signature: None, // Will be added later during XML signing
 			status: Status {
-				status_code: StatusCode { value: "urn:oasis:names:tc:SAML:2.0:status:Success".to_string() },
+				status_code: StatusCode {
+					value: "urn:oasis:names:tc:SAML:2.0:status:Success".to_string(),
+				},
 				status_message: None,
 			},
 			assertion: Assertion {
@@ -328,13 +341,15 @@ impl AuthnRequest {
 				signature: None, // Will be added later during XML signing
 				subject: Subject {
 					name_id: NameID {
-						format: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress".to_string(),
+						format: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+							.to_string(),
 						value: user.email.to_string(),
 					},
 					subject_confirmation: SubjectConfirmation {
 						method: "urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string(),
 						subject_confirmation_data: SubjectConfirmationData {
-							not_on_or_after: expiry.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+							not_on_or_after: expiry
+								.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 							recipient: self.acs_url.clone(),
 							in_response_to: self.id.clone(),
 						},
@@ -351,7 +366,8 @@ impl AuthnRequest {
 					authn_instant: now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 					session_index: session_id,
 					authn_context: AuthnContext {
-						authn_context_class_ref: "urn:oasis:names:tc:SAML:2.0:ac:classes:Password".to_string(),
+						authn_context_class_ref: "urn:oasis:names:tc:SAML:2.0:ac:classes:Password"
+							.to_string(),
 					},
 				},
 				attribute_statement: if attributes.is_empty() {

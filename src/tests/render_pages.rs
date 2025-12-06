@@ -3,9 +3,9 @@
 //! This example demonstrates how to use the Page trait to render all
 //! page types and export them as HTML files for inspection.
 
-use std::path::Path;
-use std::fs;
 use anyhow::Context;
+use std::fs;
+use std::path::Path;
 
 use crate::config::Config;
 use crate::error::AppError;
@@ -67,8 +67,7 @@ fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> Result<(), AppE
 	};
 
 	let html = crate::pages::partials::render_page(&layout, &content);
-	save_html(filename, &html.into_string())
-		.context("Failed to save HTML file")?;
+	save_html(filename, &html.into_string()).context("Failed to save HTML file")?;
 
 	Ok(())
 }

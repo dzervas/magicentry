@@ -1,6 +1,6 @@
+use axum::RequestPartsExt;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use axum::RequestPartsExt;
 use serde::{Deserialize, Serialize};
 
 use super::browser_session::BrowserSessionSecretKind;
@@ -25,7 +25,12 @@ pub struct LoginLinkRedirect {
 }
 
 impl LoginLinkRedirect {
-	pub async fn into_redirect_url(&self, browser_session_opt: Option<BrowserSessionSecret>, config: &LiveConfig, db: &crate::Database) -> anyhow::Result<String> {
+	pub async fn into_redirect_url(
+		&self,
+		browser_session_opt: Option<BrowserSessionSecret>,
+		config: &LiveConfig,
+		db: &crate::Database,
+	) -> anyhow::Result<String> {
 		let mut url = self.validate_internal().await?;
 
 		if self.rd.is_some() {
@@ -38,10 +43,12 @@ impl LoginLinkRedirect {
 			// different domain, so we can't just use a normal session cookie.
 
 			let browser_session = browser_session_opt.ok_or(AuthError::NotLoggedIn)?;
-			let proxy_code = ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), config, db).await?;
-			url
-				.query_pairs_mut()
-				.append_pair(PROXY_QUERY_CODE, &proxy_code.code().to_str_that_i_wont_print());
+			let proxy_code =
+				ProxyCodeSecret::new_child(browser_session, EmptyMetadata(), config, db).await?;
+			url.query_pairs_mut().append_pair(
+				PROXY_QUERY_CODE,
+				&proxy_code.code().to_str_that_i_wont_print(),
+			);
 			Ok(url.to_string())
 		} else if let Some(oidc) = &self.oidc {
 			Ok(format!("/oidc/authorize?{}", serde_qs::to_string(oidc)?))
@@ -61,26 +68,35 @@ impl LoginLinkRedirect {
 	}
 
 	async fn validate_internal(&self) -> anyhow::Result<url::Url> {
-		if u8::from(self.rd.is_some()) + u8::from(self.oidc.is_some()) + u8::from(self.saml.is_some()) > 1 {
-			return Err(AuthError::MultipleLoginLinkRedirectDefinitions.into())
+		if u8::from(self.rd.is_some())
+			+ u8::from(self.oidc.is_some())
+			+ u8::from(self.saml.is_some())
+			> 1
+		{
+			return Err(AuthError::MultipleLoginLinkRedirectDefinitions.into());
 		}
 
 		let config = CONFIG.read().await;
 
 		if let Some(url) = &self.rd {
-			config.services
+			config
+				.services
 				.from_auth_url_origin(&url.origin())
 				.ok_or(ProxyError::InvalidReturnDestinationUrl)?;
 			Ok(url.clone())
 		} else if let Some(oidc) = &self.oidc {
-			let url = url::Url::parse(&oidc.redirect_uri).map_err(|_| OidcError::InvalidRedirectUrl)?;
-			config.services
+			let url =
+				url::Url::parse(&oidc.redirect_uri).map_err(|_| OidcError::InvalidRedirectUrl)?;
+			config
+				.services
 				.from_oidc_redirect_url(&url)
 				.ok_or(OidcError::InvalidRedirectUrl)?;
 			Ok(url)
 		} else if let Some(saml) = &self.saml {
-			let url = url::Url::parse(&saml.acs_url).map_err(|_| ProxyError::InvalidSAMLRedirectUrl)?;
-			config.services
+			let url =
+				url::Url::parse(&saml.acs_url).map_err(|_| ProxyError::InvalidSAMLRedirectUrl)?;
+			config
+				.services
 				.from_saml_redirect_url(&url)
 				.ok_or(ProxyError::InvalidSAMLRedirectUrl)?;
 			Ok(url)
@@ -105,7 +121,9 @@ impl UserSecretKind for LoginLinkSecretKind {
 	const PREFIX: SecretType = SecretType::LoginLink;
 	type Metadata = Option<LoginLinkRedirect>;
 
-	async fn duration(config: &LiveConfig) -> chrono::Duration { config.link_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration {
+		config.link_duration
+	}
 }
 
 pub type LoginLinkSecret = EphemeralUserSecret<LoginLinkSecretKind, BrowserSessionSecretKind>;
@@ -120,7 +138,10 @@ impl LoginLinkSecret {
 impl FromRequestParts<AppState> for LoginLinkSecret {
 	type Rejection = AppError;
 
-	async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+	async fn from_request_parts(
+		parts: &mut Parts,
+		state: &AppState,
+	) -> Result<Self, Self::Rejection> {
 		let Ok(LoginPath { link }) = parts.extract::<LoginPath>().await else {
 			return Err(AuthError::MissingLoginLinkCode.into());
 		};

@@ -5,19 +5,19 @@
 //! and saving any redirection-related data so that when the user clicks the link,
 //! they can be redirected to the right place - used for auth-url/OIDC/SAML
 
+use axum::Form;
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse as _, Response};
-use axum::Form;
-use tracing::info;
 use serde::{Deserialize, Serialize};
+use tracing::info;
 
+use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::AppError;
-use crate::user::User;
-use crate::secret::login_link::LoginLinkRedirect;
-use crate::secret::LoginLinkSecret;
 use crate::pages::{LoginActionPage, Page};
-use crate::AppState;
+use crate::secret::LoginLinkSecret;
+use crate::secret::login_link::LoginLinkRedirect;
+use crate::user::User;
 
 /// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -44,8 +44,9 @@ pub async fn handle_login_post(
 		user.clone(),
 		login_redirect.into_opt().await,
 		&config,
-		&state.db
-	).await?;
+		&state.db,
+	)
+	.await?;
 	let magic_link = config.external_url.clone() + &link.get_login_url();
 
 	#[cfg(debug_assertions)]

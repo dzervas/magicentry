@@ -1,8 +1,8 @@
 //! Authorization page template (for OIDC/SAML consent)
 
-use maud::{Markup, html};
-use async_trait::async_trait;
 use crate::config::Config;
+use async_trait::async_trait;
+use maud::{Markup, html};
 
 use super::Page;
 

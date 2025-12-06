@@ -9,7 +9,9 @@ use crate::error::AppError;
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
 pub trait MetadataKind: Serialize + DeserializeOwned + Send + Sync {
-	async fn validate(&self, _db: &Database) -> Result<(), AppError> { Ok(()) }
+	async fn validate(&self, _db: &Database) -> Result<(), AppError> {
+		Ok(())
+	}
 }
 
 impl MetadataKind for webauthn_rs::prelude::PasskeyAuthentication {}
@@ -25,7 +27,9 @@ pub struct EmptyMetadata();
 impl MetadataKind for EmptyMetadata {}
 
 impl From<()> for EmptyMetadata {
-	fn from((): ()) -> Self { Self() }
+	fn from((): ()) -> Self {
+		Self()
+	}
 }
 
 /// This struct is used to denote that a secret is a child of another secret.
@@ -33,7 +37,7 @@ impl From<()> for EmptyMetadata {
 ///
 /// When the parent secret is deleted, this secret will be deleted as well.
 #[derive(Serialize, Deserialize)]
-pub struct ChildSecretMetadata<P: UserSecretKind , M: Send + Sync> {
+pub struct ChildSecretMetadata<P: UserSecretKind, M: Send + Sync> {
 	parent: UserSecret<P>,
 	metadata: M,
 }
@@ -43,18 +47,24 @@ impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
 		Self { parent, metadata }
 	}
 
-	pub const fn parent(&self) -> &UserSecret<P> { &self.parent }
-	pub const fn metadata(&self) -> &M { &self.metadata }
+	pub const fn parent(&self) -> &UserSecret<P> {
+		&self.parent
+	}
+	pub const fn metadata(&self) -> &M {
+		&self.metadata
+	}
 
 	pub(super) fn into_empty(self) -> ChildSecretMetadata<P, EmptyMetadata> {
 		ChildSecretMetadata {
 			parent: self.parent,
-			metadata: EmptyMetadata()
+			metadata: EmptyMetadata(),
 		}
 	}
 }
 
-impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind for ChildSecretMetadata<P, M> {
+impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind
+	for ChildSecretMetadata<P, M>
+{
 	async fn validate(&self, db: &Database) -> Result<(), AppError> {
 		self.metadata.validate(db).await?;
 		self.parent.validate(db).await?;

@@ -1,10 +1,10 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqlitePool, sqlite::SqliteConnectOptions, FromRow};
+use sqlx::{FromRow, SqlitePool, sqlite::SqliteConnectOptions};
 use std::str::FromStr;
 
-use anyhow::Context as _;
 use crate::{error::AppError, user::User};
+use anyhow::Context as _;
 
 /// `SQLite` database connection pool
 pub type Database = SqlitePool;
@@ -17,11 +17,14 @@ pub async fn init_database(database_url: &str) -> Result<Database, AppError> {
 		.shared_cache(true)
 		.create_if_missing(true);
 
-	let pool = SqlitePool::connect_with(options).await
+	let pool = SqlitePool::connect_with(options)
+		.await
 		.with_context(|| format!("Failed to connect to database: {database_url}"))?;
 
 	// Run migrations
-	sqlx::migrate!("./migrations").run(&pool).await
+	sqlx::migrate!("./migrations")
+		.run(&pool)
+		.await
 		.context("Failed to run database migrations")?;
 
 	Ok(pool)
@@ -51,11 +54,15 @@ impl PasskeyRow {
 		self.id = Some(result.last_insert_rowid());
 		Ok(())
 	}
-	
+
 	/// Get all passkeys for a user
 	pub async fn get_by_user(user: &User, db: &Database) -> Result<Vec<Self>, AppError> {
-		let user_str = serde_json::to_string(user)
-			.with_context(|| format!("Failed to serialize user data for passkey lookup: {}", user.email))?;
+		let user_str = serde_json::to_string(user).with_context(|| {
+			format!(
+				"Failed to serialize user data for passkey lookup: {}",
+				user.email
+			)
+		})?;
 
 		let rows = sqlx::query_as!(
 			Self,
@@ -93,23 +100,23 @@ impl ConfigKVRow {
 
 		Ok(())
 	}
-	
+
 	/// Get a config value by key
 	pub async fn get(key: &str, db: &Database) -> Result<Option<String>, AppError> {
 		let row = sqlx::query!("SELECT value FROM config_kv WHERE key = ?", key)
-		.fetch_optional(db)
-		.await
-		.with_context(|| format!("Failed to fetch config value for key: {key}"))?;
-		
+			.fetch_optional(db)
+			.await
+			.with_context(|| format!("Failed to fetch config value for key: {key}"))?;
+
 		Ok(row.map(|r| r.value))
 	}
-	
+
 	/// Remove a config KV pair by key
 	pub async fn remove(key: &str, db: &Database) -> Result<(), AppError> {
 		sqlx::query!("DELETE FROM config_kv WHERE key = ?", key)
-		.execute(db)
-		.await
-		.context("Failed to execute database query")?;
+			.execute(db)
+			.await
+			.context("Failed to execute database query")?;
 
 		Ok(())
 	}
@@ -127,7 +134,7 @@ mod tests {
 	#[tokio::test]
 	async fn test_config_kv_crud() {
 		let db = setup_test_db().await.unwrap();
-		
+
 		let config = ConfigKVRow {
 			key: "jwt_keypair".to_string(),
 			value: "test_keypair_value".to_string(),
@@ -148,13 +155,17 @@ mod tests {
 			updated_at: None,
 		};
 		updated_config.save(&db).await.unwrap();
-		
+
 		let updated_value = ConfigKVRow::get("jwt_keypair", &db).await.unwrap().unwrap();
 		assert_eq!(updated_value, "updated_keypair_value");
 
 		// Test remove
 		ConfigKVRow::remove("jwt_keypair", &db).await.unwrap();
-		assert!(ConfigKVRow::get("jwt_keypair", &db).await.unwrap().is_none());
+		assert!(
+			ConfigKVRow::get("jwt_keypair", &db)
+				.await
+				.unwrap()
+				.is_none()
+		);
 	}
-
 }

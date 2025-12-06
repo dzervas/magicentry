@@ -14,7 +14,10 @@ pub const WEBAUTHN_REG_COOKIE: &str = "webauthn_registration";
 pub fn init(title: &str, external_url: &str) -> WebauthnResult<Webauthn> {
 	let rp_origin = Url::parse(external_url).expect("Invalid webauthn URL");
 	info!("Webauthn Origin: {rp_origin}");
-	let rp_host = rp_origin.host().expect("Webauthn host extraction failed").to_string();
+	let rp_host = rp_origin
+		.host()
+		.expect("Webauthn host extraction failed")
+		.to_string();
 	WebauthnBuilder::new(&rp_host, &rp_origin)?
 		.rp_name(title)
 		.build()

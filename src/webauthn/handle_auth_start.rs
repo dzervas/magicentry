@@ -4,12 +4,12 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum_extra::extract::CookieJar;
 
+use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::{AppError, WebAuthnError};
 use crate::handle_login_post::LoginInfo;
-use crate::user::User;
 use crate::secret::WebAuthnAuthSecret;
-use crate::AppState;
+use crate::user::User;
 
 use super::store::PasskeyStore;
 
@@ -23,21 +23,18 @@ pub async fn handle_auth_start(
 	let webauthn = state.webauthn.clone();
 
 	// TODO: Handle the errors to avoid leaking (in)valid emails
-	let user = User::from_email(&config, &form.email)
-		.ok_or(WebAuthnError::SecretNotFound)?;
+	let user = User::from_email(&config, &form.email).ok_or(WebAuthnError::SecretNotFound)?;
 
 	let passkey_stores = PasskeyStore::get_by_user(&user, &state.db).await?;
 	let passkeys = passkey_stores
 		.iter()
 		.map(|p| p.passkey.clone())
 		.collect::<Vec<_>>();
-	let (resp, auth) = webauthn.start_passkey_authentication(passkeys.as_slice())
+	let (resp, auth) = webauthn
+		.start_passkey_authentication(passkeys.as_slice())
 		.context("Failed to start passkey authentication")?;
 
 	let auth = WebAuthnAuthSecret::new(user, auth, &config, &state.db).await?;
 
-	Ok((
-		jar.add(&auth),
-		Json(resp),
-	))
+	Ok((jar.add(&auth), Json(resp)))
 }

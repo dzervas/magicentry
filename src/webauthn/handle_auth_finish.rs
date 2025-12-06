@@ -6,10 +6,10 @@ use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::*;
 
+use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::{AppError, AuthError};
-use crate::secret::{WebAuthnAuthSecret, BrowserSessionSecret};
-use crate::AppState;
+use crate::secret::{BrowserSessionSecret, WebAuthnAuthSecret};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthFinishResponse {
@@ -26,7 +26,8 @@ pub async fn handle_auth_finish(
 ) -> Result<(CookieJar, impl IntoResponse), AppError> {
 	let webauthn = state.webauthn.clone();
 
-	let sk = webauthn.finish_passkey_authentication(&req, auth.metadata())
+	let sk = webauthn
+		.finish_passkey_authentication(&req, auth.metadata())
 		.context("Failed to finish passkey authentication")?;
 
 	if !sk.user_verified() {
@@ -42,6 +43,6 @@ pub async fn handle_auth_finish(
 		jar.add(&browser_session),
 		Json(AuthFinishResponse {
 			redirect_to: "/".to_string(),
-		})
+		}),
 	))
 }

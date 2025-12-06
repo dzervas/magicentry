@@ -3,16 +3,16 @@ use axum::response::{IntoResponse, Response};
 use axum_extra::extract::TypedHeader;
 use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
-use headers::authorization::Basic;
 use headers::Authorization;
+use headers::authorization::Basic;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tracing::{debug, info};
 
+use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::{AppError, AuthError, OidcError};
 use crate::secret::OIDCAuthCodeSecret;
-use crate::AppState;
 // use crate::generate_cors_preflight;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -104,15 +104,13 @@ pub async fn handle_token(
 	basic: Option<TypedHeader<Authorization<Basic>>>,
 	Form(token_req): Form<TokenRequest>,
 ) -> Result<Response, AppError> {
-
 	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &state.db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 
-	let client_id = basic.clone()
-		.map_or_else(
-			|| auth_req.client_id.clone(),
-			|basic_creds| basic_creds.username().to_string()
-		);
+	let client_id = basic.clone().map_or_else(
+		|| auth_req.client_id.clone(),
+		|basic_creds| basic_creds.username().to_string(),
+	);
 
 	let mut service = config
 		.services
@@ -128,14 +126,18 @@ pub async fn handle_token(
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
-		let generated_code_challenge = general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
+		let generated_code_challenge =
+			general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
 			return Err(OidcError::InvalidCodeVerifier.into());
 		}
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
-		info!("Responding to client_secret_post request for client {}", service.name);
+		info!(
+			"Responding to client_secret_post request for client {}",
+			service.name
+		);
 		let req_client_id = token_req.client_id.clone().ok_or(OidcError::NoClientID)?;
 
 		if oidc.client_secret != req_client_secret {
@@ -172,7 +174,7 @@ pub async fn handle_token(
 		oidc_authcode.user(),
 		config.external_url.clone(),
 		&state.key,
-		&config
+		&config,
 	)?;
 	let oidc_token = oidc_authcode.exchange_sibling(&config, &state.db).await?;
 
@@ -192,5 +194,6 @@ pub async fn handle_token(
 			("Access-Control-Allow-Headers", "Content-Type"),
 		],
 		axum::Json(response),
-	).into_response())
+	)
+		.into_response())
 }

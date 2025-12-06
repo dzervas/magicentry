@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
-use std::path::PathBuf;
 use std::fmt::Write;
 use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 fn generate_hurl_tests() {
@@ -20,12 +20,14 @@ fn generate_hurl_tests() {
 		let name_ident = name.replace('-', "_");
 		let path_str = path.to_string_lossy();
 
-		writeln!(code,
-r#"
+		writeln!(
+			code,
+			r#"
 #[tokio::test]
 async fn hurl_{name_ident}() {{ crate::tests::hurl::run_test("{path_str}").await; }}
 "#,
-		).unwrap();
+		)
+		.unwrap();
 	}
 
 	fs::write(&gen_path, code).unwrap();
@@ -50,7 +52,10 @@ fn compile_tailwind_css() {
 	match result {
 		Ok(output) => {
 			if output.status.success() {
-				println!("Successfully compiled Tailwind CSS to {}", output_path.display());
+				println!(
+					"Successfully compiled Tailwind CSS to {}",
+					output_path.display()
+				);
 			} else {
 				eprintln!("Tailwind CSS compilation failed:");
 				eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
@@ -75,5 +80,4 @@ fn main() {
 	} else {
 		compile_tailwind_css();
 	}
-
 }

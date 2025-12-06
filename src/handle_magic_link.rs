@@ -1,13 +1,13 @@
 use axum::extract::State;
 use axum::response::{IntoResponse, Redirect};
-use axum_extra::extract::cookie::Cookie;
 use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::Cookie;
 use tracing::info;
 
+use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::AppError;
-use crate::secret::{LoginLinkSecret, BrowserSessionSecret};
-use crate::AppState;
+use crate::secret::{BrowserSessionSecret, LoginLinkSecret};
 
 #[derive(axum_extra::routing::TypedPath, serde::Deserialize)]
 #[typed_path("/login/{link}")]
@@ -32,13 +32,12 @@ pub async fn handle_magic_link(
 	// These can be configured through either the service.<name>.auth_url.origins, service.<name>.saml.redirect_urls or service.<name>.oidc.redirect_urls
 	// redirect_url = login_secret.redirect_url(&db).await?;
 	let redirect_url = if let Some(login_redirect) = login_redirect_opt {
-		login_redirect.into_redirect_url(Some(browser_session), &config, &state.db).await?
+		login_redirect
+			.into_redirect_url(Some(browser_session), &config, &state.db)
+			.await?
 	} else {
 		"/".to_string()
 	};
 
-	Ok((
-		jar.add(cookie),
-		Redirect::to(&redirect_url),
-	))
+	Ok((jar.add(cookie), Redirect::to(&redirect_url)))
 }

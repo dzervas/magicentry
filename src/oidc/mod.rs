@@ -41,7 +41,8 @@ pub async fn init(db: &Database) -> EncodingKey {
 		rand::fill(&mut buffer);
 		let secret = hex::encode(buffer);
 
-		ConfigKV::set(ConfigKeys::JWTSecret, Some(secret.clone()), db).await
+		ConfigKV::set(ConfigKeys::JWTSecret, Some(secret.clone()), db)
+			.await
 			.expect("Unable to save secret in the database");
 
 		EncodingKey::from_secret(secret.as_bytes())

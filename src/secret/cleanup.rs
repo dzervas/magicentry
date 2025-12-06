@@ -10,7 +10,7 @@ pub async fn cleanup_expired(db: &crate::Database) -> anyhow::Result<()> {
 	let now = Utc::now().naive_utc();
 	sqlx::query!("DELETE FROM user_secrets WHERE expires_at <= ?", now)
 		.execute(db)
-	.await?;
+		.await?;
 
 	Ok(())
 }
@@ -58,29 +58,40 @@ mod tests {
 			"mc_ll_expiredSecret",
 			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
 		)
-			.execute(&db)
-			.await
-			.unwrap();
+		.execute(&db)
+		.await
+		.unwrap();
 
 		sqlx::query!(
 			"INSERT INTO user_secrets (code, user, expires_at) VALUES (?, ?, datetime('now', '+1 hour'))",
 			"mc_ll_validSecret",
 			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
 		)
-			.execute(&db)
+		.execute(&db)
+		.await
+		.unwrap();
+
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_validSecret'")
+			.fetch_one(&db)
 			.await
 			.unwrap();
-
-		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_validSecret'").fetch_one(&db).await.unwrap();
 		assert!(!row.is_empty(), "There should be a row in the DB");
-		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_expiredSecret'").fetch_one(&db).await.unwrap();
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_expiredSecret'")
+			.fetch_one(&db)
+			.await
+			.unwrap();
 		assert!(!row.is_empty(), "There should be a row in the DB");
 
 		cleanup_expired(&db).await.unwrap();
 
-		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_validSecret'").fetch_one(&db).await.unwrap();
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_validSecret'")
+			.fetch_one(&db)
+			.await
+			.unwrap();
 		assert!(!row.is_empty(), "There should be a row in the DB");
-		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_expiredSecret'").fetch_one(&db).await;
+		let row = sqlx::query("SELECT * FROM user_secrets WHERE code='mc_ll_expiredSecret'")
+			.fetch_one(&db)
+			.await;
 		assert!(row.is_err(), "There should NOT be a row in the DB");
 	}
 
@@ -95,16 +106,21 @@ mod tests {
 			"mc_ll_nowSecret",
 			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
 		)
-			.execute(&db)
+		.execute(&db)
+		.await
+		.unwrap();
+
+		let row = sqlx::query("SELECT * FROM user_secrets")
+			.fetch_one(&db)
 			.await
 			.unwrap();
-
-		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await.unwrap();
 		assert!(!row.is_empty(), "There should be a row in the DB");
 
 		cleanup_expired(&db).await.unwrap();
 
-		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await;
+		let row = sqlx::query("SELECT * FROM user_secrets")
+			.fetch_one(&db)
+			.await;
 		assert!(row.is_err(), "There should NOT be a row in the DB");
 	}
 
@@ -119,17 +135,21 @@ mod tests {
 			"mc_ll_expiredSecret",
 			r#"{"email":"hello@world.com","username":"helloworld","name":"Hello World","realms":["test"]}"#,
 		)
-			.execute(&db)
+		.execute(&db)
+		.await
+		.unwrap();
+
+		let row = sqlx::query("SELECT * FROM user_secrets")
+			.fetch_one(&db)
 			.await
 			.unwrap();
-
-		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await.unwrap();
 		assert!(!row.is_empty(), "There should be a row in the DB");
 
 		cleanup_expired(&db).await.unwrap();
 
-		let row = sqlx::query("SELECT * FROM user_secrets").fetch_one(&db).await;
+		let row = sqlx::query("SELECT * FROM user_secrets")
+			.fetch_one(&db)
+			.await;
 		assert!(row.is_err(), "There should NOT be a row in the DB");
 	}
 }
-

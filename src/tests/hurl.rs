@@ -1,18 +1,20 @@
-use std::time::Duration;
-use std::net::SocketAddr;
 use std::fs;
+use std::net::SocketAddr;
+use std::time::Duration;
 
+use axum::Router;
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Json};
 use axum::routing::get;
 use axum::serve::Serve;
-use axum::Router;
-use hurl::util::logger::{LoggerOptionsBuilder, Verbosity};
+use axum_extra::extract::CookieJar;
 use hurl::runner::{RunnerOptionsBuilder, Value};
+use hurl::util::logger::{LoggerOptionsBuilder, Verbosity};
 use hurl_core::input::Input;
+use serde_json::json;
 use tokio::net::TcpListener;
 use tokio::task::spawn_blocking;
-use serde_json::json;
 
 use crate::app_build::axum_run;
 use crate::utils::tests::*;
@@ -20,11 +22,13 @@ use crate::*;
 
 #[axum::debug_handler]
 async fn secrets_handler(State(state): State<AppState>) -> impl IntoResponse {
-	let data = sqlx::query!("SELECT code FROM user_secrets WHERE code LIKE 'me_ll_%' ORDER BY created_at DESC LIMIT 1")
-		.fetch_optional(&state.db)
-		.await
-		.unwrap()
-		.map(|row| row.code);
+	let data = sqlx::query!(
+		"SELECT code FROM user_secrets WHERE code LIKE 'me_ll_%' ORDER BY created_at DESC LIMIT 1"
+	)
+	.fetch_optional(&state.db)
+	.await
+	.unwrap()
+	.map(|row| row.code);
 
 	if let Some(code) = data {
 		let login_link = format!("/login/{code}");
@@ -68,8 +72,20 @@ async fn webauthn_handler(State(_state): State<AppState>) -> impl IntoResponse {
 	}))
 }
 
-pub async fn app_server() -> (Serve<TcpListener, Router, Router>, SocketAddr, sqlx::SqlitePool) {
-    Config::reload().await.unwrap();
+#[axum::debug_handler]
+async fn external_status_handler(jar: CookieJar) -> impl IntoResponse {
+	match jar.get("hello").map(|c| c.value()) {
+		Some("valid") => StatusCode::OK,
+		_ => StatusCode::UNAUTHORIZED,
+	}
+}
+
+pub async fn app_server() -> (
+	Serve<TcpListener, Router, Router>,
+	SocketAddr,
+	sqlx::SqlitePool,
+) {
+	Config::reload().await.unwrap();
 	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
 	let db = db_connect().await;
 
@@ -78,15 +94,26 @@ pub async fn app_server() -> (Serve<TcpListener, Router, Router>, SocketAddr, sq
 		db.clone(),
 		config.clone(),
 		vec![],
-		Some(|router| router
-			.route("/secrets", get(secrets_handler))
-			.route("/webauthn-fixture", get(webauthn_handler))
-		),
-	).await;
+		Some(|router| {
+			router
+				.route("/secrets", get(secrets_handler))
+				.route("/webauthn-fixture", get(webauthn_handler))
+				.route("/external-status", get(external_status_handler))
+		}),
+	)
+	.await;
 
 	let config_full = config.load_full();
 	let mut config_mut = Arc::unwrap_or_clone(config_full);
 	config_mut.external_url = format!("http://localhost:{}", addr.port());
+	for service in &mut config_mut.services.0 {
+		if let Some(auth_url) = &mut service.auth_url {
+			if let Some(status_url) = &mut auth_url.status_url {
+				let _ = status_url.set_host(Some("127.0.0.1"));
+				let _ = status_url.set_port(Some(addr.port()));
+			}
+		}
+	}
 	config.store(Arc::new(config_mut));
 
 	(server, addr, db)
@@ -108,16 +135,26 @@ pub async fn run_test(hurl_path: &str) {
 	// If this is omitted, the server will not start at all
 	eprintln!("Waiting for server to be ready at {base_url}");
 	let client = reqwest::Client::new();
-	let resp = client.get(format!("{base_url}/login")).send().await.unwrap();
+	let resp = client
+		.get(format!("{base_url}/login"))
+		.send()
+		.await
+		.unwrap();
 	assert_eq!(resp.status(), reqwest::StatusCode::OK);
 
-	let content = fs::read_to_string(hurl_path)
-		.unwrap_or_else(|e| panic!("Failed to read {hurl_path}: {e}"));
+	let content =
+		fs::read_to_string(hurl_path).unwrap_or_else(|e| panic!("Failed to read {hurl_path}: {e}"));
 
 	let mut variables = hurl::runner::VariableSet::new();
 	variables.insert("base_url".to_string(), Value::String(base_url));
-	variables.insert("fixture_url".to_string(), Value::String(fixture_url.clone()));
-	variables.insert("webauthn_fixture_url".to_string(), Value::String(webauthn_fixture_url.clone()));
+	variables.insert(
+		"fixture_url".to_string(),
+		Value::String(fixture_url.clone()),
+	);
+	variables.insert(
+		"webauthn_fixture_url".to_string(),
+		Value::String(webauthn_fixture_url.clone()),
+	);
 
 	let hurl_input = Input::new(hurl_path);
 	let runner_options = RunnerOptionsBuilder::new()
@@ -127,7 +164,7 @@ pub async fn run_test(hurl_path: &str) {
 		.verbosity(Some(Verbosity::Verbose))
 		.color(true)
 		.build();
-	
+
 	let output = spawn_blocking(move || {
 		eprintln!("Running hurl fr fr");
 		hurl::runner::run(
@@ -135,19 +172,24 @@ pub async fn run_test(hurl_path: &str) {
 			Some(&hurl_input),
 			&runner_options,
 			&variables,
-			&logger_options
-		).unwrap()
-	}).await.unwrap();
+			&logger_options,
+		)
+		.unwrap()
+	})
+	.await
+	.unwrap();
 
 	// Dump user_secrets table for debugging
 	eprintln!("\n=== Dumping user_secrets table ===");
-	let secrets = sqlx::query!("SELECT code, user, metadata, expires_at, created_at FROM user_secrets ORDER BY created_at DESC")
-		.fetch_all(&db)
-		.await
-		.unwrap_or_else(|e| {
-			eprintln!("Failed to query user_secrets: {e}");
-			Vec::new()
-		});
+	let secrets = sqlx::query!(
+		"SELECT code, user, metadata, expires_at, created_at FROM user_secrets ORDER BY created_at DESC"
+	)
+	.fetch_all(&db)
+	.await
+	.unwrap_or_else(|e| {
+		eprintln!("Failed to query user_secrets: {e}");
+		Vec::new()
+	});
 
 	if secrets.is_empty() {
 		eprintln!("No entries in user_secrets table");
@@ -158,9 +200,17 @@ pub async fn run_test(hurl_path: &str) {
 			eprintln!("  {}:", i + 1);
 			eprintln!("    code: {}", secret.code);
 			eprintln!("    user: {}", secret.user);
-			eprintln!("    metadata: {}", secret.metadata.as_ref().unwrap_or(&nullstr));
+			eprintln!(
+				"    metadata: {}",
+				secret.metadata.as_ref().unwrap_or(&nullstr)
+			);
 			eprintln!("    expires_at: {}", secret.expires_at);
-			eprintln!("    created_at: {}", secret.created_at.unwrap_or_else(chrono::NaiveDateTime::default));
+			eprintln!(
+				"    created_at: {}",
+				secret
+					.created_at
+					.unwrap_or_else(chrono::NaiveDateTime::default)
+			);
 			eprintln!();
 		}
 	}

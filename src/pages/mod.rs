@@ -4,25 +4,25 @@
 //! the handlebars templates. Each template uses minimal, semantic HTML
 //! without styling or helper tags.
 
-pub mod page_trait;
-pub mod partials;
+pub mod authorize;
 pub mod error;
+pub mod index;
 pub mod login;
 pub mod login_action;
-pub mod index;
-pub mod authorize;
+pub mod page_trait;
+pub mod partials;
 
 #[cfg(doc)]
 pub mod example;
 
 // Re-export commonly used types and functions
-pub use page_trait::*;
-pub use partials::*;
+pub use authorize::*;
 pub use error::*;
+pub use index::*;
 pub use login::*;
 pub use login_action::*;
-pub use index::*;
-pub use authorize::*;
+pub use page_trait::*;
+pub use partials::*;
 
 // Re-export PageError for convenience
 pub use crate::error::PageError;

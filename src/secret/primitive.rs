@@ -2,12 +2,12 @@ use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::config::LiveConfig;
-use crate::error::{AppError, AuthError};
 use crate::database::Database;
+use crate::error::{AppError, AuthError};
 use crate::user::User;
 
-use super::{ChildSecretMetadata, SecretString, SecretType};
 use super::metadata::MetadataKind;
+use super::{ChildSecretMetadata, SecretString, SecretType};
 
 /// This trait describes any kind of user secret.
 /// You can think of it as a "token" but I didn't use that term to avoid
@@ -46,7 +46,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 			metadata,
 			self.expires_at,
 		)
-			.execute(db)
+		.execute(db)
 		.await?;
 
 		Ok(())
@@ -85,9 +85,10 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 
 	/// Check if a user secret exists
 	pub async fn exists(code: &SecretString, db: &Database) -> anyhow::Result<bool> {
-		let count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM user_secrets WHERE code = ?", code)
-			.fetch_one(db)
-		.await?;
+		let count: i64 =
+			sqlx::query_scalar!("SELECT COUNT(*) FROM user_secrets WHERE code = ?", code)
+				.fetch_one(db)
+				.await?;
 
 		Ok(count > 0)
 	}
@@ -96,7 +97,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	pub async fn remove(code: &SecretString, db: &Database) -> anyhow::Result<()> {
 		sqlx::query!("DELETE FROM user_secrets WHERE code = ?", code)
 			.execute(db)
-		.await?;
+			.await?;
 
 		Ok(())
 	}
@@ -108,7 +109,12 @@ pub struct UserSecret<K: UserSecretKind>(InternalUserSecret<K>);
 /// Basic user secret operations
 impl<K: UserSecretKind> UserSecret<K> {
 	/// Create a new user secret that is bound to a user and has some metadata
-	pub async fn new(user: User, metadata: K::Metadata, config: &LiveConfig, db: &Database) -> Result<Self, AppError> {
+	pub async fn new(
+		user: User,
+		metadata: K::Metadata,
+		config: &LiveConfig,
+		db: &Database,
+	) -> Result<Self, AppError> {
 		metadata.validate(db).await?;
 
 		let expires_at = chrono::Utc::now()
@@ -136,7 +142,12 @@ impl<K: UserSecretKind> UserSecret<K> {
 	/// This is useful for cleaning up expired secrets
 	pub async fn validate(&self, db: &Database) -> Result<(), AppError> {
 		let prefix = K::PREFIX.as_short_str();
-		if !self.0.code.to_str_that_i_wont_print().starts_with(&format!("me_{prefix}_")) {
+		if !self
+			.0
+			.code
+			.to_str_that_i_wont_print()
+			.starts_with(&format!("me_{prefix}_"))
+		{
 			return Err(AppError::Auth(AuthError::InvalidSecretType));
 		}
 
@@ -165,17 +176,29 @@ impl<K: UserSecretKind> UserSecret<K> {
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
 	pub async fn try_from_string(code: String, db: &Database) -> Result<Self, AppError> {
-		let internal_secret = InternalUserSecret::get(&code.try_into()?, db).await?.ok_or(AuthError::InvalidSecret)?;
+		let internal_secret = InternalUserSecret::get(&code.try_into()?, db)
+			.await?
+			.ok_or(AuthError::InvalidSecret)?;
 		let user_secret = Self(internal_secret);
 		user_secret.validate(db).await?;
 		Ok(user_secret)
 	}
 
-	pub const fn code(&self) -> &SecretString { &self.0.code }
-	pub const fn user(&self) -> &User { &self.0.user }
-	pub const fn expires_at(&self) -> NaiveDateTime { self.0.expires_at }
-	pub const fn metadata(&self) -> &K::Metadata { &self.0.metadata }
-	pub fn take_metadata(self) -> K::Metadata { self.0.metadata }
+	pub const fn code(&self) -> &SecretString {
+		&self.0.code
+	}
+	pub const fn user(&self) -> &User {
+		&self.0.user
+	}
+	pub const fn expires_at(&self) -> NaiveDateTime {
+		self.0.expires_at
+	}
+	pub const fn metadata(&self) -> &K::Metadata {
+		&self.0.metadata
+	}
+	pub fn take_metadata(self) -> K::Metadata {
+		self.0.metadata
+	}
 }
 
 /// Operations for user secrets that are bound to a parent secret
@@ -185,16 +208,33 @@ impl<K: UserSecretKind> UserSecret<K> {
 ///
 /// As soon as the parent secret is deleted (or expired) the child secret will be invalidated
 /// and eventually deleted as well during metadata validation
-impl<P, K, M> UserSecret<K> where
-P : UserSecretKind,
-M : MetadataKind,
-K : UserSecretKind<Metadata=ChildSecretMetadata<P, M>>,
+impl<P, K, M> UserSecret<K>
+where
+	P: UserSecretKind,
+	M: MetadataKind,
+	K: UserSecretKind<Metadata = ChildSecretMetadata<P, M>>,
 {
-	pub async fn new_child(parent: UserSecret<P>, metadata: M, config: &LiveConfig, db: &Database) -> Result<Self, AppError> {
-		Self::new(parent.user().clone(), ChildSecretMetadata::new(parent, metadata), config, db).await
+	pub async fn new_child(
+		parent: UserSecret<P>,
+		metadata: M,
+		config: &LiveConfig,
+		db: &Database,
+	) -> Result<Self, AppError> {
+		Self::new(
+			parent.user().clone(),
+			ChildSecretMetadata::new(parent, metadata),
+			config,
+			db,
+		)
+		.await
 	}
 
-	pub const fn child_metadata<'a>(&'a self) -> &'a M where P: 'a { self.0.metadata.metadata() }
+	pub const fn child_metadata<'a>(&'a self) -> &'a M
+	where
+		P: 'a,
+	{
+		self.0.metadata.metadata()
+	}
 }
 
 // TODO: Create a blanket implementation of FromRequest for UserSecret instances that implement a FromRequestAsync trait so that the async-related boilerplate can go away
@@ -229,7 +269,9 @@ mod tests {
 			realms: vec!["test".to_string()],
 		};
 
-		let login_link = LoginLinkSecret::new(user.clone(), None, &config, &db).await.unwrap();
+		let login_link = LoginLinkSecret::new(user.clone(), None, &config, &db)
+			.await
+			.unwrap();
 		let login_link_code = login_link
 			.get_login_url()
 			.split('/')
@@ -238,7 +280,9 @@ mod tests {
 			.to_string();
 
 		// Test get
-		let retrieved = LoginLinkSecret::try_from_string(login_link_code, &db).await.unwrap();
+		let retrieved = LoginLinkSecret::try_from_string(login_link_code, &db)
+			.await
+			.unwrap();
 		let retrieved_code = retrieved.code().clone();
 		assert_eq!(retrieved.user(), &user);
 

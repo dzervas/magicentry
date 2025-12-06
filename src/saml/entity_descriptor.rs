@@ -55,13 +55,15 @@ impl EntityDescriptor {
 
 		Self {
 			md_ns: "urn:oasis:names:tc:SAML:2.0:metadata".to_string(),
-			valid_until: (now + chrono::Duration::days(1)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+			valid_until: (now + chrono::Duration::days(1))
+				.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
 			cache_duration: "PT1440M".to_string(),
 			entity_id: format!("{host}/saml/metadata"),
 			id_descriptor: IDPSSODescriptor {
 				require_signed_requests: "false".to_string(),
 				protocol_support: "urn:oasis:names:tc:SAML:2.0:protocol".to_string(),
-				name_id_format: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress".to_string(),
+				name_id_format: "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+					.to_string(),
 				sso_service: Service {
 					binding: "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect".to_string(),
 					location: format!("{host}/saml/sso"),

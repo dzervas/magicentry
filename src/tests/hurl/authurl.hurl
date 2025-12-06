@@ -38,6 +38,21 @@ GET {{base_url}}/auth-url/status
 X-Original-Url: http://localhost:8081/asdasdasdas
 HTTP 200
 
+# TODO: Test the external auth-url status using service-provided cookie
+# # External auth-url status using service-provided cookie
+# GET {{base_url}}/auth-url/status
+# X-Original-Url: http://localhost:8082/protected
+# [Cookies]
+# hello: valid
+# HTTP 200
+
+# # Invalid cookie should fail the external auth-url check
+# GET {{base_url}}/auth-url/status
+# X-Original-Url: http://localhost:8082/protected
+# [Cookies]
+# hello: invalid
+# HTTP 401
+
 # === Failure tests
 
 # Click the "Login" button in the UI that the proxy redirected us to
