@@ -1,8 +1,9 @@
-{ pkgs, ... }: {
+{ pkgs, ... }:
+{
   languages = {
     rust.enable = true;
     javascript.enable = true;
-    javascript.yarn.enable = true;
+    javascript.npm.enable = true;
   };
 
   packages = with pkgs; [
@@ -15,15 +16,16 @@
     tailwindcss_4
     k3d
 
-    openssl.dev perl
+    openssl.dev
+    perl
     libxml2
 
     clang
   ];
 
   env = {
-    DATABASE_URL="sqlite://database.db";
-    LIBCLANG_PATH="${pkgs.libclang.lib}/lib";
+    DATABASE_URL = "sqlite://database.db";
+    LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
     HURL_base_url = "http://127.0.0.1:8080";
     HURL_fixture_url = "http://127.0.0.1:8080/secrets";

@@ -1,0 +1,27 @@
+{
+	"name": "magicentry",
+	"version": "1.0.0",
+	"description": "",
+	"main": "tailwind.config.js",
+	"directories": {
+		"doc": "docs"
+	},
+	"scripts": {
+		"build": "tailwindcss -i ./static/main.css -o ./static/main.bundle.css --minify",
+		"watch": "tailwindcss -i ./static/main.css -o ./static/main.bundle.css --watch"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dzervas/magicentry.git"
+	},
+	"author": "",
+	"license": "GPL-3.0",
+	"bugs": {
+		"url": "https://github.com/dzervas/magicentry/issues"
+	},
+	"homepage": "https://github.com/dzervas/magicentry#readme",
+	"dependencies": {
+		"@tailwindcss/cli": "^4.1.17",
+		"tailwindcss": "^4.1.17"
+	}
+}

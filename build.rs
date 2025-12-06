@@ -41,12 +41,9 @@ fn compile_tailwind_css() {
 	println!("cargo:rerun-if-changed={}", input_path.display());
 
 	// Try to find and run tailwindcss CLI
-	let result = Command::new("tailwindcss")
-		.arg("-i")
-		.arg(&input_path)
-		.arg("-o")
-		.arg(&output_path)
-		.arg("--minify")
+	let result = Command::new("npm")
+		.arg("run")
+		.arg("build")
 		.output();
 
 	match result {

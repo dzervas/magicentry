@@ -9,6 +9,7 @@ use axum::Form;
 use axum::extract::{Query, State};
 use axum::response::{IntoResponse as _, Response};
 use serde::{Deserialize, Serialize};
+#[cfg(debug_assertions)]
 use tracing::info;
 
 use crate::AppState;
