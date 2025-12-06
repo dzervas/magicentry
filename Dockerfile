@@ -1,14 +1,7 @@
-FROM --platform=$BUILDPLATFORM node:alpine AS frontend
-
-WORKDIR /usr/src/app
-
-COPY static static
-COPY *.js *.json ./
-RUN yarn install --frozen-lockfile
-RUN yarn build
-
 FROM --platform=$BUILDPLATFORM rust:1 AS builder
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y npm && apt-get clean && npm install -g @tailwindcss/cli tailwindcss
 
 ARG TARGETPLATFORM
 RUN echo $(test "$TARGETPLATFORM" = "linux/arm64" && echo aarch64-unknown-linux-gnu || echo x86_64-unknown-linux-gnu) > /.target-triplet
@@ -33,7 +26,7 @@ RUN --mount=type=cache,target=/app/target/ \
 FROM gcr.io/distroless/cc-debian13
 
 COPY --from=builder /app/magicentry /usr/local/bin/
-COPY --from=frontend /usr/src/app/static /static
+COPY --from=builder /usr/src/app/static /static
 
 ENV CONFIG_FILE=/config.yaml
 ENV RUST_LOG=info
