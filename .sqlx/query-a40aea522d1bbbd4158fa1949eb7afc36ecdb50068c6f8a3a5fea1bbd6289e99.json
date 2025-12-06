@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM user_secrets WHERE code = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "a40aea522d1bbbd4158fa1949eb7afc36ecdb50068c6f8a3a5fea1bbd6289e99"
+}

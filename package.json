@@ -1,29 +1,27 @@
 {
-  "name": "magicentry",
-  "source": "src/main.css",
-  "browserslist": "> 0.5%, last 2 versions, not dead",
-  "license": "GPL-3.0-or-later",
-  "scripts": {
-    "start": "concurrently 'yarn:start-web' 'yarn:start-e2e'",
-    "build": "webpack build --mode production && tailwindcss --input static/css/main.css --output static/main.build.css --minify",
-    "test": "cargo test --color always --features kube,e2e-test",
-    "start-web": "concurrently --name tailwind,webpack 'yarn:tailwind-dev' 'yarn:webpack-dev'",
-    "tailwind-dev": "tailwindcss --input static/css/main.css --output static/main.build.css --watch",
-    "webpack-dev": "webpack watch --mode development",
-    "start-e2e": "concurrently --name magicentry,dummy --kill-others 'yarn:start-server' 'yarn:e2e-server'",
-    "start-server": "RUST_LOG_STYLE=always CONFIG_FILE=config.sample.yaml watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo run --color always --features e2e-test",
-    "start-test": "RUST_LOG_STYLE=always watchexec --debounce 2 --watch ./Cargo.toml --watch ./src --watch ./static --watch ./benches --restart cargo test --color always --features kube,e2e-test",
-    "start-server-docs": "concurrently 'watchexec --debounce 2 --watch ./Cargo.toml --watch ./src cargo doc --color always --lib --features kube' 'browser-sync start --server ./target/doc --startPath magicentry --reload-delay 5000 --watch'"
-  },
-  "devDependencies": {
-    "@tailwindcss/cli": "4",
-    "browser-sync": "*",
-    "concurrently": "*",
-    "tailwindcss": "4",
-    "webpack": "5",
-    "webpack-cli": "6"
-  },
-  "dependencies": {
-    "@github/webauthn-json": "2"
-  }
+	"name": "magicentry",
+	"version": "1.0.0",
+	"description": "",
+	"main": "tailwind.config.js",
+	"directories": {
+		"doc": "docs"
+	},
+	"scripts": {
+		"build": "tailwindcss -i ./static/main.css -o ./static/main.bundle.css --minify",
+		"watch": "tailwindcss -i ./static/main.css -o ./static/main.bundle.css --watch"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/dzervas/magicentry.git"
+	},
+	"author": "",
+	"license": "GPL-3.0",
+	"bugs": {
+		"url": "https://github.com/dzervas/magicentry/issues"
+	},
+	"homepage": "https://github.com/dzervas/magicentry#readme",
+	"dependencies": {
+		"@tailwindcss/cli": "^4.1.17",
+		"tailwindcss": "^4.1.17"
+	}
 }

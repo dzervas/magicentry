@@ -1,5 +1,4 @@
 ---
-
 name: Test
 permissions:
   contents: read
@@ -39,4 +38,4 @@ jobs:
           cache-on-failure: "true"
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Test
-        run: devenv shell bash -- -c "yarn install && yarn test"
+        run: devenv shell bash -- -c "cargo sqlx db create && cargo sqlx migrate run && cargo test"

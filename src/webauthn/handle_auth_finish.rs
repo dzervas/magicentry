@@ -1,39 +1,48 @@
-use actix_web::web::Json;
-use actix_web::{post, web, HttpResponse};
+use anyhow::Context as _;
+use axum::Json;
+use axum::extract::State;
+use axum::response::IntoResponse;
+use axum_extra::extract::CookieJar;
 use serde::{Deserialize, Serialize};
 use webauthn_rs::prelude::*;
 
-use crate::error::{AppErrorKind, Response};
-use crate::secret::WebAuthnAuthSecret;
+use crate::AppState;
+use crate::config::LiveConfig;
+use crate::error::{AppError, AuthError};
+use crate::secret::{BrowserSessionSecret, WebAuthnAuthSecret};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthFinishResponse {
 	pub redirect_to: String,
 }
 
-#[post("/webauthn/auth/finish")]
-pub async fn auth_finish(
-	db: web::Data<crate::Database>,
-	webauthn: web::Data<Webauthn>,
+#[axum::debug_handler]
+pub async fn handle_auth_finish(
+	config: LiveConfig,
+	State(state): State<AppState>,
 	auth: WebAuthnAuthSecret,
-	Json(req): Json<PublicKeyCredential>,
-) -> Response {
-	let sk = webauthn.finish_passkey_authentication(&req, auth.metadata())?;
+	jar: CookieJar,
+	req: Json<PublicKeyCredential>,
+) -> Result<(CookieJar, impl IntoResponse), AppError> {
+	let webauthn = state.webauthn.clone();
+
+	let sk = webauthn
+		.finish_passkey_authentication(&req, auth.metadata())
+		.context("Failed to finish passkey authentication")?;
 
 	if !sk.user_verified() {
-		return Err(AppErrorKind::InvalidTargetUser.into());
+		return Err(AuthError::InvalidTargetUser.into());
 	}
 
-	let browser_session = auth.exchange(&db).await?;
-	let cookie = (&browser_session).into();
+	let browser_session: BrowserSessionSecret = auth.exchange(&config, &state.db).await?;
 
 	// TODO: How to handle redirects?
 	// TODO: Handle the passkey store counter
 
-	Ok(HttpResponse::Ok()
-		.cookie(cookie)
-		.json(AuthFinishResponse {
+	Ok((
+		jar.add(&browser_session),
+		Json(AuthFinishResponse {
 			redirect_to: "/".to_string(),
-		}
+		}),
 	))
 }

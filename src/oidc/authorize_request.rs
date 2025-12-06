@@ -1,17 +1,18 @@
-use jwt_simple::prelude::*;
-use log::debug;
+use anyhow::Context as _;
+use jsonwebtoken::{EncodingKey, Header, encode};
+use serde::{Deserialize, Serialize};
+use tracing::debug;
 use url::Url;
 
-use crate::error::Error;
-use crate::error::AppErrorKind;
-use crate::oidc::handle_token::JWTData;
-use crate::user::User;
-use crate::secret::MetadataKind;
 use crate::CONFIG;
+use crate::config::LiveConfig;
+use crate::error::{AppError, OidcError};
+use crate::oidc::handle_token::JWTData;
+use crate::secret::MetadataKind;
+use crate::user::User;
 
-
-/// Implementation of https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest>
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AuthorizeRequest {
 	pub scope: String,
 	pub response_type: String,
@@ -33,16 +34,17 @@ impl AuthorizeRequest {
 		let config = CONFIG.read().await;
 
 		let Some(service) = config.services.from_oidc_redirect_url(&redirect_url) else {
-			log::warn!(
+			tracing::warn!(
 				"Invalid OIDC redirect_uri: {} for client_id: {}",
 				redirect_url,
 				self.client_id
 			);
 			return None;
 		};
+		drop(config);
 
 		if !service.is_user_allowed(user) {
-			log::warn!(
+			tracing::warn!(
 				"User {} is not allowed to access OIDC redirect_uri: {} for client_id: {}",
 				user.email,
 				redirect_url,
@@ -53,21 +55,23 @@ impl AuthorizeRequest {
 
 		// Use the Url type
 		Some(
-			redirect_url.clone()
+			redirect_url
+				.clone()
 				.query_pairs_mut()
 				.append_pair("code", code)
 				.append_pair("state", &self.state.clone().unwrap_or_default())
 				.finish()
-				.to_string()
+				.to_string(),
 		)
 	}
 
-	pub async fn generate_id_token(
+	pub fn generate_id_token(
 		&self,
 		user: &User,
 		url: String,
-		keypair: &RS256KeyPair,
-	) -> Result<String, Error> {
+		encoding_key: &EncodingKey,
+		config: &LiveConfig,
+	) -> anyhow::Result<String> {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
@@ -78,37 +82,28 @@ impl AuthorizeRequest {
 			email_verified: true,
 			preferred_username: user.username.clone(),
 
-			..JWTData::new(url, self.nonce.clone()).await
+			..JWTData::new(url, self.nonce.clone(), config)
 		};
-		debug!("JWT Data: {:?}", jwt_data);
+		debug!("JWT Data: {jwt_data:?}");
 
-		let config = CONFIG.read().await;
-		let claims = Claims::with_custom_claims(
-			jwt_data,
-			Duration::from_millis(
-				config
-					.session_duration
-					.num_milliseconds()
-					.try_into()
-					.map_err(|_| AppErrorKind::InvalidDuration)?,
-			),
-		);
-		let id_token = keypair.sign(claims)?;
+		let header = Header::default();
+		let id_token = encode(&header, &jwt_data, encoding_key)
+			.with_context(|| format!("Failed to encode ID token for user {}", user.email))?;
 
 		Ok(id_token)
 	}
 }
 
 impl MetadataKind for AuthorizeRequest {
-	async fn validate(&self, _db: &crate::Database) -> crate::error::Result<()> {
+	async fn validate(&self, _db: &crate::Database) -> Result<(), AppError> {
 		if let Some(code_challenge_method) = self.code_challenge_method.as_ref() {
 			// TODO: Support plain
 			if code_challenge_method != "S256" {
-				return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
+				return Err(OidcError::InvalidCodeChallengeMethod.into());
 			}
 
 			if self.code_challenge.is_none() {
-				return Err(AppErrorKind::InvalidCodeChallengeMethod.into());
+				return Err(OidcError::InvalidCodeChallengeMethod.into());
 			}
 		}
 
@@ -117,7 +112,8 @@ impl MetadataKind for AuthorizeRequest {
 }
 
 pub mod as_string {
-	use super::*;
+	use super::AuthorizeRequest;
+	use serde::Deserialize as _;
 
 	pub fn serialize<S: serde::Serializer>(
 		req: &Option<AuthorizeRequest>,
@@ -138,10 +134,9 @@ pub mod as_string {
 		use serde::de::Error;
 		let opt_json = Option::<String>::deserialize(deserializer)?;
 
-		if let Some(json) = &opt_json {
-			serde_json::from_str(&json).map(Some).map_err(Error::custom)
-		} else {
-			Ok(None)
-		}
+		opt_json.as_ref().map_or_else(
+			|| Ok(None),
+			|json| serde_json::from_str(json).map(Some).map_err(Error::custom),
+		)
 	}
 }

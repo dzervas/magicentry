@@ -8,21 +8,26 @@
 //! actix-web server and updates the global config file in the background.
 
 use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
 
+use anyhow::Context;
 use futures::TryStreamExt;
+use k8s_openapi::ByteString;
 use k8s_openapi::api::core::v1::Secret;
 use k8s_openapi::api::networking::v1::Ingress;
-use k8s_openapi::ByteString;
+use kube::core::ObjectMeta;
 use kube::runtime::watcher;
 use kube::runtime::watcher::Event;
-use kube::{api::{Patch, PatchParams}, Api, Client};
-use kube::core::ObjectMeta;
+use kube::{
+	Api, Client,
+	api::{Patch, PatchParams},
+};
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
+use crate::CONFIG;
+use crate::error::{AppError, AuthError};
 use crate::service::{Service, ServiceAuthUrl, ServiceOIDC};
 use crate::utils::random_string;
-use crate::CONFIG;
 
 /// The prefix for all magicentry-related annotations
 const ANNOTATION_PREFIX: &str = "magicentry.rs/";
@@ -32,16 +37,16 @@ const ANNOTATION_PREFIX: &str = "magicentry.rs/";
 ///
 /// E.g. `name` is read from the `magicentry.rs/name` annotation
 ///
-/// It essentially adds a new [Service] to the [ConfigFile](crate::ConfigFile)
+/// It essentially adds a new [Service] to the [`ConfigFile`](crate::ConfigFile)
 /// with automatically derived URL, auth-url settings, etc.
 ///
-/// Ingress-specific values (e.g. [manage_ingress_nginx](IngressConfig::manage_ingress_nginx))
+/// Ingress-specific values (e.g. [`manage_ingress_nginx`](IngressConfig::manage_ingress_nginx))
 /// allows for some implementation-specific behavior
 ///
 /// TODO: There should be a way to track kube-generated services to be able to
 /// delete them and avoid updating services defined by the config file
 // TODO: Can we use serde instead of the manual from/to btreemap?
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IngressConfig {
 	pub enable: bool,
 	pub name: String,
@@ -49,7 +54,7 @@ pub struct IngressConfig {
 	pub auth_url: bool,
 
 	/// OIDC configuration
-	/// MagicEntry automatically creates (and maintains) a secret with the OIDC credentials
+	/// `MagicEntry` automatically creates (and maintains) a secret with the OIDC credentials
 	/// (data keys are `clientID` and `clientSecret`)
 	pub oidc_target_secret: Option<String>,
 	pub oidc_redirect_urls: Vec<url::Url>,
@@ -70,46 +75,56 @@ impl IngressConfig {
 	/// Due to the global static mutex, the main actix-web code should pick
 	/// up the changes automatically but it might block config reads
 	/// for the duration of the write - should be extremely fast
-	pub async fn process(&self, ingress: &Ingress) -> Result<()> {
+	// TODO: Refactor this function
+	#[allow(clippy::cognitive_complexity)]
+	#[allow(clippy::too_many_lines)]
+	pub async fn process(&self, ingress: &Ingress) -> Result<(), AppError> {
 		let no_name = String::new();
 		let name = ingress.metadata.name.as_ref().unwrap_or(&no_name);
 
 		let tls = ingress.spec.as_ref().and_then(|spec| spec.tls.as_ref());
-		let urls = ingress.spec
+		let urls = ingress
+			.spec
 			.as_ref()
 			.and_then(|spec| spec.rules.as_ref())
 			.and_then(|rules| rules.first())
 			.and_then(|rule| rule.host.as_ref())
 			.map(|host| {
-				let has_tls = tls.map_or(false, |tls| {
-					tls.iter().any(|tls| {
-						tls.hosts
-							.as_ref()
-							.unwrap_or(&Vec::new())
-							.contains(host)
-					})
+				let has_tls = tls.is_some_and(|tls| {
+					tls.iter()
+						.any(|tls| tls.hosts.as_ref().unwrap_or(&Vec::new()).contains(host))
 				});
 
-				let mut url = url::Url::parse(&host).unwrap_or_else(|_| {
-					log::error!("Ingress {:?} has invalid host {}", name, host);
+				let mut url = url::Url::parse(host).unwrap_or_else(|_| {
+					tracing::error!("Ingress {name:?} has invalid host {host}");
+					#[allow(clippy::unwrap_used)] // const
 					url::Url::parse("http://localhost").unwrap()
 				});
-				url.set_scheme(if has_tls { "https" } else { "http" }).unwrap();
+				#[allow(clippy::unwrap_used)] // const
+				url.set_scheme(if has_tls { "https" } else { "http" })
+					.unwrap();
 
 				url
 			})
-			.iter().cloned().collect::<Vec<_>>();
-		let Some(service_url) = urls.get(0).cloned() else {
-			log::warn!("Ingress {} has no host", name);
-			return Err(AppErrorKind::IngressHasNoHost.into());
+			.iter()
+			.cloned()
+			.collect::<Vec<_>>();
+		let Some(service_url) = urls.first().cloned() else {
+			tracing::warn!("Ingress {name} has no host");
+			return Err(AuthError::IngressHasNoHost.into());
 		};
 
 		let oidc = if let Some(secret_name) = &self.oidc_target_secret {
 			let namespace = ingress.metadata.namespace.as_deref().unwrap_or("default");
-			let client = Client::try_default().await?;
+			let client = Client::try_default()
+				.await
+				.context("Could not open the default kubernetes client")?;
 			let secrets: Api<Secret> = Api::namespaced(client, namespace);
 
-			let existing = secrets.get_opt(secret_name).await?;
+			let existing = secrets
+				.get_opt(secret_name)
+				.await
+				.context("Failed to get the kubernetes secret")?;
 			let client_id = existing
 				.as_ref()
 				.and_then(|s| s.data.as_ref())
@@ -124,10 +139,17 @@ impl IngressConfig {
 				.unwrap_or_else(random_string);
 
 			let mut data = BTreeMap::new();
-			data.insert("clientID".to_string(), ByteString(client_id.clone().into_bytes()));
-			data.insert("clientSecret".to_string(), ByteString(client_secret.clone().into_bytes()));
+			data.insert(
+				"clientID".to_string(),
+				ByteString(client_id.clone().into_bytes()),
+			);
+			data.insert(
+				"clientSecret".to_string(),
+				ByteString(client_secret.clone().into_bytes()),
+			);
 
-			let annotations = BTreeMap::from([("app.kubernetes.io/part-of".to_string(), self.name.clone())]);
+			let annotations =
+				BTreeMap::from([("app.kubernetes.io/part-of".to_string(), self.name.clone())]);
 
 			let secret = Secret {
 				metadata: ObjectMeta {
@@ -142,7 +164,10 @@ impl IngressConfig {
 
 			let pp = PatchParams::apply("magicentry").force();
 			let patch = Patch::Apply(&secret);
-			secrets.patch(secret_name, &pp, &patch).await?;
+			secrets
+				.patch(secret_name, &pp, &patch)
+				.await
+				.context("Failed to patch the kubernetes secret")?;
 
 			Some(ServiceOIDC {
 				client_id,
@@ -160,10 +185,8 @@ impl IngressConfig {
 			realms: self.realms.clone(),
 			auth_url: if self.auth_url {
 				Some(ServiceAuthUrl {
-					origins: urls
-						.iter()
-						.map(|url| url.to_string())
-						.collect(),
+					origins: urls.iter().map(ToString::to_string).collect(),
+					..ServiceAuthUrl::default()
 				})
 			} else {
 				None
@@ -174,23 +197,25 @@ impl IngressConfig {
 
 		// Take the write lock at the last possible moment and drop it
 		// as soon as possible to avoid blocking other threads/contexts
-		let mut config = CONFIG.write().await;
+		let mut config_ref = CONFIG.write().await;
+		let config =
+			Arc::get_mut(&mut config_ref).context("Failed to get mutable reference to config")?;
 		if config.services.get(name).is_none() {
-			log::info!("Adding service {} to config", name);
+			tracing::info!("Adding service {name} to config");
 			config.services.0.push(service.clone());
-		} else if let Some(existing_service) = config.services.get_mut(name) {
-			if existing_service != &service {
-				log::info!("Updating service {} in config", name);
-				*existing_service = service.clone();
-			}
+		} else if let Some(existing_service) = config.services.get_mut(name)
+			&& existing_service != &service
+		{
+			tracing::info!("Updating service {name} in config");
+			*existing_service = service.clone();
 		}
-		drop(config);
 
 		Ok(())
 	}
 }
 
 impl From<&BTreeMap<String, String>> for IngressConfig {
+	#[allow(clippy::single_char_pattern)]
 	fn from(value: &BTreeMap<String, String>) -> Self {
 		let filtered_map = value
 			.iter()
@@ -204,25 +229,19 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 			.collect::<HashMap<String, &str>>();
 
 		Self {
-			enable: filtered_map
-				.get("enable")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
+			enable: filtered_map.get("enable").is_some_and(|v| *v == "true"),
 			name: filtered_map
 				.get("name")
-				.map(|v| v.to_string())
+				.map(|v| (*v).to_string())
 				.unwrap_or_default(),
-			auth_url: filtered_map
-				.get("auth_url")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
+			auth_url: filtered_map.get("auth_url").is_some_and(|v| *v == "true"),
 			realms: filtered_map
 				.get("realms")
-				.map(|v| v.split(",").map(|v| v.to_string()).collect())
+				.map(|v| v.split(",").map(ToString::to_string).collect())
 				.unwrap_or_default(),
 			oidc_target_secret: filtered_map
 				.get("oidc_target_secret")
-				.map(|v| v.to_string()),
+				.map(|v| (*v).to_string()),
 			oidc_redirect_urls: filtered_map
 				.get("oidc_redirect_urls")
 				.map(|v| {
@@ -231,9 +250,7 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 						.collect()
 				})
 				.unwrap_or_default(),
-			saml_entity_id: filtered_map
-				.get("saml_entity_id")
-				.map(|v| v.to_string()),
+			saml_entity_id: filtered_map.get("saml_entity_id").map(|v| (*v).to_string()),
 			saml_redirect_urls: filtered_map
 				.get("saml_redirect_urls")
 				.map(|v| {
@@ -244,15 +261,16 @@ impl From<&BTreeMap<String, String>> for IngressConfig {
 				.unwrap_or_default(),
 			manage_ingress_nginx: filtered_map
 				.get("manage_ingress_nginx")
-				.map(|v| *v == "true")
-				.unwrap_or_default(),
+				.is_some_and(|v| *v == "true"),
 		}
 	}
 }
 
 impl From<&Ingress> for IngressConfig {
 	fn from(ingress: &Ingress) -> Self {
-		let map: &BTreeMap<String, String> = &ingress.metadata.annotations
+		let map: &BTreeMap<String, String> = &ingress
+			.metadata
+			.annotations
 			.as_ref()
 			.unwrap_or(&BTreeMap::new())
 			.iter()
@@ -264,21 +282,21 @@ impl From<&Ingress> for IngressConfig {
 	}
 }
 
-/// Takes an ingress resource, tries to cast it to an IngressConfig
-/// and then process it with the [IngressConfig::process] method
+/// Takes an ingress resource, tries to cast it to an `IngressConfig`
+/// and then process it with the [`IngressConfig::process`] method
 async fn process_ingress(ingress: &Ingress) {
 	let name = ingress.metadata.name.clone().unwrap_or_default();
-	log::debug!("Inspecting ingress resource {}", name);
+	tracing::debug!("Inspecting ingress resource {name}");
 
 	let ingress_config: IngressConfig = ingress.into();
 	if !ingress_config.enable || ingress_config.name.is_empty() {
-		log::debug!("Ingress {} is disabled", name);
+		tracing::debug!("Ingress {name} is disabled");
 		return;
 	}
 
-	log::info!("Discovered ingress {}", name);
-	ingress_config.process(&ingress).await.unwrap_or_else(|e| {
-		log::error!("Failed to process ingress {}: {:?}", name, e);
+	tracing::info!("Discovered ingress {name}");
+	ingress_config.process(ingress).await.unwrap_or_else(|e| {
+		tracing::error!("Failed to process ingress {name}: {e:?}");
 	});
 }
 
@@ -287,21 +305,22 @@ async fn process_ingress(ingress: &Ingress) {
 ///
 /// This function is asynchronously ran alongside the main actix-web server
 /// and will update the config file in the background
-pub async fn watch() -> Result<()> {
-	let client = Client::try_default().await?;
+pub async fn watch() -> Result<(), AppError> {
+	let client = Client::try_default()
+		.await
+		.context("Could not open the default kubernetes client for watching")?;
 	let ingresses: Api<Ingress> = Api::all(client);
 
-	log::info!("Watching for Ingresses");
+	tracing::info!("Watching for Ingresses");
 
 	loop {
-		watcher::watcher(ingresses.clone(), Default::default())
+		watcher::watcher(ingresses.clone(), watcher::Config::default())
 			.try_for_each(|event| async move {
 				match event {
-					Event::Apply(ingress) => process_ingress(&ingress).await,
-					Event::InitApply(ingress) => process_ingress(&ingress).await,
+					Event::Apply(ingress) | Event::InitApply(ingress) => process_ingress(&ingress).await,
 					Event::Delete(ingress) => {
 						// TODO: Take care of deleted events too
-						log::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.clone().unwrap_or_default());
+						tracing::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.unwrap_or_default());
 					}
 					_ => {}
 				}
@@ -311,10 +330,12 @@ pub async fn watch() -> Result<()> {
 		)
 		.await
 		.unwrap_or_else(|e| {
-			log::error!("Ingress watch stream ended unexpectedly: {:?}", e);
+			tracing::error!("Ingress watch stream ended unexpectedly: {e:?}");
 		});
 
-		log::warn!("Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying");
+		tracing::warn!(
+			"Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying"
+		);
 		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 	}
 }

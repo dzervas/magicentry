@@ -62,7 +62,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           # org.opencontainers.image.created=
           flavor: |
-            prefix=${{ matrix.feature != 'default' && format('{0}-', matrix.feature) || '' }},onlatest=true
+            suffix=${{ matrix.feature != 'default' && format('-{0}', matrix.feature) || '' }},onlatest=true
           annotations: |
             org.opencontainers.image.title=MagicEntry
             org.opencontainers.image.description=A simple identity provider for human beings

@@ -1,15 +1,19 @@
-use actix_web::{post, web, HttpRequest, HttpResponse};
-use actix_web_httpauth::extractors::basic::BasicAuth;
+use axum::extract::{Form, State};
+use axum::response::{IntoResponse, Response};
+use axum_extra::extract::TypedHeader;
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
-use jwt_simple::algorithms::RS256KeyPair;
-use jwt_simple::reexports::ct_codecs::{Base64UrlSafeNoPadding, Encoder as _};
-use log::{debug, info};
+use headers::Authorization;
+use headers::authorization::Basic;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use tracing::{debug, info};
 
-use crate::error::{AppErrorKind, Response};
+use crate::AppState;
+use crate::config::LiveConfig;
+use crate::error::{AppError, AuthError, OidcError};
 use crate::secret::OIDCAuthCodeSecret;
-use crate::{generate_cors_preflight, CONFIG};
+// use crate::generate_cors_preflight;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TokenRequest {
@@ -30,7 +34,7 @@ pub struct TokenResponse {
 	pub refresh_token: Option<String>,
 }
 
-/// Implementation of https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+/// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#IDToken>
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct JWTData {
 	#[serde(rename = "sub")]
@@ -40,8 +44,9 @@ pub struct JWTData {
 	#[serde(rename = "iss")]
 	pub from_url: String,
 	#[serde(rename = "exp")]
-	pub expires_at: u64,
-	pub iat: u64,
+	pub expires_at: i64,
+	#[serde(rename = "iat")]
+	pub issued_at: i64,
 
 	/// String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
 	/// The value is passed through unmodified from the Authentication Request to the ID Token.
@@ -62,15 +67,15 @@ pub struct JWTData {
 }
 
 impl JWTData {
-	pub async fn new(base_url: String, nonce: Option<String>) -> Self {
-		let config = CONFIG.read().await;
+	pub fn new(base_url: String, nonce: Option<String>, config: &LiveConfig) -> Self {
 		let expiry = Utc::now() + config.session_duration;
-		JWTData {
+
+		Self {
 			user: String::default(),
 			client_id: String::default(),
 			from_url: base_url,
-			expires_at: expiry.timestamp() as u64,
-			iat: Utc::now().timestamp() as u64,
+			expires_at: expiry.timestamp(),
+			issued_at: Utc::now().timestamp(),
 			nonce,
 
 			name: String::default(),
@@ -88,36 +93,31 @@ impl JWTData {
 // a request to this endpoint (failed CORS preflight)
 // But any other client (a backend from an app) can send a request to this endpoint
 // from any origin
-generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
+// generate_cors_preflight!(token_preflight, "/oidc/token", "POST");
 
-#[post("/oidc/token")]
-pub async fn token(
-	req: HttpRequest,
-	db: web::Data<crate::Database>,
-	web::Form(token_req): web::Form<TokenRequest>,
-	jwt_keypair: web::Data<RS256KeyPair>,
-	basic: Option<BasicAuth>,
-) -> Response {
-	// This is a too long function.
-	// It handles the 3 cases of sending an OIDC token OR turning an authorization code into a token
-	debug!("Token request: {:?}", token_req);
-
-	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &db).await?;
+// TODO: Refactor this function
+#[axum::debug_handler]
+#[allow(clippy::cognitive_complexity)]
+pub async fn handle_token(
+	config: LiveConfig,
+	State(state): State<AppState>,
+	basic: Option<TypedHeader<Authorization<Basic>>>,
+	Form(token_req): Form<TokenRequest>,
+) -> Result<Response, AppError> {
+	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &state.db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 
-	let config = CONFIG.read().await;
-	let client_id = if let Some(basic_creds) = basic.clone() {
-		basic_creds.user_id().to_string()
-	} else {
-		auth_req.client_id.clone()
-	};
+	let client_id = basic.clone().map_or_else(
+		|| auth_req.client_id.clone(),
+		|basic_creds| basic_creds.username().to_string(),
+	);
 
 	let mut service = config
 		.services
 		.from_oidc_client_id(&client_id)
-		.ok_or(AppErrorKind::InvalidClientID)?;
+		.ok_or(AuthError::InvalidClientID)?;
 
-	let mut oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
+	let mut oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
 
 	if let Some(code_verifier) = token_req.code_verifier.clone() {
 		// We're using PCRE with code_challenge - code_verifier
@@ -126,56 +126,60 @@ pub async fn token(
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
-		let generated_code_challenge = Base64UrlSafeNoPadding::encode_to_string(generated_code_challenge_bytes)?;
+		let generated_code_challenge =
+			general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
 
 		if Some(generated_code_challenge) != auth_req.code_challenge {
-			return Err(AppErrorKind::InvalidCodeVerifier.into());
+			return Err(OidcError::InvalidCodeVerifier.into());
 		}
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
 		// We're using client_id - client_secret
-		info!("Responding to client_secret_post request for client {}", service.name);
-		let req_client_id = token_req.client_id.clone().ok_or(AppErrorKind::NoClientID)?;
+		info!(
+			"Responding to client_secret_post request for client {}",
+			service.name
+		);
+		let req_client_id = token_req.client_id.clone().ok_or(OidcError::NoClientID)?;
 
 		if oidc.client_secret != req_client_secret {
-			return Err(AppErrorKind::InvalidClientSecret.into());
+			return Err(AuthError::InvalidClientSecret.into());
 		}
 
 		if oidc.client_id != req_client_id {
-			return Err(AppErrorKind::InvalidClientID.into());
+			return Err(AuthError::InvalidClientID.into());
 		}
 	} else if let Some(basic_creds) = basic {
 		// We're using client_id - client_secret over basic auth
 		debug!("Responding to client_secret_basic request");
-		let req_client_id = basic_creds.user_id().to_string();
-		let req_client_secret = basic_creds.password()
-			.ok_or(AppErrorKind::NoClientSecret)?
-			.to_string();
+		let req_client_id = basic_creds.username();
+		let req_client_secret = basic_creds.password();
 		service = config
 			.services
-			.from_oidc_client_id(&req_client_id)
-			.ok_or(AppErrorKind::InvalidClientID)?;
+			.from_oidc_client_id(req_client_id)
+			.ok_or(AuthError::InvalidClientID)?;
 
 		if !service.is_user_allowed(oidc_authcode.user()) {
-			return Err(AppErrorKind::Unauthorized.into());
+			return Err(AuthError::Unauthorized.into());
 		}
 
-		oidc = service.oidc.ok_or(AppErrorKind::OIDCNotConfigured)?;
+		oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
 
 		if oidc.client_id != req_client_id || oidc.client_secret != req_client_secret {
-			return Err(AppErrorKind::InvalidClientSecret.into());
+			return Err(AuthError::InvalidClientSecret.into());
 		}
 	} else {
-		return Err(AppErrorKind::NoClientCredentialsProvided.into());
+		return Err(OidcError::NoClientCredentialsProvided.into());
 	}
 
-	let base_url = config.url_from_request(&req);
-	let id_token = auth_req
-		.generate_id_token(&oidc_authcode.user(), base_url, jwt_keypair.as_ref())
-		.await?;
-	let oidc_token = oidc_authcode.exchange_sibling(&db).await?;
+	let id_token = auth_req.generate_id_token(
+		oidc_authcode.user(),
+		config.external_url.clone(),
+		&state.key,
+		&config,
+	)?;
+	let oidc_token = oidc_authcode.exchange_sibling(&config, &state.db).await?;
 
 	let response = TokenResponse {
-		access_token: oidc_token.code().to_str_that_i_wont_print().to_owned(),
+		access_token: oidc_token.code().to_str_that_i_wont_print(),
 		token_type: "Bearer".to_string(),
 		expires_in: config.session_duration.num_seconds(),
 		id_token,
@@ -183,13 +187,13 @@ pub async fn token(
 		refresh_token: Some(String::new()), // Some apps require the field to be populated, even if empty
 	};
 
-	Ok(HttpResponse::Ok()
-		// TODO: WTF to do with these origins?
-		.append_header(("Access-Control-Allow-Origin", "*"))
-		.append_header(("Access-Control-Allow-Methods", "POST, OPTIONS"))
-		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
-		.json(response))
-	// Either respond access_token=<token>&token_type=<type>&expires_in=<seconds>&refresh_token=<token>&id_token=<token>
-	// TODO: Send error response
-	// Or error=<error>&error_description=<error_description>
+	Ok((
+		[
+			("Access-Control-Allow-Origin", "*"),
+			("Access-Control-Allow-Methods", "GET, OPTIONS"),
+			("Access-Control-Allow-Headers", "Content-Type"),
+		],
+		axum::Json(response),
+	)
+		.into_response())
 }

@@ -1,11 +1,21 @@
-use actix_web::cookie::Cookie;
-use actix_web::{get, web, HttpResponse};
-use log::info;
+use anyhow::Context as _;
+use axum::extract::State;
+use axum::http::HeaderMap;
+use axum::http::StatusCode;
+use axum::http::header::HeaderName;
+use axum::response::IntoResponse;
+use axum::response::Response;
+use axum_extra::extract::CookieJar;
+use reqwest::header::COOKIE;
+use tracing::info;
 
-use crate::error::Response;
-use crate::secret::ProxySessionSecret;
+use crate::AppState;
+use crate::OriginalUri;
+use crate::PROXY_SESSION_COOKIE;
+use crate::config::LiveConfig;
+use crate::error::AppError;
 use crate::secret::ProxyCodeSecret;
-use crate::{CONFIG, PROXY_SESSION_COOKIE};
+use crate::secret::ProxySessionSecret;
 
 /// This endpoint is used to check weather a user is logged in from a proxy
 /// running in a different domain.
@@ -18,58 +28,78 @@ use crate::{CONFIG, PROXY_SESSION_COOKIE};
 ///
 /// In order to use the one-time-code functionality, some setup is required,
 /// documented in [the example](https://magicentry.rs/#/installation?id=example-valuesyaml)
-#[get("/auth-url/status")]
-async fn status(
-	db: web::Data<crate::Database>,
+#[axum::debug_handler]
+pub async fn handle_status(
+	config: LiveConfig,
+	State(state): State<AppState>,
+	mut jar: CookieJar,
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
-) -> Response {
-	let mut response_builder = HttpResponse::Ok();
-	let mut response = response_builder.content_type("text/plain");
-
+	OriginalUri(origin_url): OriginalUri,
+) -> Result<(CookieJar, Response), AppError> {
 	let proxy_session = if let Some(proxy_session) = proxy_session_opt {
 		proxy_session
 	} else if let Some(proxy_code) = proxy_code_opt {
 		info!("Proxied login for {}", &proxy_code.user().email);
-		let proxy_session = proxy_code
-			.exchange_sibling(&db)
-			.await?;
+		let proxy_session: ProxySessionSecret =
+			proxy_code.exchange_sibling(&config, &state.db).await?;
 
-		response = response.cookie(
-			Cookie::build(PROXY_SESSION_COOKIE, proxy_session.code().to_str_that_i_wont_print())
-				.path("/")
-				.http_only(true)
-				.finish(),
-		);
-
+		jar = jar.add(&proxy_session);
 		proxy_session
 	} else {
-		let mut remove_cookie = Cookie::new(PROXY_SESSION_COOKIE, "");
-		remove_cookie.make_removal();
+		if let Some(service) = config.services.from_auth_url_origin(&origin_url.origin()) {
+			if let Some(auth_url_cfg) = &service.auth_url {
+				if let (Some(status_url), Some(status_cookie)) =
+					(&auth_url_cfg.status_url, &auth_url_cfg.status_cookie)
+				{
+					let Some(cookie) = jar.get(status_cookie) else {
+						return Ok((
+							jar.remove(PROXY_SESSION_COOKIE),
+							StatusCode::UNAUTHORIZED.into_response(),
+						));
+					};
 
-		return Ok(HttpResponse::Unauthorized()
-			.cookie(remove_cookie)
-			.finish());
+					let response_status = reqwest::Client::new()
+						.get(status_url.clone())
+						.header(COOKIE, format!("{status_cookie}={}", cookie.value()))
+						.send()
+						.await
+						.context("Failed to call external auth-url status endpoint")?
+						.status();
+
+					if response_status == StatusCode::OK {
+						return Ok((jar, StatusCode::OK.into_response()));
+					}
+				}
+			}
+		}
+
+		return Ok((
+			jar.remove(PROXY_SESSION_COOKIE),
+			StatusCode::UNAUTHORIZED.into_response(),
+		));
 	};
 
-	let config = CONFIG.read().await;
-	response = response
-		.insert_header((
-			config.auth_url_email_header.as_str(),
-			proxy_session.user().email.clone(),
-		))
-		.insert_header((
-			config.auth_url_user_header.as_str(),
-			proxy_session.user().username.clone(),
-		))
-		.insert_header((
-			config.auth_url_name_header.as_str(),
-			proxy_session.user().name.clone(),
-		))
-		.insert_header((
-			config.auth_url_realms_header.as_str(),
-			proxy_session.user().realms.join(","),
-		));
+	let mut headers = HeaderMap::new();
+	let user = proxy_session.user();
 
-	Ok(response.finish())
+	// TODO: Add cache-control headers
+	headers.insert(
+		HeaderName::from_bytes(config.auth_url_email_header.as_bytes()).unwrap(),
+		user.email.parse().unwrap(),
+	);
+	headers.insert(
+		HeaderName::from_bytes(config.auth_url_user_header.as_bytes()).unwrap(),
+		user.username.parse().unwrap(),
+	);
+	headers.insert(
+		HeaderName::from_bytes(config.auth_url_name_header.as_bytes()).unwrap(),
+		user.name.parse().unwrap(),
+	);
+	headers.insert(
+		HeaderName::from_bytes(config.auth_url_realms_header.as_bytes()).unwrap(),
+		user.realms.join(",").parse().unwrap(),
+	);
+
+	Ok((jar, (headers, "OK").into_response()))
 }
