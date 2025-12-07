@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
@@ -59,15 +58,21 @@ pub async fn handle_status(
 						));
 					};
 
-					let response_status = reqwest::Client::new()
+					let response = reqwest::Client::new()
 						.get(status_url.clone())
 						.header(COOKIE, format!("{status_cookie}={}", cookie.value()))
 						.send()
-						.await
-						.context("Failed to call external auth-url status endpoint")?
-						.status();
+						.await;
 
-					if response_status == StatusCode::OK {
+					let Ok(response) = response else {
+						tracing::warn!("Could not get a response from upstream {status_url}");
+						return Ok((
+							jar.remove(PROXY_SESSION_COOKIE),
+							StatusCode::UNAUTHORIZED.into_response(),
+						));
+					};
+
+					if response.status() == StatusCode::OK {
 						return Ok((jar, StatusCode::OK.into_response()));
 					}
 				}

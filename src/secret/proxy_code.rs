@@ -1,4 +1,3 @@
-use anyhow::Context as _;
 use axum::RequestPartsExt;
 use axum::extract::OptionalFromRequestParts;
 use axum::http::request::Parts;
@@ -47,9 +46,23 @@ impl OptionalFromRequestParts<AppState> for ProxyCodeSecret {
 			return Ok(None);
 		};
 
-		let secret = Self::try_from_string(code.1.to_string(), &state.db)
-			.await
-			.context("Failed to create proxy code secret from string")?;
+		let code_value = code.1.to_string();
+		let secret = match Self::try_from_string(code_value, &state.db).await {
+			Ok(secret) => secret,
+			Err(AppError::Auth(
+				AuthError::ExpiredSecret
+				| AuthError::InvalidSecret
+				| AuthError::InvalidSecretType
+				| AuthError::InvalidSecretMetadata,
+			)) => {
+				tracing::warn!("Ignoring invalid proxy code during auth-url status check");
+				return Ok(None);
+			}
+			Err(err) => {
+				tracing::error!(error = %err, "Failed to create proxy code secret from string");
+				return Err(err);
+			}
+		};
 		let service = {
 			let config = CONFIG.read().await;
 			config
