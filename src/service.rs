@@ -26,8 +26,19 @@ pub struct ServiceAuthUrl {
 	/// Optional endpoint to ask the protected application whether the incoming
 	/// user is authenticated.
 	pub status_url: Option<url::Url>,
-	/// Cookie name forwarded to `status_url` when performing the auth check.
-	pub status_cookie: Option<String>,
+	/// Cookie names forwarded to `status_url` when performing the auth check.
+	pub status_cookies: Option<Vec<String>>,
+	/// Request headers (by name) to forward to `status_url` when performing the auth check.
+	pub status_headers: Option<Vec<String>>,
+	/// Optional authentication info for `status_url`.
+	pub status_auth: Option<StatusAuth>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StatusAuth {
+	Basic { username: String, password: String },
+	Bearer { token: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

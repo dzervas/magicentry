@@ -6,7 +6,7 @@ use axum::response::IntoResponse;
 use axum::response::Response;
 use axum_extra::extract::CookieJar;
 use reqwest::header::COOKIE;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::AppState;
 use crate::OriginalUri;
@@ -15,6 +15,7 @@ use crate::config::LiveConfig;
 use crate::error::AppError;
 use crate::secret::ProxyCodeSecret;
 use crate::secret::ProxySessionSecret;
+use crate::service::StatusAuth;
 
 /// This endpoint is used to check weather a user is logged in from a proxy
 /// running in a different domain.
@@ -32,6 +33,7 @@ pub async fn handle_status(
 	config: LiveConfig,
 	State(state): State<AppState>,
 	mut jar: CookieJar,
+	request_headers: HeaderMap,
 	proxy_code_opt: Option<ProxyCodeSecret>,
 	proxy_session_opt: Option<ProxySessionSecret>,
 	OriginalUri(origin_url): OriginalUri,
@@ -48,24 +50,71 @@ pub async fn handle_status(
 	} else {
 		if let Some(service) = config.services.from_auth_url_origin(&origin_url.origin()) {
 			if let Some(auth_url_cfg) = &service.auth_url {
-				if let (Some(status_url), Some(status_cookie)) =
-					(&auth_url_cfg.status_url, &auth_url_cfg.status_cookie)
-				{
-					let Some(cookie) = jar.get(status_cookie) else {
-						return Ok((
-							jar.remove(PROXY_SESSION_COOKIE),
-							StatusCode::UNAUTHORIZED.into_response(),
-						));
-					};
+				if let Some(status_url) = &auth_url_cfg.status_url {
+					let mut cookie_names: Vec<&str> = Vec::new();
 
-					let response = reqwest::Client::new()
-						.get(status_url.clone())
-						.header(COOKIE, format!("{status_cookie}={}", cookie.value()))
-						.send()
-						.await;
+					if let Some(status_cookies) = &auth_url_cfg.status_cookies {
+						cookie_names.extend(status_cookies.iter().map(String::as_str));
+					}
+
+					let mut cookie_header = None;
+
+					if !cookie_names.is_empty() {
+						let mut cookies: Vec<String> = Vec::new();
+
+						for cookie_name in cookie_names {
+							let Some(cookie) = jar.get(cookie_name) else {
+								return Ok((
+									jar.remove(PROXY_SESSION_COOKIE),
+									StatusCode::UNAUTHORIZED.into_response(),
+								));
+							};
+
+							cookies.push(format!("{cookie_name}={}", cookie.value()));
+						}
+
+						if !cookies.is_empty() {
+							cookie_header = Some(cookies.join("; "));
+						}
+					}
+
+					let client = reqwest::Client::new();
+					let mut request = client.get(status_url.clone());
+
+					if let Some(cookie_header) = cookie_header {
+						request = request.header(COOKIE, cookie_header);
+					}
+
+					if let Some(headers) = &auth_url_cfg.status_headers {
+						for header_name_str in headers {
+							let Ok(name) = HeaderName::from_bytes(header_name_str.as_bytes())
+							else {
+								warn!(
+									"Ignoring invalid status header name configured: {}",
+									header_name_str
+								);
+								continue;
+							};
+
+							for value in request_headers.get_all(&name).iter() {
+								request = request.header(name.clone(), value.clone());
+							}
+						}
+					}
+
+					if let Some(auth) = &auth_url_cfg.status_auth {
+						request = match auth {
+							StatusAuth::Basic { username, password } => {
+								request.basic_auth(username, Some(password))
+							}
+							StatusAuth::Bearer { token } => request.bearer_auth(token),
+						};
+					}
+
+					let response = request.send().await;
 
 					let Ok(response) = response else {
-						tracing::warn!("Could not get a response from upstream {status_url}");
+						warn!("Could not get a response from upstream {status_url}");
 						return Ok((
 							jar.remove(PROXY_SESSION_COOKIE),
 							StatusCode::UNAUTHORIZED.into_response(),
@@ -85,26 +134,26 @@ pub async fn handle_status(
 		));
 	};
 
-	let mut headers = HeaderMap::new();
+	let mut resp_headers = HeaderMap::new();
 	let user = proxy_session.user();
 
 	// TODO: Add cache-control headers
-	headers.insert(
+	resp_headers.insert(
 		HeaderName::from_bytes(config.auth_url_email_header.as_bytes()).unwrap(),
 		user.email.parse().unwrap(),
 	);
-	headers.insert(
+	resp_headers.insert(
 		HeaderName::from_bytes(config.auth_url_user_header.as_bytes()).unwrap(),
 		user.username.parse().unwrap(),
 	);
-	headers.insert(
+	resp_headers.insert(
 		HeaderName::from_bytes(config.auth_url_name_header.as_bytes()).unwrap(),
 		user.name.parse().unwrap(),
 	);
-	headers.insert(
+	resp_headers.insert(
 		HeaderName::from_bytes(config.auth_url_realms_header.as_bytes()).unwrap(),
 		user.realms.join(",").parse().unwrap(),
 	);
 
-	Ok((jar, (headers, "OK").into_response()))
+	Ok((jar, (resp_headers, "OK").into_response()))
 }

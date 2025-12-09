@@ -102,7 +102,20 @@ services:
       # with the service's cookie. If that endpoint returns 200, MagicEntry
       # also returns 200.
       status_url: http://example.com/check
+      # Single cookie (legacy)
       status_cookie: HELLO
+      # Multiple cookies can also be forwarded
+      status_cookies:
+        - HELLO
+        - SESSIONID
+      # Optional request headers to forward (values come from the incoming request)
+      status_headers:
+        - X-Status-Check
+      # Optional authentication for the upstream status check
+      status_auth:
+        type: basic
+        username: status-user
+        password: supersecret
     # OIDC configuration (optional)
     # All of the settings below are tightly coupled with the service config
     oidc:
