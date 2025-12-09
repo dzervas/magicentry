@@ -1,3 +1,5 @@
+use std::env;
+
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::http::StatusCode;
@@ -38,6 +40,39 @@ pub async fn handle_status(
 	proxy_session_opt: Option<ProxySessionSecret>,
 	OriginalUri(origin_url): OriginalUri,
 ) -> Result<(CookieJar, Response), AppError> {
+	let log_authurl_lines = env::var("LOG_AUTHURL_LINES")
+		.map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true"))
+		.unwrap_or(false);
+
+	if log_authurl_lines {
+		let cookies: Vec<&str> = jar
+			.iter()
+			.map(|cookie| cookie.name())
+			.collect();
+		let headers: Vec<&str> = request_headers
+			.iter()
+			.map(|(name, _value)| name.as_str())
+			.collect();
+
+		info!("authurl target: {}", origin_url);
+		info!(
+			"authurl cookies: {}",
+			if cookies.is_empty() {
+				"<none>".to_string()
+			} else {
+				cookies.join(", ")
+			}
+		);
+		info!(
+			"authurl headers: {}",
+			if headers.is_empty() {
+				"<none>".to_string()
+			} else {
+				headers.join(", ")
+			}
+		);
+	}
+
 	let proxy_session = if let Some(proxy_session) = proxy_session_opt {
 		proxy_session
 	} else if let Some(proxy_code) = proxy_code_opt {
