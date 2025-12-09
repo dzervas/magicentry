@@ -1,3 +1,6 @@
-pub mod flow_scoped;
+#![allow(clippy::unwrap_used)]
+
 pub mod config;
-pub mod e2e_hurl;
+pub mod gen_hurl_tests;
+pub mod hurl;
+pub mod render_pages;

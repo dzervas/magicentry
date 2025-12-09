@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-service
+  namespace: default
+  annotations:
+    magicentry.rs/enable: "true"
+    magicentry.rs/name: "test-service"
+    magicentry.rs/realms: "test-realm"
+    magicentry.rs/auth_url: "true"
+    magicentry.rs/oidc-target-secret: "test-service-oidc"
+    magicentry.rs/oidc-redirect-urls: "http://test-service.local/callback,https://test-service.local/oauth/callback"
+    magicentry.rs/saml-entity-id: "test-service"
+    magicentry.rs/saml-redirect-urls: "http://test-service.local/saml/acs"
+    magicentry.rs/manage-ingress-nginx: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - test-service.local
+      secretName: test-service-tls
+  rules:
+    - host: test-service.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: test-service
+                port:
+                  number: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-service
+  namespace: default
+spec:
+  selector:
+    app: test-service
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-service
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-service
+  template:
+    metadata:
+      labels:
+        app: test-service
+    spec:
+      containers:
+        - name: test-service
+          image: nginx:alpine
+          ports:
+            - containerPort: 80

@@ -1,39 +1,40 @@
 use std::borrow::Cow;
 
-use actix_web::{get, web, HttpResponse};
-use log::warn;
+use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Redirect};
+use axum_extra::extract::OptionalQuery;
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 
-use crate::error::Response;
-use crate::secret::BrowserSessionSecret;
+use crate::{AppState, secret::BrowserSessionSecret};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogoutRequest {
 	post_logout_redirect_uri: Option<String>,
 }
 
-#[get("/logout")]
-async fn logout(
-	web::Query(req): web::Query<LogoutRequest>,
-	db: web::Data<crate::Database>,
+#[axum::debug_handler]
+pub async fn handle_logout(
+	State(state): State<AppState>,
 	browser_session: BrowserSessionSecret,
-) -> Response {
-	browser_session.delete(&db).await?;
+	OptionalQuery(post_logout_redirect_uri): OptionalQuery<String>,
+) -> Result<impl IntoResponse, StatusCode> {
+	browser_session.delete(&state.db).await.unwrap();
 
 	// XXX: Open redirect
-	let target_url = if let Some(target) = &req.post_logout_redirect_uri {
-		urlencoding::decode(&target.clone())
-			.unwrap_or_else(|_| {
-				warn!("Invalid logout redirect URL: {}", &target);
-				Cow::from("/login")
-			})
-			.to_string()
-	} else {
-		"/login".to_string()
-	};
+	let target_url = post_logout_redirect_uri.as_ref().map_or_else(
+		|| "/login".to_string(),
+		|target| {
+			urlencoding::decode(&target.clone())
+				.unwrap_or_else(|_| {
+					warn!("Invalid logout redirect URL: {target}");
+					Cow::from("/login")
+				})
+				.to_string()
+		},
+	);
 
-	Ok(HttpResponse::Found()
-		.append_header(("Location", target_url.as_str()))
-		.cookie(BrowserSessionSecret::unset_cookie())
-		.finish())
+	// TODO: Remove the cookie as well
+	Ok(Redirect::to(&target_url))
 }

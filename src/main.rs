@@ -1,148 +1,74 @@
-#![forbid(unsafe_code)]
-use magicentry::config::ConfigFile;
-use magicentry::secret::cleanup::spawn_cleanup_job;
-pub use magicentry::*;
+use std::sync::Arc;
 
-use actix_web::middleware::Logger;
-use actix_web::{web, App, HttpServer};
-use actix_web_httpauth::extractors::basic;
+use arc_swap::ArcSwap;
 use lettre::transport::smtp;
-#[cfg(feature = "kube")]
-use tokio::select;
+use magicentry::secret::cleanup::spawn_cleanup_job;
+use tracing::info;
 
-// Do not compile in tests at all as the SmtpTransport is not available
-#[actix_web::main]
-pub async fn main() -> std::io::Result<()> {
-	env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
+use magicentry::app_build::axum_run;
+use magicentry::config::Config;
+use magicentry::database::init_database;
+use magicentry::{CONFIG, CONFIG_FILE, SmtpTransport, init_tracing};
 
+// Issues:
+// - Make webauthn not require an email?
+// - Test webauthn
+// - Test kube e2e
+// - Bring back the benchmark (maybe axum-test instead of hurl)
+// - Clean architecture
+// - Per-type token endpoint to split them (PCRE/code/etc.)
+// - HTML & style the email (and the http?)
+// - SAML deflate can be a tokio middleware (already in tower-http)
+// - Maybe browser session middleware?
+// - End up on concrete error-handling (strings or enum or whatever)
+// - Cache authurl status?
+// - Use &'static AppState and `&*Box::leak(Box::new(state))` to avoid cloning (since the state will never get freed) and remove Arc from config and link senders
+// - Have a "server" section for stuff that require a restart
+// - Handle restarts
+// - Split up the page styling madness (and use p.class-name instead of p class="class-name")
 
-	#[cfg(feature = "e2e-test")]
-	log::warn!("Running in E2E Tests mode, all magic links will written to disk in the `.link.txt` file.");
-
-	#[cfg(debug_assertions)]
-	log::warn!("Running in debug mode, all magic links will be printed to the console.");
-
-	ConfigFile::reload()
+#[tokio::main]
+async fn main() {
+	init_tracing(None);
+	Config::reload()
 		.await
-		.expect("Failed to load config file");
+		.expect("Failed to reload config file");
+	let database_url = CONFIG.read().await.database_url.clone();
 
-	let config = CONFIG.read().await;
-	let webauthn_enable = config.webauthn_enable;
-	let listen_host = config.listen_host.clone();
-	let listen_port = config.listen_port;
-	let title = config.title.clone();
-	let external_url = config.external_url.clone();
-
-	let db = database::init_database(&config.database_url)
+	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
+	let db = init_database(&database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
 
-	spawn_cleanup_job(db.clone());
+	let mut link_senders: Vec<Arc<dyn magicentry::LinkSender>> = vec![];
 
-	// Mailer setup
-	let mailer: Option<SmtpTransport> = if config.smtp_enable {
-		Some(
-			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config.smtp_url)
+	let config_inst = config.load();
+	if config_inst.smtp_enable {
+		let smtp_inst: SmtpTransport =
+			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config_inst.smtp_url)
 				.expect("Failed to create mailer - is the `smtp_url` correct?")
 				.pool_config(smtp::PoolConfig::new())
-				.build(),
-		)
-	} else {
-		None
-	};
+				.build();
+		link_senders.push(Arc::new(smtp_inst));
+	}
+	if config_inst.request_enable {
+		link_senders.push(Arc::new(reqwest::Client::new()));
+	}
+	drop(config_inst);
 
-	// HTTP client setup
-	let http_client = if config.request_enable {
-		Some(reqwest::Client::new())
-	} else {
-		None
-	};
+	let (addr, server) = axum_run(None, db.clone(), config, link_senders, None).await;
 
-	// OIDC setup
-	let oidc_key = oidc::init(&db).await;
-	drop(config);
+	let _watcer = Config::watch(CONFIG_FILE.as_str());
+	spawn_cleanup_job(db.clone());
 
-	let server = HttpServer::new(move || {
-		let mut app = App::new()
-			// Data
-			.app_data(web::Data::new(db.clone()))
-			.app_data(web::Data::new(mailer.clone()))
-			.app_data(web::Data::new(http_client.clone()))
-			.app_data(basic::Config::default().realm("MagicEntry"))
-
-			.default_service(web::route().to(error::not_found))
-
-			// Auth routes
-			.service(handle_index::index)
-			.service(handle_login::login)
-			.service(handle_login_post::login_post)
-			.service(handle_magic_link::magic_link)
-			.service(handle_logout::logout)
-			.service(handle_static::static_files)
-			.service(handle_static::favicon)
-
-			// Auth URL routes
-			.service(auth_url::handle_status::status)
-
-			// SAML routes
-			.service(saml::handle_metadata::metadata)
-			.service(saml::handle_sso::sso)
-
-			// OIDC routes
-			.app_data(web::Data::new(oidc_key.clone()))
-			.service(oidc::handle_discover::discover)
-			.service(oidc::handle_discover::discover_preflight)
-			.service(oidc::handle_authorize::authorize_get)
-			.service(oidc::handle_authorize::authorize_post)
-			.service(oidc::handle_token::token)
-			.service(oidc::handle_token::token_preflight)
-			.service(oidc::handle_jwks::jwks)
-			.service(oidc::handle_userinfo::userinfo)
-			// Handle oauth discovery too
-			.service(web::redirect("/.well-known/oauth-authorization-server", "/.well-known/openid-configuration").permanent())
-
-			// Middleware
-			.wrap(Logger::default());
-
-		if webauthn_enable {
-			let webauthn = webauthn::init(title.clone(), external_url.clone())
-				.expect("Failed to create webauthn object");
-
-			app = app
-				.app_data(web::Data::new(webauthn))
-				.service(webauthn::handle_reg_start::reg_start)
-				.service(webauthn::handle_reg_finish::reg_finish)
-				.service(webauthn::handle_auth_start::auth_start)
-				.service(webauthn::handle_auth_finish::auth_finish);
-		}
-
-		app
-	})
-	.workers(if cfg!(debug_assertions) || cfg!(test) || cfg!(feature = "e2e-test") {
-		1
-	} else {
-		std::thread::available_parallelism()
-			.map(|n| n.get())
-			.unwrap_or(2)
-	})
-	.bind(format!("{}:{}", listen_host, listen_port))
-	.unwrap()
-	.run();
-
-	let _config_watcher = config::ConfigFile::watch();
+	info!("Server running on http://{addr}");
 
 	#[cfg(feature = "kube")]
-	{
-		let kube_watcher = config_kube::watch();
-
-		select! {
-			r = server => r,
-			k = kube_watcher => Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Kube watcher failed: {:?}", k))),
-		}
-	}
+	tokio::select! {
+		r = server => r,
+		k = magicentry::config_kube::watch() => Err(std::io::Error::other(format!("Kube watcher failed: {k:?}"))),
+	}.unwrap();
 
 	#[cfg(not(feature = "kube"))]
-	{
-		server.await
-	}
+	server.await.unwrap();
 }

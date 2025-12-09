@@ -1,62 +1,54 @@
-use actix_web::cookie::{Cookie, SameSite};
-use futures::future::BoxFuture;
+use axum::RequestPartsExt;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
+use crate::config::LiveConfig;
+use crate::error::WebAuthnError;
 use crate::webauthn::WEBAUTHN_AUTH_COOKIE;
 
+use super::SecretType;
 use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
 use super::primitive::UserSecretKind;
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct WebAuthnAuthSecretKind;
 
 impl UserSecretKind for WebAuthnAuthSecretKind {
-	const PREFIX: &'static str = "webauthn_auth";
+	const PREFIX: SecretType = SecretType::WebAuthnAuth;
 	type Metadata = webauthn_rs::prelude::PasskeyAuthentication;
 
-	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration {
+		config.session_duration
+	}
 }
 
 pub type WebAuthnAuthSecret = EphemeralUserSecret<WebAuthnAuthSecretKind, BrowserSessionSecretKind>;
 
-impl actix_web::FromRequest for WebAuthnAuthSecret {
-	type Error = crate::error::Error;
-	type Future = BoxFuture<'static, Result<Self>>;
-
-	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let Some(code) = req.cookie(WEBAUTHN_AUTH_COOKIE) else {
-			return Box::pin(async { Err(AppErrorKind::WebAuthnSecretNotFound.into()) });
-		};
-		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
-			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
-		};
-
-		let code = code.value().to_string();
-		Box::pin(async move {
-			Self::try_from_string(code, db.get_ref()).await
-		})
-	}
-}
-
-impl Into<Cookie<'_>> for WebAuthnAuthSecret {
-	fn into(self) -> Cookie<'static> {
-		Cookie::build(
+impl From<&WebAuthnAuthSecret> for axum_extra::extract::cookie::Cookie<'_> {
+	fn from(val: &WebAuthnAuthSecret) -> axum_extra::extract::cookie::Cookie<'static> {
+		axum_extra::extract::cookie::Cookie::build((
 			WEBAUTHN_AUTH_COOKIE,
-			self.code().to_str_that_i_wont_print().to_owned(),
-		)
+			val.code().to_str_that_i_wont_print(),
+		))
 		.http_only(true)
-		.same_site(SameSite::Lax)
 		.path("/")
-		.finish()
+		.build()
 	}
 }
 
-impl WebAuthnAuthSecret {
-	pub fn unset_cookie() -> Cookie<'static> {
-		let mut cookie: Cookie<'_> = Cookie::new(WEBAUTHN_AUTH_COOKIE, "");
-		cookie.make_removal();
-		cookie
+impl axum::extract::FromRequestParts<crate::AppState> for WebAuthnAuthSecret {
+	type Rejection = crate::error::AppError;
+
+	async fn from_request_parts(
+		parts: &mut axum::http::request::Parts,
+		state: &crate::AppState,
+	) -> Result<Self, Self::Rejection> {
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
+
+		let Some(cookie) = jar.get(WEBAUTHN_AUTH_COOKIE) else {
+			return Err(WebAuthnError::SecretNotFound.into());
+		};
+
+		Self::try_from_string(cookie.value().to_string(), &state.db).await
 	}
 }

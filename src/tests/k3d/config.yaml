@@ -1,0 +1,29 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: magicentry-e2e
+servers: 1
+agents: 0
+image: rancher/k3s:latest
+network: magicentry-network
+ports:
+  # Expose k3d HTTP port to host
+  - port: 8880:80
+    nodeFilters:
+      - server:0
+  # Expose k3d HTTPS port to host
+  - port: 8443:443
+    nodeFilters:
+      - server:0
+  - port: 9090:9090
+    nodeFilters:
+      - server:0
+options:
+  k3s:
+    extraArgs:
+      - arg: --disable=traefik
+        nodeFilters:
+          - server:0
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

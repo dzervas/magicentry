@@ -1,7 +1,7 @@
-use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use serde::{Serialize, Serializer};
 
-use crate::{generate_cors_preflight, CONFIG};
+// use crate::generate_cors_preflight;
+use crate::config::LiveConfig;
 
 // Serialize a vector of strings as a space-separated string
 #[allow(clippy::ptr_arg)]
@@ -14,9 +14,8 @@ fn serialize_vec_with_space<S: Serializer>(
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Discovery<'a> {
-	pub issuer: &'a str,
+	pub issuer: String,
 
-	// These are String because they get constructed with format!
 	pub authorization_endpoint: String,
 	pub token_endpoint: String,
 	pub userinfo_endpoint: String,
@@ -36,22 +35,33 @@ pub struct Discovery<'a> {
 }
 
 impl<'a> Discovery<'a> {
-	pub async fn new(base: &'a str, external_url: &'a str) -> Self {
+	#[must_use]
+	pub fn new(base: String, external_url: String) -> Self {
 		Discovery {
-			issuer: base,
+			issuer: base.clone(),
 
-			authorization_endpoint: format!("{}/oidc/authorize", external_url),
-			token_endpoint: format!("{}/oidc/token", base),
-			userinfo_endpoint: format!("{}/oidc/userinfo", base),
-			end_session_endpoint: format!("{}/logout", external_url),
-			jwks_uri: format!("{}/oidc/jwks", base),
+			authorization_endpoint: format!("{external_url}/oidc/authorize"),
+			token_endpoint: format!("{base}/oidc/token"),
+			userinfo_endpoint: format!("{base}/oidc/userinfo"),
+			end_session_endpoint: format!("{external_url}/logout"),
+			jwks_uri: format!("{base}/oidc/jwks"),
 
 			scopes_supported: vec!["openid", "profile", "email"],
 			response_types_supported: vec!["code", "id_token", "id_token token"],
 			id_token_signing_alg_values_supported: vec!["RS256"],
 			userinfo_signing_alg_values_supported: vec!["none"],
-			token_endpoint_auth_methods_supported: vec!["client_secret_post", "client_secret_basic"],
-			claims_supported: vec!["sub", "email", "preferred_username", "name", "nickname", "email_verified"],
+			token_endpoint_auth_methods_supported: vec![
+				"client_secret_post",
+				"client_secret_basic",
+			],
+			claims_supported: vec![
+				"sub",
+				"email",
+				"preferred_username",
+				"name",
+				"nickname",
+				"email_verified",
+			],
 
 			// Pairwise would require a different username per client, too much hassle
 			subject_types_supported: vec!["public"],
@@ -59,21 +69,26 @@ impl<'a> Discovery<'a> {
 	}
 }
 
-generate_cors_preflight!(
-	discover_preflight,
-	"/.well-known/openid-configuration",
-	"GET"
-);
+// generate_cors_preflight!(
+// 	discover_preflight,
+// 	"/.well-known/openid-configuration",
+// 	"GET"
+// );
 
-#[get("/.well-known/openid-configuration")]
-pub async fn discover(req: HttpRequest) -> impl Responder {
-	let config = CONFIG.read().await;
-	let base_url = config.url_from_request(&req);
-	let external_url = config.external_url.clone();
-	let discovery = Discovery::new(&base_url, &external_url).await;
-	HttpResponse::Ok()
-		.append_header(("Access-Control-Allow-Origin", "*"))
-		.append_header(("Access-Control-Allow-Methods", "GET, OPTIONS"))
-		.append_header(("Access-Control-Allow-Headers", "Content-Type"))
-		.json(discovery)
+#[axum::debug_handler]
+pub async fn handle_discover(
+	config: LiveConfig,
+	axum::extract::State(_state): axum::extract::State<crate::AppState>,
+	axum_extra::extract::Host(host): axum_extra::extract::Host,
+) -> impl axum::response::IntoResponse {
+	let discovery = Discovery::new(host, config.external_url.clone());
+
+	(
+		[
+			("Access-Control-Allow-Origin", "*"),
+			("Access-Control-Allow-Methods", "GET, OPTIONS"),
+			("Access-Control-Allow-Headers", "Content-Type"),
+		],
+		axum::Json(discovery),
+	)
 }

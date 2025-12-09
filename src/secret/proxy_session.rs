@@ -1,54 +1,94 @@
-use futures::future::BoxFuture;
+use axum::RequestPartsExt;
+use axum::extract::OptionalFromRequestParts;
+use axum::http::request::Parts;
+use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::Cookie;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
-use crate::{CONFIG, PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
+use crate::config::LiveConfig;
+use crate::error::{AppError, AuthError, ProxyError};
+use crate::{AppState, OriginalUri, PROXY_SESSION_COOKIE};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
-use super::{ChildSecretMetadata, EmptyMetadata};
+use super::{ChildSecretMetadata, EmptyMetadata, SecretType};
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProxySessionSecretKind;
 
 impl UserSecretKind for ProxySessionSecretKind {
-	const PREFIX: &'static str = "proxy_session";
+	const PREFIX: SecretType = SecretType::ProxySession;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
-	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration {
+		config.session_duration
+	}
 }
 
 pub type ProxySessionSecret = UserSecret<ProxySessionSecretKind>;
 
-impl actix_web::FromRequest for ProxySessionSecret {
-	type Error = crate::error::Error;
-	type Future = BoxFuture<'static, Result<Self>>;
+impl OptionalFromRequestParts<AppState> for ProxySessionSecret {
+	type Rejection = AppError;
 
-	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let Some(origin_header) = req.headers().get(PROXY_ORIGIN_HEADER).cloned() else {
-			log::warn!("Got a proxy session request with no origin");
-			return Box::pin(async { Err(AppErrorKind::MissingOriginHeader.into()) });
-		};
-		let Some(code) = req.cookie(PROXY_SESSION_COOKIE) else {
-			return Box::pin(async { Err(AppErrorKind::NotLoggedIn.into()) });
-		};
-		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
-			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
+	async fn from_request_parts(
+		parts: &mut Parts,
+		state: &AppState,
+	) -> Result<Option<Self>, Self::Rejection> {
+		let Ok(OriginalUri(origin_url)) = parts.extract::<OriginalUri>().await else {
+			return Ok(None);
 		};
 
-		let code = code.value().to_string();
-		Box::pin(async move {
-			let origin_url = url::Url::parse(origin_header.to_str()?)?;
-			let config = CONFIG.read().await;
-			let service = config.services.from_auth_url_origin(&origin_url.origin()).ok_or(AppErrorKind::InvalidOriginHeader)?;
-			let secret = Self::try_from_string(code, db.get_ref()).await?;
+		let Ok(jar) = parts.extract::<CookieJar>().await;
+		let Some(code) = jar.get(PROXY_SESSION_COOKIE) else {
+			return Ok(None);
+		};
 
-			if !service.is_user_allowed(secret.user()) {
-				log::warn!("User {} tried to access {} with a proxy session", secret.user().email, service.name);
-				return Err(AppErrorKind::Unauthorized.into());
+		let secret = match Self::try_from_string(code.value().to_string(), &state.db).await {
+			Ok(secret) => secret,
+			Err(AppError::Auth(
+				AuthError::ExpiredSecret
+				| AuthError::InvalidSecret
+				| AuthError::InvalidSecretType
+				| AuthError::InvalidSecretMetadata,
+			)) => {
+				tracing::warn!("Ignoring invalid proxy session during auth-url status check");
+				return Ok(None);
 			}
+			Err(err) => {
+				tracing::error!(error = %err, "Failed to create proxy session secret from string");
+				return Err(err);
+			}
+		};
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
+		let service = config
+			.services
+			.from_auth_url_origin(&origin_url.origin())
+			.ok_or_else(|| {
+				AppError::Proxy(ProxyError::operation(
+					"Origin not found in service configuration",
+				))
+			})?;
 
-			Ok(secret)
-		})
+		if !service.is_user_allowed(secret.user()) {
+			tracing::warn!(
+				"User {} tried to access {} with a proxy code",
+				secret.user().email,
+				service.name
+			);
+			return Err(AuthError::Unauthorized.into());
+		}
+
+		Ok(Some(secret))
+	}
+}
+
+impl From<&ProxySessionSecret> for Cookie<'_> {
+	fn from(val: &ProxySessionSecret) -> Cookie<'static> {
+		Cookie::build((PROXY_SESSION_COOKIE, val.code().to_str_that_i_wont_print()))
+			.http_only(true)
+			.path("/")
+			.build()
 	}
 }

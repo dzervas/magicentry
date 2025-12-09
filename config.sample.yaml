@@ -9,7 +9,11 @@ listen_host: 0.0.0.0
 listen_port: 8080
 # Path prefix to prepend to the returned URLs (for weird proxied setups)
 path_prefix: /
+
 # URL that the server will be accessible at from the users
+#
+# NOTE: This MUST be a domain if webauthn is enabled, otherwise it will throw the following error:
+# rp_id is not an effective_domain of rp_origin
 external_url: http://localhost:8080
 
 # How long will the magic link be valid for (account for email delivery time too)
@@ -29,13 +33,13 @@ title: MagicEntry
 # Header-based authentication, OIDC or SAML
 auth_url_enable: true
 # The username header of the authenticated user
-auth_url_user_header: X-Auth-User
+auth_url_user_header: X-Remote-User
 # The full name header of the authenticated user
-auth_url_name_header: X-Auth-Name
+auth_url_name_header: X-Remote-Name
 # The email header of the authenticated user
-auth_url_email_header: X-Auth-Email
+auth_url_email_header: X-Remote-Email
 # The realms that this user has access to
-auth_url_realms_header: X-Auth-Realms
+auth_url_realms_header: X-Remote-Realms
 
 # How long does an OIDC code last
 oidc_code_duration: 1m
@@ -68,20 +72,20 @@ webauthn_enable: true
 
 # List of the users that can authenticate using the service
 # You can either list them here or load them from another file using `users_file`
-users_file: users.sample.yaml
-# users:
-#   - username: valid
-#     name: Valid User
-#     email: valid@example.com
-#     realms:
-#       - example
+# users_file: users.sample.yaml
+users:
+  - username: valid
+    name: Valid User
+    email: valid@example.com
+    realms:
+      - example
 
 # Services that can use magicentry
 services:
   # Service name (for cataloging)
   - name: example
     # URL of the service (for cataloging)
-    url: https://openidconnect.net
+    url: http://localhost:8080
     # Realms of which users have access to
     realms:
       - example
@@ -91,9 +95,27 @@ services:
       # Omit the paths, only the scheme, host and port and a leading /
       origins:
         - https://openidconnect.net
-        - http://localhost:8080  # Used in the flow_scoped.rs test
-        - http://localhost:8081  # Used in hurl
-    valid_origins:
+        - http://localhost:8080 # Used in the flow_scoped.rs test
+        - http://localhost:8081 # Used in hurl
+      # (Optional) When protecting an external service that already has its own
+      # session, MagicEntry can check its auth status by calling an endpoint
+      # with the service's cookie. If that endpoint returns 200, MagicEntry
+      # also returns 200.
+      status_url: http://example.com/check
+      # Single cookie (legacy)
+      status_cookie: HELLO
+      # Multiple cookies can also be forwarded
+      status_cookies:
+        - HELLO
+        - SESSIONID
+      # Optional request headers to forward (values come from the incoming request)
+      status_headers:
+        - X-Status-Check
+      # Optional authentication for the upstream status check
+      status_auth:
+        type: basic
+        username: status-user
+        password: supersecret
     # OIDC configuration (optional)
     # All of the settings below are tightly coupled with the service config
     oidc:
