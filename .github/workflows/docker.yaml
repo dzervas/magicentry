@@ -81,7 +81,7 @@ jobs:
             type=ref,event=branch,enable=${{ (github.event_name == 'push' && github.ref_type == 'branch') || inputs.app != '' }}
 
       - name: Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: cache
         with:
           path: |
