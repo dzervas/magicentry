@@ -94,7 +94,7 @@ jobs:
           cargo build --release --target ${{ matrix.target.triplet }} --features ${{ matrix.feature }}
           cp target/${{ matrix.target.triplet }}/release/magicentry magicentry-${{ matrix.feature }}-${{ matrix.target.name }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: binary-${{ matrix.feature }}-${{ matrix.target.name }}
           path: magicentry-*
