@@ -3220,7 +3220,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"tailwindcss@npm:4, tailwindcss@npm:4.1.14":
+"tailwindcss@npm:4":
+  version: 4.1.18
+  resolution: "tailwindcss@npm:4.1.18"
+  checksum: 6e1ccc22d444177773f28080fd6f9430f39be31a93708c6d698859431a677eb5c1a7993996a03d8fcbc4c68b7c3fcbf724e02be108a63b92cadd731ef27daf6f
+  languageName: node
+  linkType: hard
+
+"tailwindcss@npm:4.1.14":
   version: 4.1.14
   resolution: "tailwindcss@npm:4.1.14"
   checksum: 055ce9ebd099284509546320df215800170f3475349464721af04b97ff631f547b85b113ccf5f193ef9b05239f8670201515e2530db99e0bf70fb2b35bfa1a6c
