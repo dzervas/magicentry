@@ -70,17 +70,18 @@ pub mod database;
 pub mod error;
 pub mod oidc;
 pub mod saml;
+pub mod secret;
 pub mod service;
 pub mod user;
-pub mod secret;
 pub mod utils;
 pub mod webauthn;
 
+pub mod handle_api_key;
 pub mod handle_index;
-pub mod handle_login_post;
-pub mod handle_magic_link;
 pub mod handle_login;
+pub mod handle_login_post;
 pub mod handle_logout;
+pub mod handle_magic_link;
 pub mod handle_static;
 
 #[cfg(test)]

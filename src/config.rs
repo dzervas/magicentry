@@ -35,12 +35,16 @@ pub struct ConfigFile {
 
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub link_duration: Duration,
-    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-    pub session_duration: Duration,
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub session_duration: Duration,
 
-    /// Interval for periodic cleanup of expired secrets
-    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-    pub secrets_cleanup_interval: Duration,
+	/// Maximum allowed API key duration. 0 means no limit
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub api_key_max_expiration: Duration,
+
+	/// Interval for periodic cleanup of expired secrets
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub secrets_cleanup_interval: Duration,
 
 	pub title: String,
 	pub static_path: String,
@@ -79,8 +83,8 @@ pub struct ConfigFile {
 }
 
 impl Default for ConfigFile {
-    fn default() -> Self {
-        Self {
+	fn default() -> Self {
+		Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
 
 			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
@@ -90,6 +94,8 @@ impl Default for ConfigFile {
 
 			link_duration   : Duration::try_hours(12).unwrap(),
             session_duration: Duration::try_days(30).unwrap(),
+
+            api_key_max_expiration: Duration::try_days(365).unwrap(),
 
             secrets_cleanup_interval: Duration::try_hours(24).unwrap(),
 
@@ -128,7 +134,7 @@ impl Default for ConfigFile {
 
 			services: Services(vec![]),
         }
-    }
+	}
 }
 
 impl ConfigFile {
@@ -163,16 +169,13 @@ impl ConfigFile {
 		let mut config = CONFIG.write().await;
 		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
 
-		let mut new_config = serde_yaml::from_str::<ConfigFile>(
-			&std::fs::read_to_string(CONFIG_FILE.as_str())?
-		)?;
+		let mut new_config =
+			serde_yaml::from_str::<ConfigFile>(&std::fs::read_to_string(CONFIG_FILE.as_str())?)?;
 
 		if let Some(users_file) = &new_config.users_file {
-			new_config.users.extend(
-				serde_yaml::from_str::<Vec<User>>(
-					&std::fs::read_to_string(users_file)?
-				)?
-			);
+			new_config.users.extend(serde_yaml::from_str::<Vec<User>>(
+				&std::fs::read_to_string(users_file)?,
+			)?);
 		}
 
 		if new_config.users_file != config.users_file {
@@ -191,25 +194,27 @@ impl ConfigFile {
 			.with_poll_interval(std::time::Duration::from_secs(2))
 			.with_follow_symlinks(true);
 
-		let mut watcher = notify::PollWatcher::new(move |_| {
-			log::info!("Config file changed, reloading");
-			futures::executor::block_on(async {
-				if let Err(e) = ConfigFile::reload().await {
-					log::error!("Failed to reload config file: {}", e);
-				}
-			})
-		}, watcher_config)
-			.expect("Failed to create watcher for the config file");
+		let mut watcher = notify::PollWatcher::new(
+			move |_| {
+				log::info!("Config file changed, reloading");
+				futures::executor::block_on(async {
+					if let Err(e) = ConfigFile::reload().await {
+						log::error!("Failed to reload config file: {}", e);
+					}
+				})
+			},
+			watcher_config,
+		)
+		.expect("Failed to create watcher for the config file");
 
 		watcher
-			.watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
+			.watch(
+				Path::new(CONFIG_FILE.as_str()),
+				notify::RecursiveMode::NonRecursive,
+			)
 			.expect("Failed to watch config file for changes");
 
-		if let Some(users_file) = CONFIG
-			.try_read()
-			.ok()
-			.and_then(|c| c.users_file.clone())
-		{
+		if let Some(users_file) = CONFIG.try_read().ok().and_then(|c| c.users_file.clone()) {
 			watcher
 				.watch(Path::new(&users_file), notify::RecursiveMode::NonRecursive)
 				.expect("Failed to watch users file for changes");
@@ -235,9 +240,7 @@ impl ConfigFile {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
 		Ok(data
 			.lines()
-			.filter(|line| {
-				!line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY")
-			})
+			.filter(|line| !line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY"))
 			.collect::<String>()
 			.replace("\n", ""))
 	}
@@ -256,19 +259,23 @@ pub struct ConfigKV {
 
 impl ConfigKV {
 	/// Set the provided key to the provided value - overwrites any previous values
-	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> crate::error::Result<()> {
+	pub async fn set(
+		key: ConfigKeys,
+		value: Option<String>,
+		db: &Database,
+	) -> crate::error::Result<()> {
 		let key_str = serde_json::to_string(&key)?;
 		let value_str = value.unwrap_or_default();
-		
+
 		let row = ConfigKVRow {
 			key: key_str,
 			value: value_str,
 			updated_at: None,
 		};
-		
+
 		row.save(db).await
 	}
-	
+
 	/// Get a config value by key
 	pub async fn get(key: &ConfigKeys, db: &Database) -> crate::error::Result<Option<String>> {
 		let key_str = serde_json::to_string(key)?;

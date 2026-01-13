@@ -1,28 +1,30 @@
 #![allow(async_fn_in_trait)]
-pub mod primitive;
+pub mod cleanup;
 pub mod ephemeral_primitive;
 pub mod metadata;
-pub mod cleanup;
+pub mod primitive;
 
 // Secret types
+pub mod api_key;
 pub mod browser_session;
 pub mod login_link;
+pub mod oidc_authcode;
+pub mod oidc_token;
 pub mod proxy_code;
 pub mod proxy_session;
-pub mod oidc_token;
-pub mod oidc_authcode;
 pub mod webauthn_auth;
 pub mod webauthn_reg;
 
+pub use api_key::{ApiKeyInfo, ApiKeySecret};
 pub use browser_session::BrowserSessionSecret;
 pub use login_link::LoginLinkSecret;
-pub use proxy_code::ProxyCodeSecret;
-pub use proxy_session::ProxySessionSecret;
+pub use metadata::{ChildSecretMetadata, EmptyMetadata, MetadataKind};
 pub use oidc_authcode::OIDCAuthCodeSecret;
 pub use oidc_token::OIDCTokenSecret;
+pub use proxy_code::ProxyCodeSecret;
+pub use proxy_session::ProxySessionSecret;
 pub use webauthn_auth::WebAuthnAuthSecret;
 pub use webauthn_reg::WebAuthnRegSecret;
-pub use metadata::{MetadataKind, ChildSecretMetadata, EmptyMetadata};
 
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +38,9 @@ pub fn get_prefix(prefix: &str) -> String {
 pub struct SecretString(String);
 
 impl SecretString {
-	pub fn to_str_that_i_wont_print(&self) -> &str { &self.0 }
+	pub fn to_str_that_i_wont_print(&self) -> &str {
+		&self.0
+	}
 }
 
 impl SecretString {
