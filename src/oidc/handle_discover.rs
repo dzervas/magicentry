@@ -1,3 +1,4 @@
+use axum::http::uri::Scheme;
 use serde::{Serialize, Serializer};
 
 // use crate::generate_cors_preflight;
@@ -81,8 +82,11 @@ pub async fn handle_discover(
 	config: LiveConfig,
 	axum::extract::State(_state): axum::extract::State<crate::AppState>,
 	axum_extra::extract::Host(host): axum_extra::extract::Host,
+	axum::extract::OriginalUri(original_uri): axum::extract::OriginalUri,
 ) -> impl axum::response::IntoResponse {
-	let discovery = Discovery::new(host, config.external_url.clone());
+	// TODO: There's probably a bug here, x-forwarded-proto needs to be taken into account as well
+	let url = format!("{}://{}", original_uri.scheme().unwrap_or(&Scheme::HTTP), host);
+	let discovery = Discovery::new(url, config.external_url.clone());
 
 	(
 		[

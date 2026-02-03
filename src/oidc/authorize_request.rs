@@ -86,7 +86,7 @@ impl AuthorizeRequest {
 		};
 		debug!("JWT Data: {jwt_data:?}");
 
-		let header = Header::default();
+		let header = Header::new(crate::JWT_ALGORITHM);
 		let id_token = encode(&header, &jwt_data, encoding_key)
 			.with_context(|| format!("Failed to encode ID token for user {}", user.email))?;
 
