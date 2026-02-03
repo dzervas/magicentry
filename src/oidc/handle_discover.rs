@@ -61,6 +61,7 @@ impl<'a> Discovery<'a> {
 				"name",
 				"nickname",
 				"email_verified",
+				"groups",
 			],
 
 			// Pairwise would require a different username per client, too much hassle

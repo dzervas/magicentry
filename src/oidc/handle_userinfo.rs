@@ -11,6 +11,7 @@ pub struct UserInfoResponse {
 	pub email: String,
 	pub email_verified: bool,
 	pub preferred_username: String,
+	pub groups: Vec<String>,
 }
 
 #[axum::debug_handler]
@@ -23,6 +24,7 @@ pub async fn handle_userinfo(_: State<AppState>, oidc_token: OIDCTokenSecret) ->
 		email: user.email.clone(),
 		email_verified: true,
 		preferred_username: user.username.clone(),
+		groups: user.realms.clone(),
 	};
 
 	axum::Json(resp)
