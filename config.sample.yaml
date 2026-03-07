@@ -102,8 +102,6 @@ services:
       # with the service's cookie. If that endpoint returns 200, MagicEntry
       # also returns 200.
       status_url: http://example.com/check
-      # Single cookie (legacy)
-      status_cookie: HELLO
       # Multiple cookies can also be forwarded
       status_cookies:
         - HELLO

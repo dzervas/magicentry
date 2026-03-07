@@ -40,6 +40,8 @@ pub enum SecretType {
 	ProxySession,
 	WebAuthnAuth,
 	WebAuthnReg,
+
+	KubeOIDCSecret,
 }
 
 impl SecretType {
@@ -56,6 +58,7 @@ impl SecretType {
 			Self::ProxySession => "ps",
 			Self::WebAuthnAuth => "wa",
 			Self::WebAuthnReg => "wr",
+			Self::KubeOIDCSecret => "kube",
 		}
 	}
 }

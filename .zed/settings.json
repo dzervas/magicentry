@@ -1,0 +1,16 @@
+{
+	"languages": {
+		"Rust": {
+			"hard_tabs": true,
+		},
+	},
+	"lsp": {
+		"rust-analyzer": {
+			"initialization_options": {
+				"cargo": {
+					"features": ["kube"],
+				},
+			},
+		},
+	},
+}

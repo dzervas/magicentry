@@ -13,7 +13,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use futures::TryStreamExt;
 use k8s_openapi::ByteString;
-use k8s_openapi::api::core::v1::Secret;
+use k8s_openapi::api::core::v1::{Secret, Service as KubeService};
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::core::ObjectMeta;
 use kube::runtime::watcher;
@@ -24,9 +24,11 @@ use kube::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::config::Config;
+use crate::secret::{SecretString, SecretType};
 use crate::CONFIG;
 use crate::error::{AppError, AuthError};
-use crate::service::{Service, ServiceAuthUrl, ServiceOIDC};
+use crate::service::{Service, ServiceAuthUrl, ServiceOIDC, ServiceSAML};
 use crate::utils::random_string;
 
 /// The prefix for all magicentry-related annotations
@@ -300,27 +302,147 @@ async fn process_ingress(ingress: &Ingress) {
 	});
 }
 
-/// A kubernetes resource watcher, aimed to watch for ingress resources
-/// and update the global config accordingly
+/// This struct holds the magicentry-specific configuration of a kubernetes
+/// Ingress object, based on its annotations
 ///
-/// This function is asynchronously ran alongside the main actix-web server
-/// and will update the config file in the background
-pub async fn watch() -> Result<(), AppError> {
-	let client = Client::try_default()
-		.await
-		.context("Could not open the default kubernetes client for watching")?;
-	let ingresses: Api<Ingress> = Api::all(client);
+/// E.g. `name` is read from the `magicentry.rs/name` annotation
+///
+/// It essentially adds a new [Service] to the [`ConfigFile`](crate::ConfigFile)
+/// with automatically derived URL, auth-url settings, etc.
+///
+/// Ingress-specific values (e.g. [`manage_ingress_nginx`](IngressConfig::manage_ingress_nginx))
+/// allows for some implementation-specific behavior
+///
+// TODO: Create a custom serde deserializer for Service instead of this
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct KubeServiceAnnotations {
+	pub name: String,
+	pub url: String,
+	pub realms: String, // comma-separated list of realms
+	pub auth_url_origins: Option<String>, // comma-separated list of origins for the auth-url
+	pub auth_url_status_url: Option<String>,
 
-	tracing::info!("Watching for Ingresses");
+	/// OIDC configuration
+	/// `MagicEntry` automatically creates (and maintains) a secret with the OIDC credentials
+	/// (data keys are `clientID` and `clientSecret`)
+	pub oidc_target_secret: Option<String>,
+	pub oidc_redirect_urls: Option<String>,
+
+	/// SAML configuration from within kubernetes
+	pub saml_entity_id: Option<String>,
+	pub saml_redirect_urls: Option<String>,
+}
+
+fn normalized_annotations(
+    map: &BTreeMap<String, String>,
+) -> serde_json::Value {
+    let obj = map.iter()
+        .filter(|(k, _)| k.starts_with(ANNOTATION_PREFIX))
+        .map(|(k, v)| {
+            (
+                k.trim_start_matches(ANNOTATION_PREFIX).to_string(),
+                serde_json::Value::String(v.clone()),
+            )
+        })
+        .collect::<serde_json::Map<String, serde_json::Value>>();
+
+    serde_json::Value::Object(obj)
+}
+
+impl TryFrom<&KubeService> for KubeServiceAnnotations {
+    type Error = anyhow::Error;
+
+    fn try_from(service: &KubeService) -> anyhow::Result<Self> {
+	    let default_map = BTreeMap::new();
+        let labels = service.metadata.annotations.as_ref().unwrap_or(&default_map);
+        let de = normalized_annotations(labels);
+        Ok(serde_json::from_value(de)?)
+    }
+}
+
+pub async fn add_service_from_kube(service: &KubeService) -> anyhow::Result<()> {
+	let enabled = service.metadata.labels.as_ref()
+		.and_then(|labels| labels.get("magicentry.rs/enable"))
+		.is_some_and(|v| v == "true");
+	if !enabled {
+		tracing::info!("Kubernetes service {:?} is disabled, skipping", service.metadata.name.as_ref().unwrap_or(&String::new()));
+		return Ok(());
+	}
+
+	let labels = KubeServiceAnnotations::try_from(service)?;
+
+	let new_service = Service {
+		name: labels.name.clone(),
+		url: url::Url::parse(&labels.url)?,
+		realms: labels.realms.split(',').map(ToString::to_string).collect(),
+		auth_url: labels.auth_url_origins.and_then(|origins|
+			Some(ServiceAuthUrl {
+				origins: origins.split(',').map(ToString::to_string).collect(),
+				status_url: labels.auth_url_status_url.and_then(|u| url::Url::parse(&u).ok()),
+				status_cookies: None, // TODO: support auth-url cookies from labels too
+				status_auth: None, // TODO: support auth-url auth from labels too
+				status_headers: None, // TODO: support auth-url headers from labels too
+			})
+		),
+
+		oidc: labels.oidc_redirect_urls.and_then(|redirect_urls|
+			Some(ServiceOIDC {
+				client_id: format!("kube-{}", labels.name).to_string(),
+				client_secret: SecretString::new(&SecretType::KubeOIDCSecret).to_str_that_i_wont_print().to_string(),
+				redirect_urls: redirect_urls.split(',').filter_map(|u| url::Url::parse(u).ok()).collect(),
+			})
+		),
+		saml: labels.saml_redirect_urls.and_then(|redirect_urls|
+			Some(ServiceSAML {
+				entity_id: labels.saml_entity_id.clone().unwrap_or_else(|| format!("kube-{}", labels.name)),
+				redirect_urls: redirect_urls.split(',').filter_map(|u| url::Url::parse(u).ok()).collect(),
+			})
+		),
+	};
+
+	println!("New Service: {new_service:?}");
+
+	let name = &labels.name;
+	let config_ref = CONFIG.read().await;
+	let mut new_config: Config = (*config_ref).as_ref().clone();
+	if new_config.services.get(name).is_none() {
+		tracing::info!("Adding service {name} to config");
+		new_config.services.0.push(new_service);
+	} else if let Some(existing_service) = new_config.services.get_mut(name)
+		&& existing_service != &new_service
+	{
+		tracing::info!("Updating service {name} in config");
+		*existing_service = new_service;
+	}
+
+	let mut config = CONFIG.write().await;
+	*config = Arc::new(new_config);
+	drop(config);
+
+	Ok(())
+}
+
+pub async fn watch_service(service: Api<KubeService>) -> anyhow::Result<()>
+{
+	tracing::info!("Watching for kubernetes service resources");
+	let watcher_config = watcher::Config {
+		label_selector: Some(format!("{ANNOTATION_PREFIX}enable=true")),
+		..Default::default()
+	};
 
 	loop {
-		watcher::watcher(ingresses.clone(), watcher::Config::default())
+		watcher::watcher(service.clone(), watcher_config.clone())
 			.try_for_each(|event| async move {
 				match event {
-					Event::Apply(ingress) | Event::InitApply(ingress) => process_ingress(&ingress).await,
-					Event::Delete(ingress) => {
+					Event::Apply(svc) | Event::InitApply(svc) => {
+						tracing::info!("Kubernetes service resource {:?} was created/updated", svc.metadata.name.clone().unwrap_or_default());
+						add_service_from_kube(&svc).await.unwrap_or_else(|e| {
+							tracing::error!("Failed to process kubernetes service resource {:?}: {e:?}", svc.metadata.name.unwrap_or_default());
+						});
+					},
+					Event::Delete(svc) => {
 						// TODO: Take care of deleted events too
-						tracing::warn!("Ingress {} was deleted but was not removed from the config - this feature is not implemented yet", ingress.metadata.name.unwrap_or_default());
+						tracing::warn!("Kubernetes service resource {} was deleted", svc.metadata.name.clone().unwrap_or_default());
 					}
 					_ => {}
 				}
@@ -330,12 +452,26 @@ pub async fn watch() -> Result<(), AppError> {
 		)
 		.await
 		.unwrap_or_else(|e| {
-			tracing::error!("Ingress watch stream ended unexpectedly: {e:?}");
+			tracing::error!("Service watch stream ended unexpectedly: {e:?}");
 		});
 
 		tracing::warn!(
-			"Ingress watch stream ended unexpectedly - waiting 5 seconds before retrying"
+			"Service watch stream ended unexpectedly - waiting 5 seconds before retrying"
 		);
 		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 	}
+}
+
+/// A kubernetes resource watcher, aimed to watch for ingress resources
+/// and update the global config accordingly
+///
+/// This function is asynchronously ran alongside the main actix-web server
+/// and will update the config file in the background
+pub async fn watch() -> anyhow::Result<()> {
+	let client = Client::try_default()
+		.await
+		.context("Could not open the default kubernetes client for watching")?;
+	let services: Api<KubeService> = Api::all(client.clone());
+
+	watch_service(services).await
 }
