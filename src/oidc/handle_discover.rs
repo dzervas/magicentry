@@ -49,7 +49,7 @@ impl<'a> Discovery<'a> {
 
 			scopes_supported: vec!["openid", "profile", "email"],
 			response_types_supported: vec!["code", "id_token", "id_token token"],
-			id_token_signing_alg_values_supported: vec!["RS256"],
+			id_token_signing_alg_values_supported: vec!["HS256"],
 			userinfo_signing_alg_values_supported: vec!["none"],
 			token_endpoint_auth_methods_supported: vec![
 				"client_secret_post",

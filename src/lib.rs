@@ -109,7 +109,7 @@ pub const SESSION_COOKIE: &str = "session_id";
 /// to aid a bit on the transition to come to a new db
 pub type Database = sqlx::SqlitePool;
 
-pub const JWT_ALGORITHM: jsonwebtoken::Algorithm = jsonwebtoken::Algorithm::RS256;
+pub const JWT_ALGORITHM: jsonwebtoken::Algorithm = jsonwebtoken::Algorithm::HS256;
 
 /// The type of the [lettre](lettre::transport) `SmtpTransport`, defined to allow
 /// for switching between actual and stub implementations during testing
