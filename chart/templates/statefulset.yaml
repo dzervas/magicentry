@@ -49,6 +49,20 @@ spec:
             value: /db/database.db
           - name: LISTEN_HOST
             value: 0.0.0.0
+          {{- range $name, $value := .Values.env }}
+          - name: {{ $name }}
+            value: {{ $value | quote }}
+          {{- end }}
+          {{- range .Values.envSecrets }}
+          - name: {{ .name }}
+            valueFrom:
+              secretKeyRef:
+                name: {{ .secretName | quote }}
+                key: {{ .secretKey | quote }}
+                {{- with .optional }}
+                optional: {{ . }}
+                {{- end }}
+          {{- end }}
         ports:
           - containerPort: {{ .Values.config.listen_port | default 8080 }}
             protocol: TCP
@@ -60,6 +74,14 @@ spec:
           mountPath: /config/config.yaml
           subPath: config.yaml
           readOnly: true
+        {{- range .Values.extraSecretMounts }}
+        - name: {{ .name | quote }}
+          mountPath: {{ .mountPath | quote }}
+          readOnly: true
+          {{- with .subPath }}
+          subPath: {{ . | quote }}
+          {{- end }}
+        {{- end }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds | default 30 }}
       volumes:
         - name: config
@@ -68,6 +90,17 @@ spec:
             items:
               - key: config.yaml
                 path: config.yaml
+        {{- range .Values.extraSecretMounts }}
+        - name: {{ .name | quote }}
+          secret:
+            secretName: {{ .secretName | quote }}
+            {{- with .optional }}
+            optional: {{ . }}
+            {{- end }}
+            {{- with .defaultMode }}
+            defaultMode: {{ . }}
+            {{- end }}
+        {{- end }}
       {{- if not .Values.persistence.enabled }}
         - name: "{{ .Chart.Name }}-database"
           emptyDir: {}

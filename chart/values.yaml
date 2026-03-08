@@ -28,6 +28,22 @@ podSecurityContext: {}
 
 terminationGracePeriodSeconds: 30
 
+env: {}
+#  SMTP_URL: smtp://user@pass:localhost:25/?tls=required
+#  REQUEST_URL: https://www.cinotify.cc/api/notify
+#  REQUEST_DATA: to={email}&subject={title} Login&body=Click the link to login: <a href="{magic_link}">Login</a>&type=text/html
+
+envSecrets: []
+#  - name: SMTP_URL
+#    secretName: magicentry-env
+#    secretKey: SMTP_URL
+#  - name: REQUEST_URL
+#    secretName: magicentry-env
+#    secretKey: REQUEST_URL
+#  - name: REQUEST_DATA
+#    secretName: magicentry-env
+#    secretKey: REQUEST_DATA
+
 securityContext:
   capabilities:
     drop:
@@ -84,6 +100,13 @@ volumes: []
 
 # Additional volumeMounts on the output Deployment definition.
 volumeMounts: []
+
+# Additional read-only secret mounts on the output StatefulSet definition.
+extraSecretMounts: []
+#  - name: example-secret
+#    secretName: example-secret
+#    mountPath: /var/run/secrets/example
+#    optional: false
 
 tolerations: []
 
