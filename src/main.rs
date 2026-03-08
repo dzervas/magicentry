@@ -56,7 +56,7 @@ async fn main() {
 	}
 	drop(config_inst);
 
-	let (addr, server) = axum_run(None, db.clone(), config, link_senders, None).await;
+	let (addr, server) = axum_run(None, db.clone(), config.clone(), link_senders, None).await;
 
 	let _watcer = Config::watch(CONFIG_FILE.as_str());
 	spawn_cleanup_job(db.clone());
@@ -66,7 +66,7 @@ async fn main() {
 	#[cfg(feature = "kube")]
 	tokio::select! {
 		r = server => r,
-		k = magicentry::config_kube::watch() => Err(std::io::Error::other(format!("Kube watcher failed: {k:?}"))),
+		k = magicentry::config_kube::watch(config) => Err(std::io::Error::other(format!("Kube watcher failed: {k:?}"))),
 	}.unwrap();
 
 	#[cfg(not(feature = "kube"))]

@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use anyhow::Context;
+use arc_swap::ArcSwap;
 use futures::TryStreamExt;
 use k8s_openapi::ByteString;
 use k8s_openapi::api::core::v1::{Secret, Service as KubeService};
@@ -360,53 +361,51 @@ impl TryFrom<&KubeService> for KubeServiceAnnotations {
     }
 }
 
-pub async fn add_service_from_kube(service: &KubeService) -> anyhow::Result<()> {
+pub async fn add_service_from_kube(config: Arc<ArcSwap<Config>>, service: &KubeService) -> anyhow::Result<()> {
 	let enabled = service.metadata.labels.as_ref()
 		.and_then(|labels| labels.get("magicentry.rs/enable"))
 		.is_some_and(|v| v == "true");
 	if !enabled {
-		tracing::info!("Kubernetes service {:?} is disabled, skipping", service.metadata.name.as_ref().unwrap_or(&String::new()));
-		return Ok(());
+		tracing::info!("Kubernetes service {:?} is disabled, removing", service.metadata.name.as_ref().unwrap_or(&String::new()));
+		return remove_service_from_kube(config, service).await;
 	}
 
-	let labels = KubeServiceAnnotations::try_from(service)?;
+	let annotations = KubeServiceAnnotations::try_from(service)?;
 
 	let new_service = Service {
-		name: labels.name.clone(),
-		url: url::Url::parse(&labels.url)?,
-		realms: labels.realms.split(',').map(ToString::to_string).collect(),
-		auth_url: labels.auth_url_origins.and_then(|origins|
+		name: annotations.name.clone(),
+		url: url::Url::parse(&annotations.url)?,
+		realms: annotations.realms.split(',').map(ToString::to_string).collect(),
+		auth_url: annotations.auth_url_origins.and_then(|origins|
 			Some(ServiceAuthUrl {
 				origins: origins.split(',').map(ToString::to_string).collect(),
-				status_url: labels.auth_url_status_url.and_then(|u| url::Url::parse(&u).ok()),
+				status_url: annotations.auth_url_status_url.and_then(|u| url::Url::parse(&u).ok()),
 				status_cookies: None, // TODO: support auth-url cookies from labels too
 				status_auth: None, // TODO: support auth-url auth from labels too
 				status_headers: None, // TODO: support auth-url headers from labels too
 			})
 		),
 
-		oidc: labels.oidc_redirect_urls.and_then(|redirect_urls|
+		oidc: annotations.oidc_redirect_urls.and_then(|redirect_urls|
 			Some(ServiceOIDC {
-				client_id: format!("kube-{}", labels.name).to_string(),
+				client_id: format!("kube-{}", annotations.name).to_string(),
 				client_secret: SecretString::new(&SecretType::KubeOIDCSecret).to_str_that_i_wont_print().to_string(),
 				redirect_urls: redirect_urls.split(',').filter_map(|u| url::Url::parse(u).ok()).collect(),
 			})
 		),
-		saml: labels.saml_redirect_urls.and_then(|redirect_urls|
+		saml: annotations.saml_redirect_urls.and_then(|redirect_urls|
 			Some(ServiceSAML {
-				entity_id: labels.saml_entity_id.clone().unwrap_or_else(|| format!("kube-{}", labels.name)),
+				entity_id: annotations.saml_entity_id.clone().unwrap_or_else(|| format!("kube-{}", annotations.name)),
 				redirect_urls: redirect_urls.split(',').filter_map(|u| url::Url::parse(u).ok()).collect(),
 			})
 		),
 	};
 
-	println!("New Service: {new_service:?}");
-
-	let name = &labels.name;
-	let config_ref = CONFIG.read().await;
+	let name = &annotations.name;
+	let config_ref = config.load();
 	let mut new_config: Config = (*config_ref).as_ref().clone();
 	if new_config.services.get(name).is_none() {
-		tracing::info!("Adding service {name} to config");
+		tracing::info!("Adding service {name:?} to config");
 		new_config.services.0.push(new_service);
 	} else if let Some(existing_service) = new_config.services.get_mut(name)
 		&& existing_service != &new_service
@@ -415,14 +414,28 @@ pub async fn add_service_from_kube(service: &KubeService) -> anyhow::Result<()> 
 		*existing_service = new_service;
 	}
 
-	let mut config = CONFIG.write().await;
-	*config = Arc::new(new_config);
-	drop(config);
+	config.store(Arc::new(new_config));
 
 	Ok(())
 }
 
-pub async fn watch_service(service: Api<KubeService>) -> anyhow::Result<()>
+pub async fn remove_service_from_kube(config: Arc<ArcSwap<Config>>, service: &KubeService) -> anyhow::Result<()> {
+	let name = KubeServiceAnnotations::try_from(service)?.name;
+	let config_ref = config.load();
+	let mut new_config: Config = (*config_ref).as_ref().clone();
+
+	if new_config.services.get(&name).is_none() {
+		tracing::info!("Skipping removal of service {name:?} since it doesn't exist");
+	} else {
+		tracing::info!("Removing service {name:?} from the config");
+		new_config.services.0.retain(|s| s.name != name);
+		config.store(Arc::new(new_config));
+	}
+
+	Ok(())
+}
+
+pub async fn watch_service(config: Arc<ArcSwap<Config>>, service: Api<KubeService>) -> anyhow::Result<()>
 {
 	tracing::info!("Watching for kubernetes service resources");
 	let watcher_config = watcher::Config {
@@ -432,22 +445,28 @@ pub async fn watch_service(service: Api<KubeService>) -> anyhow::Result<()>
 
 	loop {
 		watcher::watcher(service.clone(), watcher_config.clone())
-			.try_for_each(|event| async move {
-				match event {
-					Event::Apply(svc) | Event::InitApply(svc) => {
-						tracing::info!("Kubernetes service resource {:?} was created/updated", svc.metadata.name.clone().unwrap_or_default());
-						add_service_from_kube(&svc).await.unwrap_or_else(|e| {
-							tracing::error!("Failed to process kubernetes service resource {:?}: {e:?}", svc.metadata.name.unwrap_or_default());
-						});
-					},
-					Event::Delete(svc) => {
-						// TODO: Take care of deleted events too
-						tracing::warn!("Kubernetes service resource {} was deleted", svc.metadata.name.clone().unwrap_or_default());
+			.try_for_each(|event| {
+				let config = config.clone();
+				async move {
+					match event {
+						Event::Apply(svc) | Event::InitApply(svc) => {
+							tracing::info!("Kubernetes service resource {:?} was created/updated", svc.metadata.name.clone().unwrap_or_default());
+							add_service_from_kube(config, &svc).await.unwrap_or_else(|e| {
+								tracing::error!("Failed to process kubernetes service resource {:?}: {e:?}", svc.metadata.name.unwrap_or_default());
+							});
+						},
+						Event::Delete(svc) => {
+							// TODO: Take care of deleted events too
+							tracing::info!("Kubernetes service resource {:?} was deleted", svc.metadata.name.clone().unwrap_or_default());
+							remove_service_from_kube(config, &svc).await.unwrap_or_else(|e| {
+								tracing::error!("Failed to process deletion of kubernetes service resource {:?}: {e:?}", svc.metadata.name.unwrap_or_default());
+							});
+						}
+						_ => {}
 					}
-					_ => {}
-				}
 
-				Ok(())
+					Ok(())
+				}
 			}
 		)
 		.await
@@ -467,11 +486,11 @@ pub async fn watch_service(service: Api<KubeService>) -> anyhow::Result<()>
 ///
 /// This function is asynchronously ran alongside the main actix-web server
 /// and will update the config file in the background
-pub async fn watch() -> anyhow::Result<()> {
+pub async fn watch(config: Arc<ArcSwap<Config>>) -> anyhow::Result<()> {
 	let client = Client::try_default()
 		.await
 		.context("Could not open the default kubernetes client for watching")?;
 	let services: Api<KubeService> = Api::all(client.clone());
 
-	watch_service(services).await
+	watch_service(config, services).await
 }
