@@ -101,6 +101,10 @@ pub async fn create_kube_secret(
 		immutable: Some(true),
 		metadata: kube::api::ObjectMeta {
 			name: Some(name.to_string()),
+			labels: Some(BTreeMap::from([(
+				"app.kubernetes.io/managed-by".to_string(),
+				"magicentry".to_string(),
+			)])),
 			..Default::default()
 		},
 		string_data: Some(data.clone()),
