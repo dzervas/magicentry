@@ -4,12 +4,17 @@
 //! YAML was chosen because the main target group are devops-adjacent people,
 //! but serde makes sure that we're not married to that choice.
 
+use std::ops::Deref;
 use std::path::Path;
+use std::sync::Arc;
 
+use axum::extract::FromRequestParts;
+use axum::http::StatusCode;
+use axum::http::request::Parts;
 use chrono::Duration;
-use log::error;
 use notify::{PollWatcher, Watcher};
 use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
@@ -25,7 +30,8 @@ use crate::{CONFIG, CONFIG_FILE};
 // TODO: Generate a validation schema
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct ConfigFile {
+#[allow(clippy::struct_excessive_bools)]
+pub struct Config {
 	pub database_url: String,
 
 	pub listen_host: String,
@@ -35,12 +41,12 @@ pub struct ConfigFile {
 
 	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
 	pub link_duration: Duration,
-    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-    pub session_duration: Duration,
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub session_duration: Duration,
 
-    /// Interval for periodic cleanup of expired secrets
-    #[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
-    pub secrets_cleanup_interval: Duration,
+	/// Interval for periodic cleanup of expired secrets
+	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	pub secrets_cleanup_interval: Duration,
 
 	pub title: String,
 	pub static_path: String,
@@ -78,9 +84,11 @@ pub struct ConfigFile {
 	pub services: Services,
 }
 
-impl Default for ConfigFile {
-    fn default() -> Self {
-        Self {
+impl Default for Config {
+	#[allow(clippy::or_fun_call)]
+	#[allow(clippy::unwrap_used)] // All the cases are either const or on start (e.g. port)
+	fn default() -> Self {
+		Self {
 			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
 
 			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
@@ -128,98 +136,97 @@ impl Default for ConfigFile {
 
 			services: Services(vec![]),
         }
-    }
+	}
 }
 
-impl ConfigFile {
-	/// This function returns the base URL that magicentry was accessed from
-	///
-	/// Useful to return correct links for proxied requests that do not abide
-	/// by the [external_url](ConfigFile::external_url) host
-	pub fn url_from_request(&self, request: &actix_web::HttpRequest) -> String {
-		let conn = request.connection_info();
-		let host = conn.host();
-		let scheme = if conn.scheme() == "http" {
-			"http"
-		} else {
-			"https"
-		};
+impl Config {
+	/// Read the config file from the specified path and return the loaded config
+	pub async fn reload_from_path(path: &str) -> anyhow::Result<Self> {
+		info!("Loading config from {}", path);
 
-		let path_prefix = if self.path_prefix.ends_with('/') {
-			&self.path_prefix[..self.path_prefix.len() - 1]
-		} else {
-			&self.path_prefix
-		};
-
-		format!("{}://{}{}", scheme, host, path_prefix)
-	}
-
-	/// Read the config file as dictated by the CONFIG_FILE variable
-	/// and replace the current contents
-	///
-	/// Note that live-updating the CONFIG_FILE environment variable
-	/// is **NOT** supported
-	pub async fn reload() -> crate::error::Result<()> {
-		let mut config = CONFIG.write().await;
-		log::info!("Reloading config from {}", CONFIG_FILE.as_str());
-
-		let mut new_config = serde_yaml::from_str::<ConfigFile>(
-			&std::fs::read_to_string(CONFIG_FILE.as_str())?
-		)?;
+		let mut new_config = serde_yaml::from_str::<Self>(&std::fs::read_to_string(path)?)?;
 
 		if let Some(users_file) = &new_config.users_file {
-			new_config.users.extend(
-				serde_yaml::from_str::<Vec<User>>(
-					&std::fs::read_to_string(users_file)?
-				)?
+			new_config.users.extend(serde_yaml::from_str::<Vec<User>>(
+				&std::fs::read_to_string(users_file)?,
+			)?);
+		}
+
+		Ok(new_config)
+	}
+
+	/// Read the config file as dictated by the `CONFIG_FILE` variable
+	/// and replace the current contents
+	///
+	/// Note that live-updating the `CONFIG_FILE` environment variable
+	/// is **NOT** supported (and is probably impossible anyway)
+	pub async fn reload() -> anyhow::Result<()> {
+		let new_config = Self::reload_from_path(CONFIG_FILE.as_str()).await?;
+
+		let mut config = CONFIG.write().await;
+		if new_config.users_file != config.users_file {
+			error!(
+				"Users file path changed, live watching new paths is not supported, please restart the server"
 			);
 		}
+		// XXX: Does this memleak? I don't think so, but I'm not sure
+		*config = Arc::new(new_config);
+		drop(config);
 
-		if new_config.users_file != config.users_file {
-			error!("Users file path changed, live watching new paths is not supported, please restart the server");
-		}
-
-		*config = new_config;
 		Ok(())
 	}
 
-	/// Set up a file watcher that fires the [reload](ConfigFile::reload) method so
-	/// that config file changes get automatically picked up
-	pub fn watch() -> PollWatcher {
+	/// Set up a file watcher for the specified config file path
+	pub fn watch(config_path: &str) -> PollWatcher {
+		Self::watch_with_interval(config_path, std::time::Duration::from_secs(2))
+	}
+
+	/// Set up a file watcher for the specified config file path with custom interval
+	pub fn watch_with_interval(
+		config_path: &str,
+		poll_interval: std::time::Duration,
+	) -> PollWatcher {
+		let config_path_clone = config_path.to_owned();
 		let watcher_config = notify::Config::default()
 			.with_compare_contents(true)
-			.with_poll_interval(std::time::Duration::from_secs(2))
+			.with_poll_interval(poll_interval)
 			.with_follow_symlinks(true);
 
-		let mut watcher = notify::PollWatcher::new(move |_| {
-			log::info!("Config file changed, reloading");
-			futures::executor::block_on(async {
-				if let Err(e) = ConfigFile::reload().await {
-					log::error!("Failed to reload config file: {}", e);
+		let mut watcher = notify::PollWatcher::new(
+			move |res| match res {
+				Ok(_) => {
+					info!("Config file changed, reloading");
+					futures::executor::block_on(async {
+						if let Err(e) = Self::reload_from_path(&config_path_clone).await {
+							error!("Failed to reload config file: {e}");
+						}
+					});
 				}
-			})
-		}, watcher_config)
-			.expect("Failed to create watcher for the config file");
+				Err(e) => error!("Watch error: {:?}", e),
+			},
+			watcher_config,
+		)
+		.expect("Failed to create watcher for the config file");
 
 		watcher
-			.watch(Path::new(CONFIG_FILE.as_str()), notify::RecursiveMode::NonRecursive)
+			.watch(Path::new(config_path), notify::RecursiveMode::NonRecursive)
 			.expect("Failed to watch config file for changes");
 
-		if let Some(users_file) = CONFIG
-			.try_read()
-			.ok()
-			.and_then(|c| c.users_file.clone())
-		{
-			watcher
-				.watch(Path::new(&users_file), notify::RecursiveMode::NonRecursive)
-				.expect("Failed to watch users file for changes");
+		// Watch users file if it exists in current config
+		if let Ok(config_guard) = CONFIG.try_read() {
+			if let Some(users_file) = &config_guard.users_file {
+				watcher
+					.watch(Path::new(users_file), notify::RecursiveMode::NonRecursive)
+					.expect("Failed to watch users file for changes");
+			}
 		}
 
 		watcher
 	}
 
-	/// Read the SAML certificate from the [saml_cert_pem_path](ConfigFile::saml_cert_pem_path)
+	/// Read the SAML certificate from the [`saml_cert_pem_path`](ConfigFile::saml_cert_pem_path)
 	/// filepath
+	#[allow(clippy::single_char_pattern)]
 	pub fn get_saml_cert(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_cert_pem_path)?;
 		Ok(data
@@ -229,26 +236,56 @@ impl ConfigFile {
 			.replace("\n", ""))
 	}
 
-	/// Read the SAML private key from the [saml_key_pem_path](ConfigFile::saml_key_pem_path)
+	/// Read the SAML private key from the [`saml_key_pem_path`](ConfigFile::saml_key_pem_path)
 	/// filepath
+	#[allow(clippy::single_char_pattern)]
 	pub fn get_saml_key(&self) -> Result<String, std::io::Error> {
 		let data = std::fs::read_to_string(&self.saml_key_pem_path)?;
 		Ok(data
 			.lines()
-			.filter(|line| {
-				!line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY")
-			})
+			.filter(|line| !line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY"))
 			.collect::<String>()
 			.replace("\n", ""))
+	}
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(transparent)]
+pub struct LiveConfig(pub Arc<Config>);
+
+impl<S: Send + Sync> FromRequestParts<S> for LiveConfig {
+	type Rejection = StatusCode;
+
+	async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+		parts
+			.extensions
+			.get::<Arc<Config>>()
+			.cloned()
+			.map(Self)
+			.ok_or(StatusCode::INTERNAL_SERVER_ERROR)
+	}
+}
+
+impl From<Arc<Config>> for LiveConfig {
+	fn from(config: Arc<Config>) -> Self {
+		Self(config)
+	}
+}
+
+impl Deref for LiveConfig {
+	type Target = Config;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
 	}
 }
 
 /// Basic key-value store database schema for some minor config values,
 /// JWT private key for example
 ///
-/// Uses the [ConfigKeys] enum for the keys as there should ever be only one
+/// Uses the [`ConfigKeys`] enum for the keys as there should ever be only one
 /// of each type
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConfigKV {
 	pub key: ConfigKeys,
 	pub value: Option<String>,
@@ -256,32 +293,32 @@ pub struct ConfigKV {
 
 impl ConfigKV {
 	/// Set the provided key to the provided value - overwrites any previous values
-	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> crate::error::Result<()> {
+	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> anyhow::Result<()> {
 		let key_str = serde_json::to_string(&key)?;
 		let value_str = value.unwrap_or_default();
-		
+
 		let row = ConfigKVRow {
 			key: key_str,
 			value: value_str,
 			updated_at: None,
 		};
-		
-		row.save(db).await
+
+		Ok(row.save(db).await?)
 	}
-	
+
 	/// Get a config value by key
-	pub async fn get(key: &ConfigKeys, db: &Database) -> crate::error::Result<Option<String>> {
+	pub async fn get(key: &ConfigKeys, db: &Database) -> anyhow::Result<Option<String>> {
 		let key_str = serde_json::to_string(key)?;
-		ConfigKVRow::get(&key_str, db).await
+		Ok(ConfigKVRow::get(&key_str, db).await?)
 	}
 }
 
-/// The available keys for the [ConfigKV]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// The available keys for the [`ConfigKV`]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum ConfigKeys {
 	Secret,
-	JWTKeyPair,
+	JWTSecret,
 }
 
 // Remove AsBytes trait as it's no longer needed for SQLx

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM config_kv WHERE key = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "9e24a513c1cf537f6d7fae38b66f77ae338e6f55e0ba53a7f8c9bf2a16a4b84b"
+}

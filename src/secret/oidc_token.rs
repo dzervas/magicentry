@@ -1,54 +1,44 @@
-use futures::future::BoxFuture;
+use axum::RequestPartsExt;
+use axum::extract::FromRequestParts;
+use axum_extra::extract::TypedHeader;
+use headers::Authorization;
+use headers::authorization::Bearer;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{AppErrorKind, Result};
+use crate::config::LiveConfig;
+use crate::error::AuthError;
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::primitive::{UserSecret, UserSecretKind};
-use super::{ChildSecretMetadata, EmptyMetadata};
+use super::{ChildSecretMetadata, EmptyMetadata, SecretType};
 
-#[derive(PartialEq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub struct OIDCTokenSecretKind;
 
 impl UserSecretKind for OIDCTokenSecretKind {
-	const PREFIX: &'static str = "oidc_token";
+	const PREFIX: SecretType = SecretType::OIDCToken;
 	type Metadata = ChildSecretMetadata<BrowserSessionSecretKind, EmptyMetadata>;
 
-	async fn duration() -> chrono::Duration { crate::CONFIG.read().await.session_duration }
+	async fn duration(config: &LiveConfig) -> chrono::Duration {
+		config.session_duration
+	}
 }
 
 pub type OIDCTokenSecret = UserSecret<OIDCTokenSecretKind>;
 
-impl actix_web::FromRequest for OIDCTokenSecret {
-	type Error = crate::error::Error;
-	type Future = BoxFuture<'static, Result<Self>>;
+impl FromRequestParts<crate::AppState> for OIDCTokenSecret {
+	type Rejection = crate::error::AppError;
 
-	fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-		let Some(auth_header) = req.headers().get("Authorization") else {
-			return Box::pin(async { Err(AppErrorKind::MissingAuthorizationHeader.into()) });
+	async fn from_request_parts(
+		parts: &mut axum::http::request::Parts,
+		state: &crate::AppState,
+	) -> Result<Self, Self::Rejection> {
+		let Ok(TypedHeader(Authorization(token))) =
+			parts.extract::<TypedHeader<Authorization<Bearer>>>().await
+		else {
+			return Err(AuthError::MissingLoginLinkCode.into());
 		};
 
-		let Ok(auth_header_str) = auth_header.to_str() else {
-			return Box::pin(async { Err(AppErrorKind::InvalidAuthorizationHeader.into()) });
-		};
-
-		let auth_header_parts = auth_header_str.split_whitespace().collect::<Vec<&str>>();
-
-		if auth_header_parts.len() != 2 || auth_header_parts[0] != "Bearer" {
-			return Box::pin(async { Err(AppErrorKind::InvalidAuthorizationHeader.into()) });
-		}
-
-		let Some(code) = auth_header_parts.get(1) else {
-			return Box::pin(async { Err(AppErrorKind::InvalidAuthorizationHeader.into()) });
-		};
-
-		let Some(db) = req.app_data::<actix_web::web::Data<crate::Database>>().cloned() else {
-			return Box::pin(async { Err(AppErrorKind::DatabaseInstanceError.into()) });
-		};
-
-		let code = code.to_string();
-		Box::pin(async move {
-			Self::try_from_string(code, db.get_ref()).await
-		})
+		Self::try_from_string(token.token().to_string(), &state.db).await
 	}
 }

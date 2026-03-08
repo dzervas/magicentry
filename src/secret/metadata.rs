@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 use super::primitive::{UserSecret, UserSecretKind};
 
 use crate::database::Database;
-use crate::error::Result;
+use crate::error::AppError;
 
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
-
-pub trait MetadataKind: Serialize + DeserializeOwned {
-	async fn validate(&self, _db: &Database) -> Result<()> { Ok(()) }
+pub trait MetadataKind: Serialize + DeserializeOwned + Send + Sync {
+	async fn validate(&self, _db: &Database) -> Result<(), AppError> {
+		Ok(())
+	}
 }
 
 impl MetadataKind for webauthn_rs::prelude::PasskeyAuthentication {}
@@ -20,13 +21,15 @@ impl MetadataKind for url::Url {}
 impl<T: MetadataKind> MetadataKind for Option<T> {}
 
 /// Zero-sized struct for empty metadata.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmptyMetadata();
 
 impl MetadataKind for EmptyMetadata {}
 
 impl From<()> for EmptyMetadata {
-	fn from(_: ()) -> Self { EmptyMetadata() }
+	fn from((): ()) -> Self {
+		Self()
+	}
 }
 
 /// This struct is used to denote that a secret is a child of another secret.
@@ -34,24 +37,35 @@ impl From<()> for EmptyMetadata {
 ///
 /// When the parent secret is deleted, this secret will be deleted as well.
 #[derive(Serialize, Deserialize)]
-pub struct ChildSecretMetadata<P: UserSecretKind, M> {
+pub struct ChildSecretMetadata<P: UserSecretKind, M: Send + Sync> {
 	parent: UserSecret<P>,
 	metadata: M,
 }
 
 impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
-	pub(super) fn new(parent: UserSecret<P>, metadata: M) -> Self {
+	pub(super) const fn new(parent: UserSecret<P>, metadata: M) -> Self {
 		Self { parent, metadata }
 	}
 
-	pub fn parent(&self) -> &UserSecret<P> { &self.parent }
-	pub fn metadata(&self) -> &M { &self.metadata }
+	pub const fn parent(&self) -> &UserSecret<P> {
+		&self.parent
+	}
+	pub const fn metadata(&self) -> &M {
+		&self.metadata
+	}
 
-	pub(super) fn to_empty(self) -> ChildSecretMetadata<P, EmptyMetadata> { ChildSecretMetadata { parent: self.parent, metadata: EmptyMetadata() } }
+	pub(super) fn into_empty(self) -> ChildSecretMetadata<P, EmptyMetadata> {
+		ChildSecretMetadata {
+			parent: self.parent,
+			metadata: EmptyMetadata(),
+		}
+	}
 }
 
-impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind for ChildSecretMetadata<P, M> {
-	async fn validate(&self, db: &Database) -> Result<()> {
+impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind
+	for ChildSecretMetadata<P, M>
+{
+	async fn validate(&self, db: &Database) -> Result<(), AppError> {
 		self.metadata.validate(db).await?;
 		self.parent.validate(db).await?;
 		Ok(())
