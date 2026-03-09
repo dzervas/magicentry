@@ -108,6 +108,13 @@ extraSecretMounts: []
 #    mountPath: /var/run/secrets/example
 #    optional: false
 
+# Additional read-only ConfigMap mounts on the output StatefulSet definition.
+extraConfigMapMounts: []
+#  - name: example-config
+#    configMapName: example-config
+#    mountPath: /etc/example
+#    optional: false
+
 tolerations: []
 
 affinity: {}
