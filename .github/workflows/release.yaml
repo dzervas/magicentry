@@ -80,7 +80,7 @@ jobs:
         with:
           ref: ${{ needs.bump.outputs.new_ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
       - run: npm ci
 
       - run: sudo apt-get install -y gcc-aarch64-linux-gnu
