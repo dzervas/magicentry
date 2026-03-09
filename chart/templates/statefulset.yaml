@@ -40,7 +40,7 @@ spec:
       {{- end }}
       containers:
       - name: magicentry
-        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "kube-v%s" .Chart.AppVersion) }}"
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s-kube" .Chart.AppVersion) }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         env:
           - name: CONFIG_FILE
