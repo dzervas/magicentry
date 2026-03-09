@@ -418,9 +418,9 @@ dependencies = [
 
 [[package]]
 name = "axum-extra"
-version = "0.10.3"
+version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9963ff19f40c6102c76756ef0a46004c0d58957d87259fc9208ff8441c12ab96"
+checksum = "fef252edff26ddba56bbcdf2ee3307b8129acb86f5749b68990c168a6fcc9c76"
 dependencies = [
  "axum",
  "axum-core",
@@ -428,6 +428,7 @@ dependencies = [
  "bytes",
  "cookie",
  "form_urlencoded",
+ "futures-core",
  "futures-util",
  "headers",
  "http 1.4.0",
@@ -440,33 +441,6 @@ dependencies = [
  "serde_core",
  "serde_html_form",
  "serde_path_to_error",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
-name = "axum-extra"
-version = "0.12.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fef252edff26ddba56bbcdf2ee3307b8129acb86f5749b68990c168a6fcc9c76"
-dependencies = [
- "axum",
- "axum-core",
- "axum-macros",
- "bytes",
- "form_urlencoded",
- "futures-core",
- "futures-util",
- "http 1.4.0",
- "http-body",
- "http-body-util",
- "mime",
- "percent-encoding",
- "pin-project-lite",
- "rustversion",
- "serde_core",
- "serde_html_form",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -491,7 +465,7 @@ checksum = "0ce2a8627e8d8851f894696b39f2b67807d6375c177361d376173ace306a21e2"
 dependencies = [
  "anyhow",
  "axum",
- "axum-extra 0.12.5",
+ "axum-extra",
  "bytes",
  "bytesize",
  "cookie",
@@ -1497,7 +1471,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2906,7 +2880,7 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "axum",
- "axum-extra 0.10.3",
+ "axum-extra",
  "axum-test",
  "base64 0.22.1",
  "chrono",
@@ -3141,7 +3115,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3787,7 +3761,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4160,7 +4134,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4241,7 +4215,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5012,7 +4986,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5873,7 +5847,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
