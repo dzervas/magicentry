@@ -2198,9 +2198,9 @@ dependencies = [
 
 [[package]]
 name = "hurl_core"
-version = "7.0.0"
+version = "7.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f99cf25d8f7b475709b73491de850eda13cbe9b7cf75d73df5e3ce6fa307098"
+checksum = "bd2d82d2ed5224626e5a7c309efd6cdaffae1356ec1054f83dd3cfcd1dbc1ed8"
 dependencies = [
  "colored",
  "libxml",
