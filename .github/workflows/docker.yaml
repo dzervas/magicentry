@@ -10,14 +10,15 @@ on:
       - Cargo.toml
       - src/**
       - .github/workflows/docker.yaml
-  pull_request:
-    branches:
-      - main
-    paths:
-      - .cargo/**
-      - Cargo.*
-      - src/**
-      - .github/workflows/test.yaml
+      - config.sample.yaml
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - .cargo/**
+  #     - Cargo.*
+  #     - src/**
+  #     - .github/workflows/test.yaml
   workflow_call:
     inputs:
       app:
