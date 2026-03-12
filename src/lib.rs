@@ -250,8 +250,9 @@ impl LinkSender for reqwest::Client {
 
 		let method = reqwest::Method::from_bytes(config.request_method.as_bytes())
 			.expect("Invalid request_method provided in the config");
+        let request_url = std::env::var("REQUEST_URL").unwrap_or(config.request_url.clone());
 		let url = formatx!(
-			&config.request_url,
+			&request_url,
 			title = &config.title,
 			magic_link = &link,
 			email = &user.email,

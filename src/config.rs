@@ -116,13 +116,13 @@ impl Default for Config {
 			saml_key_pem_path : "saml_key.pem".to_string(),
 
 			smtp_enable : false,
-			smtp_url    : std::env::var("SMTP_URL").unwrap_or("smtp://localhost:25".to_string(),),
+			smtp_url    : "smtp://localhost:25".to_string(),
 			smtp_from   : "{title} <magicentry@example.com>".to_string(),
 			smtp_subject: "{title} Login".to_string(),
 			smtp_body   : "Click the link to login: {magic_link}".to_string(),
 
 			request_enable      : false,
-			request_url         : std::env::var("REQUEST_URL").unwrap_or("https://www.cinotify.cc/api/notify".to_string()),
+			request_url         : "https://www.cinotify.cc/api/notify".to_string(),
 			request_method      : "POST".to_string(),
 			request_data        : Some(std::env::var("REQUEST_DATA").unwrap_or("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string())),
 			request_content_type: "application/x-www-form-urlencoded".to_string(),

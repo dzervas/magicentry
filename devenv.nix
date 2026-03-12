@@ -14,6 +14,7 @@
     watchexec
     sqlx-cli
     tailwindcss_4
+    nodejs-slim
     k3d
 
     openssl.dev

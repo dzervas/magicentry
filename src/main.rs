@@ -44,8 +44,9 @@ async fn main() {
 
 	let config_inst = config.load();
 	if config_inst.smtp_enable {
+        let smtp_url = std::env::var("SMTP_URL").unwrap_or(config_inst.smtp_url.clone());
 		let smtp_inst: SmtpTransport =
-			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&config_inst.smtp_url)
+			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&smtp_url)
 				.expect("Failed to create mailer - is the `smtp_url` correct?")
 				.pool_config(smtp::PoolConfig::new())
 				.build();
