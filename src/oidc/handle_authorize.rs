@@ -1,11 +1,10 @@
 use anyhow::Context as _;
-use axum::http::Uri;
 use axum::response::IntoResponse;
 use tracing::info;
 
 use crate::AUTHORIZATION_COOKIE;
 use crate::config::LiveConfig;
-use crate::error::OidcError;
+use crate::error::{AuthError, OidcError};
 use crate::pages::{AuthorizePage, Page};
 use crate::secret::{BrowserSessionSecret, OIDCAuthCodeSecret};
 
@@ -42,10 +41,14 @@ pub async fn handle_authorize(
 ) -> Result<(axum_extra::extract::CookieJar, axum::response::Response), crate::error::AppError> {
 	info!("Beginning OIDC flow for {}", auth_req.client_id);
 	let external_url = config.external_url.clone();
+	let service = config
+		.services
+		.from_oidc_client_id(&auth_req.client_id)
+		.ok_or(AuthError::InvalidClientID)?;
 
 	let Some(browser_session) = browser_session_opt else {
 		let mut target_url =
-			url::Url::parse(&external_url).map_err(|_| OidcError::InvalidRedirectUrl)?;
+			url::Url::parse(&external_url).map_err(|_| OidcError::InvalidExternalUrl)?;
 		target_url.set_path("/login");
 		target_url.query_pairs_mut().append_pair(
 			"oidc",
@@ -71,24 +74,15 @@ pub async fn handle_authorize(
 	// TODO: WTF?
 	let redirect_url = auth_req
 		.get_redirect_url(
+			&config,
 			&oidc_authcode.code().to_str_that_i_wont_print(),
 			oidc_authcode.user(),
 		)
 		.await
 		.ok_or(OidcError::InvalidRedirectUrl)?;
-	let redirect_url_uri = redirect_url
-		.parse::<Uri>()
-		.context("Failed to parse redirect URL as URI")?;
-	let redirect_url_scheme = redirect_url_uri
-		.scheme_str()
-		.ok_or(OidcError::InvalidRedirectUrl)?;
-	let redirect_url_authority = redirect_url_uri
-		.authority()
-		.ok_or(OidcError::InvalidRedirectUrl)?;
-	let redirect_url_str = format!("{redirect_url_scheme}://{redirect_url_authority}");
 
 	let authorize_page = AuthorizePage {
-		client: redirect_url_str,
+		client: service.name,
 		name: oidc_authcode.user().name.clone(),
 		username: oidc_authcode.user().username.clone(),
 		email: oidc_authcode.user().email.clone(),

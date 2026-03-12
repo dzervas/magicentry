@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 use url::Url;
 
-use crate::CONFIG;
 use crate::config::LiveConfig;
 use crate::error::{AppError, OidcError};
 use crate::oidc::handle_token::JWTData;
@@ -28,10 +27,13 @@ pub struct AuthorizeRequest {
 }
 
 impl AuthorizeRequest {
-	pub async fn get_redirect_url(&self, code: &str, user: &User) -> Option<String> {
+	pub async fn get_redirect_url(
+		&self,
+		config: &LiveConfig,
+		code: &str,
+		user: &User,
+	) -> Option<String> {
 		let redirect_url = Url::parse(&urlencoding::decode(&self.redirect_uri).ok()?).ok()?;
-
-		let config = CONFIG.read().await;
 
 		let Some(service) = config.services.from_oidc_redirect_url(&redirect_url) else {
 			tracing::warn!(
@@ -41,7 +43,6 @@ impl AuthorizeRequest {
 			);
 			return None;
 		};
-		drop(config);
 
 		if !service.is_user_allowed(user) {
 			tracing::warn!(

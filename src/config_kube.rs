@@ -14,6 +14,7 @@ use anyhow::Context;
 use arc_swap::ArcSwap;
 use futures::TryStreamExt;
 use k8s_openapi::api::core::v1::{Secret as KubeSecret, Service as KubeService};
+#[allow(unused_imports)]
 use kube::core::ErrorResponse;
 use kube::runtime::watcher;
 use kube::runtime::watcher::Event;
@@ -95,6 +96,7 @@ pub async fn create_kube_secret(
 	name: &str,
 	data: BTreeMap<String, String>,
 ) -> anyhow::Result<()> {
+	#[allow(unused_variables)]
 	let secrets = Api::<KubeSecret>::namespaced(client.clone(), namespace);
 
 	let new_secret = KubeSecret {
@@ -112,16 +114,26 @@ pub async fn create_kube_secret(
 		..Default::default()
 	};
 
-	let result = secrets.create(&Default::default(), &new_secret).await;
+	#[cfg(not(debug_assertions))]
+	{
+		let result = secrets.create(&Default::default(), &new_secret).await;
 
-	match result.as_ref().err() {
-		Some(kube::Error::Api(ErrorResponse { code: 409, .. })) => {
-			info!("Kubernetes secret '{namespace}/{name}' already exists, skipping creation");
-		}
-		_ => {
-			result?;
+		match result.as_ref().err() {
+			Some(kube::Error::Api(ErrorResponse { code: 409, .. })) => {
+				info!("Kubernetes secret '{namespace}/{name}' already exists, recreating");
+				secrets.delete(&name, &Default::default()).await?;
+				secrets.create(&Default::default(), &new_secret).await?;
+			}
+			_ => {
+				result?;
+			}
 		}
 	}
+	#[cfg(debug_assertions)]
+	println!(
+		"Would create a k8s secret for the service {}: {:?}",
+		name, new_secret
+	);
 
 	Ok(())
 }
@@ -197,6 +209,8 @@ pub async fn add_service_from_kube(
 			})
 		}),
 	};
+	#[cfg(debug_assertions)]
+	println!("New Service: {new_service:?}");
 
 	let name = &annotations.name;
 	let config_ref = config.load();
@@ -244,7 +258,7 @@ pub async fn add_service_from_kube(
 }
 
 pub async fn remove_service_from_kube(
-	client: &Client,
+	#[allow(unused_variables)] client: &Client,
 	config: Arc<ArcSwap<Config>>,
 	service: &KubeService,
 ) -> anyhow::Result<()> {
@@ -278,11 +292,14 @@ pub async fn remove_service_from_kube(
 	info!(
 		"Deleting Kubernetes secret '{namespace}/{secret_name}' for OIDC credentials of service {name:?}"
 	);
-	let secrets = Api::<KubeSecret>::namespaced(client.clone(), &namespace);
-	secrets
-		.delete(&secret_name, &Default::default())
-		.await
-		.context("Failed to delete Kubernetes secret")?;
+	#[cfg(not(debug_assertions))]
+	{
+		let secrets = Api::<KubeSecret>::namespaced(client.clone(), &namespace);
+		secrets
+			.delete(&secret_name, &Default::default())
+			.await
+			.context("Failed to delete Kubernetes secret")?;
+	}
 
 	Ok(())
 }

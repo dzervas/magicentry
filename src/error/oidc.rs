@@ -8,6 +8,9 @@ pub enum OidcError {
 	#[error("OIDC Client sent a redirect_uri different from the one in the config")]
 	InvalidRedirectUrl,
 
+	#[error("The configured external URL is invalid")]
+	InvalidExternalUrl,
+
 	#[error("OIDC Client did not send a redirect_uri")]
 	MissingRedirectUrl,
 

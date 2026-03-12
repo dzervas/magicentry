@@ -1,7 +1,7 @@
-use axum::http::uri::Scheme;
 use serde::{Serialize, Serializer};
 
 // use crate::generate_cors_preflight;
+use crate::OriginalUri;
 use crate::config::LiveConfig;
 
 // Serialize a vector of strings as a space-separated string
@@ -81,12 +81,9 @@ impl<'a> Discovery<'a> {
 pub async fn handle_discover(
 	config: LiveConfig,
 	axum::extract::State(_state): axum::extract::State<crate::AppState>,
-	axum_extra::extract::Host(host): axum_extra::extract::Host,
-	axum::extract::OriginalUri(original_uri): axum::extract::OriginalUri,
+	OriginalUri(origin_url): OriginalUri,
 ) -> impl axum::response::IntoResponse {
-	// TODO: There's probably a bug here, x-forwarded-proto needs to be taken into account as well
-	let url = format!("{}://{}", original_uri.scheme().unwrap_or(&Scheme::HTTP), host);
-	let discovery = Discovery::new(url, config.external_url.clone());
+	let discovery = Discovery::new(origin_url.origin().ascii_serialization(), config.external_url.clone());
 
 	(
 		[
