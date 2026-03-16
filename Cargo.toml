@@ -13,7 +13,7 @@ maud = { version = "0.27", features = ["axum"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.1", features = ["display", "error"] }
-duration-str = "0.17"
+duration-str = "0.21"
 formatx = "0.2"
 futures = "0.3"
 hex = "0.4.3"
