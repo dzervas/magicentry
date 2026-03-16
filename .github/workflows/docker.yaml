@@ -103,7 +103,7 @@ jobs:
           skip-extraction: ${{ steps.cache.outputs.cache-hit }}
 
       - name: Docker Build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: . # Otherwise it falls back to the reference this action was fired
           cache-from: type=gha,scope=magicentry-${{ matrix.feature }}
