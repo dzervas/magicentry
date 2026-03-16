@@ -12,6 +12,7 @@ use tracing::{debug, info};
 use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::{AppError, AuthError, OidcError};
+use crate::oidc::handle_userinfo::UserInfoResponse;
 use crate::secret::OIDCAuthCodeSecret;
 // use crate::generate_cors_preflight;
 
@@ -58,12 +59,8 @@ pub struct JWTData {
 	/// The nonce value is a case-sensitive string.
 	pub nonce: Option<String>,
 
-	// Additional claims
-	pub name: String,
-	pub nickname: String,
-	pub email: String,
-	pub email_verified: bool,
-	pub preferred_username: String,
+	#[serde(flatten)]
+	pub user_info: UserInfoResponse,
 }
 
 impl JWTData {
@@ -77,12 +74,7 @@ impl JWTData {
 			expires_at: expiry.timestamp(),
 			issued_at: Utc::now().timestamp(),
 			nonce,
-
-			name: String::default(),
-			nickname: String::default(),
-			email: String::default(),
-			email_verified: true,
-			preferred_username: String::default(),
+			user_info: UserInfoResponse::default(),
 		}
 	}
 }

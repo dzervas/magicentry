@@ -76,12 +76,7 @@ impl AuthorizeRequest {
 		let jwt_data = JWTData {
 			user: user.email.clone(),
 			client_id: self.client_id.clone(),
-
-			name: user.name.clone(),
-			nickname: user.username.clone(),
-			email: user.email.clone(),
-			email_verified: true,
-			preferred_username: user.username.clone(),
+			user_info: user.into(),
 
 			..JWTData::new(url, self.nonce.clone(), config)
 		};
