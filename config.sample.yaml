@@ -71,14 +71,30 @@ request_content_type: application/x-www-form-urlencoded
 webauthn_enable: true
 
 # List of the users that can authenticate using the service
-# You can either list them here or load them from another file using `users_file`
-# users_file: users.sample.yaml
+# You can either list them here or use another store as a user source
 users:
   - username: valid
     name: Valid User
     email: valid@example.com
     realms:
       - example
+
+# YAML user store - the schema is exactly the same as the users section above (array in root)
+# users_file: users.sample.yaml
+
+# SQL user store - the expected columns are the same as the users section above and the realms are expected to be a CSV
+# If the returned data does not have a realms column, it will be assumed to be empty
+# users_sql_url: postgresql://user:password@localhost:5432/my_other_app
+# Query to fetch all users
+# NOTE: The data are accessed by index to avoid strict column names. The following columns are expected:
+#   0: username
+#   1: name
+#   2: email
+#   3: realms (optional)
+# users_sql_query_all: SELECT username, name, email, realms FROM users
+# Query to fetch a user by email - note that for better performance, return only 1 row and even better index/unique the column
+# Placeholders for PG/SQLite: $1, MySQL/MSSQL: ?
+# users_sql_query_email: SELECT username, name, email, realms FROM users WHERE email = $1
 
 # Services that can use magicentry
 services:
