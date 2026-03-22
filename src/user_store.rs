@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
 use sqlx::Row as _;
 use tracing::*;
@@ -12,6 +14,7 @@ pub trait UserStore: Send + Sync {
 #[derive(Debug, Clone)]
 pub enum UserStoreKind {
 	Static(StaticUserStore),
+	File(FileUserStore),
 	SQL(SQLUserStore),
 }
 
@@ -20,6 +23,7 @@ impl UserStore for UserStoreKind {
 	async fn from_email(&mut self, email: &str) -> Option<User> {
 		match self {
 			UserStoreKind::Static(store) => store.from_email(email).await,
+			UserStoreKind::File(store) => store.from_email(email).await,
 			UserStoreKind::SQL(store) => store.from_email(email).await,
 		}
 	}
@@ -30,7 +34,7 @@ pub struct StaticUserStore(Vec<User>);
 
 impl StaticUserStore {
 	pub fn new(users: Vec<User>) -> Self {
-		StaticUserStore(users)
+		Self(users)
 	}
 }
 
@@ -38,6 +42,36 @@ impl StaticUserStore {
 impl UserStore for StaticUserStore {
 	async fn from_email(&mut self, email: &str) -> Option<User> {
 		self.0.iter().find(|user| user.email == email).cloned()
+	}
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileUserStore(String);
+
+impl FileUserStore {
+	pub fn new(path: String) -> Self {
+		Self(path)
+	}
+}
+
+#[async_trait::async_trait]
+impl UserStore for FileUserStore {
+	async fn from_email(&mut self, email: &str) -> Option<User> {
+		let users_contents = match std::fs::read_to_string(self.0.clone()) {
+			Ok(contents) => contents,
+			Err(e) => {
+				error!("Failed to read users file: {}", e);
+				return None;
+			}
+		};
+		let users = match serde_yaml::from_str::<Vec<User>>(&users_contents) {
+			Ok(users) => users,
+			Err(e) => {
+				error!("Failed to parse users file: {}", e);
+				return None;
+			}
+		};
+		users.iter().find(|user| user.email == email).cloned()
 	}
 }
 

@@ -21,7 +21,7 @@ use crate::CONFIG;
 use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
 use crate::user::User;
-use crate::user_store::{SQLUserStore, StaticUserStore, UserStoreKind};
+use crate::user_store::{FileUserStore, SQLUserStore, StaticUserStore, UserStoreKind};
 // use crate::user_store::{SQLUserStore, StaticUserStore, UserStoreKind};
 
 /// The actual, deserialized config data
@@ -260,11 +260,8 @@ impl Config {
 			)));
 		}
 
-		if self.users_file.is_some() {
-			// TODO: While this is correct since during reload we shove the users to the store, it's not right
-			return Ok(UserStoreKind::Static(StaticUserStore::new(
-				self.users.clone(),
-			)));
+		if let Some(users_file) = self.users_file.clone() {
+			return Ok(UserStoreKind::File(FileUserStore::new(users_file)));
 		}
 
 		if let Some(url) = self.users_sql_url.clone() {
