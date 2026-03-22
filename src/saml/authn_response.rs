@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::authn_request::AuthnRequest;
-use crate::user::User;
+use crate::domain::user::User;
 use anyhow::Result;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

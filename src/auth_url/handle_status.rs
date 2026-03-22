@@ -14,10 +14,10 @@ use crate::AppState;
 use crate::OriginalUri;
 use crate::PROXY_SESSION_COOKIE;
 use crate::config::LiveConfig;
+use crate::domain::StatusAuth;
 use crate::error::AppError;
 use crate::secret::ProxyCodeSecret;
 use crate::secret::ProxySessionSecret;
-use crate::service::StatusAuth;
 
 /// This endpoint is used to check weather a user is logged in from a proxy
 /// running in a different domain.
@@ -45,10 +45,7 @@ pub async fn handle_status(
 		.unwrap_or(false);
 
 	if log_authurl_lines {
-		let cookies: Vec<&str> = jar
-			.iter()
-			.map(|cookie| cookie.name())
-			.collect();
+		let cookies: Vec<&str> = jar.iter().map(|cookie| cookie.name()).collect();
 		let headers: Vec<&str> = request_headers
 			.iter()
 			.map(|(name, _value)| name.as_str())

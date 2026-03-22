@@ -1,7 +1,9 @@
 use axum::{extract::State, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
-use crate::{AppState, secret::OIDCTokenSecret, user::User};
+use crate::AppState;
+use crate::domain::user::User;
+use crate::secret::OIDCTokenSecret;
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct UserInfoResponse {

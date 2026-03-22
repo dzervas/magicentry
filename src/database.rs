@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool, sqlite::SqliteConnectOptions};
 use std::str::FromStr;
 
-use crate::{error::AppError, user::User};
+use crate::domain::user::User;
+use crate::error::AppError;
 use anyhow::Context as _;
 
 /// `SQLite` database connection pool

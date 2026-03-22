@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{Config, LiveConfig};
 use crate::database::Database;
+use crate::domain::user::User;
 use crate::error::{AppError, AuthError};
-use crate::user::User;
 
 use super::metadata::MetadataKind;
 use super::{ChildSecretMetadata, SecretString, SecretType};
@@ -245,7 +245,8 @@ where
 
 #[cfg(test)]
 mod tests {
-	use crate::{database::init_database, secret::LoginLinkSecret};
+	use crate::database::init_database;
+	use crate::secret::LoginLinkSecret;
 
 	use super::*;
 
@@ -266,7 +267,7 @@ mod tests {
 	async fn test_user_secret_crud() {
 		let config = crate::CONFIG.read().await.clone().into();
 		let db = setup_test_db().await.unwrap();
-		let user = crate::user::User {
+		let user = crate::domain::user::User {
 			email: "hello@world.com".to_string(),
 			username: "helloworld".to_string(),
 			name: "Hello World".to_string(),

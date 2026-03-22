@@ -6,10 +6,10 @@ use axum_extra::extract::CookieJar;
 
 use crate::AppState;
 use crate::config::LiveConfig;
+use crate::domain::user::User;
 use crate::error::{AppError, WebAuthnError};
 use crate::handle_login_post::LoginInfo;
 use crate::secret::WebAuthnAuthSecret;
-use crate::user::User;
 
 use super::store::PasskeyStore;
 

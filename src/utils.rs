@@ -17,7 +17,7 @@ pub mod tests {
 	use crate::app_build::axum_build;
 	use crate::config::Config;
 	use crate::database::init_database;
-	use crate::user::User;
+	use crate::domain::user::User;
 	use crate::{CONFIG_FILE, Database};
 
 	use super::*;

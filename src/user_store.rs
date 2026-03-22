@@ -1,15 +1,21 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::Row as _;
 use tracing::*;
 
-use crate::user::User;
+use crate::domain::user::User;
 
 #[async_trait::async_trait]
 pub trait UserStore {
 	async fn from_email(&mut self, email: &str) -> Option<User>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+pub enum UserStoreType {
+	Config(ConfigUserStore),
+	SQL(SQLUserStore),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ConfigUserStore(Vec<User>);
 
 impl ConfigUserStore {
@@ -46,11 +52,6 @@ impl SQLUserStore {
 #[async_trait::async_trait]
 impl UserStore for SQLUserStore {
 	async fn from_email(&mut self, email: &str) -> Option<User> {
-		// let Ok(conn) = self.conn.acquire().await else {
-		// 	error!("Failed to acquire connection from the SQL user pool");
-		// 	return None;
-		// };
-
 		let row_result = sqlx::query(&self.query_email)
 			.bind(email)
 			.fetch_one(&self.conn)

@@ -47,7 +47,7 @@ fn create_mock_config() -> Config {
 		users_sql_query: None,
 		users_sql_url: None,
 		users: vec![],
-		services: crate::service::Services(vec![]),
+		services: crate::domain::service::Services(vec![]),
 	}
 }
 

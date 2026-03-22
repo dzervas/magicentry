@@ -5,10 +5,10 @@ use tracing::debug;
 use url::Url;
 
 use crate::config::{Config, LiveConfig};
+use crate::domain::user::User;
 use crate::error::{AppError, OidcError};
 use crate::oidc::handle_token::JWTData;
 use crate::secret::MetadataKind;
-use crate::user::User;
 
 /// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

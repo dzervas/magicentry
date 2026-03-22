@@ -23,8 +23,8 @@ use serde::Deserialize;
 use tracing::*;
 
 use crate::config::Config;
+use crate::domain::service::{Service, ServiceAuthUrl, ServiceOIDC, ServiceSAML};
 use crate::secret::{SecretString, SecretType};
-use crate::service::{Service, ServiceAuthUrl, ServiceOIDC, ServiceSAML};
 
 /// The prefix for all magicentry-related annotations
 const ANNOTATION_PREFIX: &str = "magicentry.rs/";

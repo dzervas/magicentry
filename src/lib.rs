@@ -57,8 +57,9 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
+use crate::config::Config;
+use crate::domain::user::User;
 use crate::error::AppError;
-use crate::{config::Config, user::User};
 
 pub mod app_build;
 pub mod auth_url;
@@ -70,11 +71,11 @@ pub mod error;
 pub mod oidc;
 pub mod saml;
 pub mod secret;
-pub mod service;
-pub mod user;
 pub mod user_store;
 pub mod utils;
 pub mod webauthn;
+
+pub mod domain;
 
 pub mod handle_index;
 pub mod handle_login;

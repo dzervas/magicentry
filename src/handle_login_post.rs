@@ -14,11 +14,11 @@ use tracing::info;
 
 use crate::AppState;
 use crate::config::LiveConfig;
+use crate::domain::user::User;
 use crate::error::AppError;
 use crate::pages::{LoginActionPage, Page};
 use crate::secret::LoginLinkSecret;
 use crate::secret::login_link::LoginLinkRedirect;
-use crate::user::User;
 
 /// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

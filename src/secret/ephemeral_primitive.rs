@@ -5,8 +5,8 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::config::LiveConfig;
+use crate::domain::user::User;
 use crate::error::AppError;
-use crate::user::User;
 
 use super::primitive::{InternalUserSecret, UserSecret, UserSecretKind};
 use super::{ChildSecretMetadata, EmptyMetadata, MetadataKind, SecretString};

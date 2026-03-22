@@ -19,8 +19,8 @@ use tracing::{error, info};
 
 use crate::CONFIG;
 use crate::database::{ConfigKVRow, Database};
-use crate::service::Services;
-use crate::user::User;
+use crate::domain::service::Services;
+use crate::domain::user::User;
 
 /// The actual, deserialized config data
 ///
