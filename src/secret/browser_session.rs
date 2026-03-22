@@ -47,12 +47,15 @@ impl FromRequestParts<AppState> for BrowserSessionSecret {
 		parts: &mut Parts,
 		state: &AppState,
 	) -> Result<Self, Self::Rejection> {
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 		let Ok(jar) = parts.extract::<CookieJar>().await;
 		let Some(code) = jar.get(SESSION_COOKIE) else {
 			return Err(AuthError::NotLoggedIn.into());
 		};
 
-		Self::try_from_string(code.value().to_string(), &state.db).await
+		Self::try_from_string(code.value().to_string(), &config, &state.db).await
 	}
 }
 
@@ -63,6 +66,9 @@ impl OptionalFromRequestParts<AppState> for BrowserSessionSecret {
 		parts: &mut Parts,
 		state: &AppState,
 	) -> Result<Option<Self>, Self::Rejection> {
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 		let Ok(jar) = parts.extract::<CookieJar>().await;
 		let Some(code) = jar.get(SESSION_COOKIE) else {
 			return Ok(None);
@@ -70,7 +76,7 @@ impl OptionalFromRequestParts<AppState> for BrowserSessionSecret {
 
 		// Does this need to bubble the error or return None?
 		Ok(Some(
-			Self::try_from_string(code.value().to_string(), &state.db).await?,
+			Self::try_from_string(code.value().to_string(), &config, &state.db).await?,
 		))
 	}
 }

@@ -38,7 +38,10 @@ impl FromRequestParts<crate::AppState> for OIDCTokenSecret {
 		else {
 			return Err(AuthError::MissingLoginLinkCode.into());
 		};
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 
-		Self::try_from_string(token.token().to_string(), &state.db).await
+		Self::try_from_string(token.token().to_string(), &config, &state.db).await
 	}
 }

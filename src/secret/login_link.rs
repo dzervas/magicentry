@@ -9,15 +9,16 @@ use super::primitive::UserSecretKind;
 use super::proxy_code::ProxyCodeSecret;
 use super::{BrowserSessionSecret, EmptyMetadata, MetadataKind, SecretType};
 
-use crate::config::LiveConfig;
+use crate::config::{Config, LiveConfig};
 use crate::error::{AppError, AuthError, OidcError, ProxyError};
 use crate::handle_magic_link::LoginPath;
-use crate::{AppState, CONFIG, PROXY_QUERY_CODE};
+use crate::{AppState, PROXY_QUERY_CODE};
 
 // This should have been an enum, but bincode (used by reindeer db) doesn't support it
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LoginLinkRedirect {
-	pub rd: Option<url::Url>,
+	#[serde(rename = "rd")]
+	pub post_login_redirect: Option<url::Url>,
 	#[serde(with = "crate::oidc::authorize_request::as_string", default)]
 	pub oidc: Option<crate::oidc::AuthorizeRequest>,
 	#[serde(with = "crate::saml::authn_request::as_string", default)]
@@ -31,9 +32,9 @@ impl LoginLinkRedirect {
 		config: &LiveConfig,
 		db: &crate::Database,
 	) -> anyhow::Result<String> {
-		let mut url = self.validate_internal().await?;
+		let mut url = self.validate_internal(config).await?;
 
-		if self.rd.is_some() {
+		if self.post_login_redirect.is_some() {
 			// Redirect the user to the proxy but with an additional query secret (proxy_code)
 			// so that we can identify them and hand them a proper partial session token.
 			// The partial session token does not have access to the whole session
@@ -59,16 +60,16 @@ impl LoginLinkRedirect {
 		}
 	}
 
-	pub async fn into_opt(self) -> Option<Self> {
-		if self.validate_internal().await.is_ok() {
+	pub async fn into_opt(self, config: &Config) -> Option<Self> {
+		if self.validate_internal(config).await.is_ok() {
 			Some(self)
 		} else {
 			None
 		}
 	}
 
-	async fn validate_internal(&self) -> anyhow::Result<url::Url> {
-		if u8::from(self.rd.is_some())
+	async fn validate_internal(&self, config: &Config) -> anyhow::Result<url::Url> {
+		if u8::from(self.post_login_redirect.is_some())
 			+ u8::from(self.oidc.is_some())
 			+ u8::from(self.saml.is_some())
 			> 1
@@ -76,9 +77,7 @@ impl LoginLinkRedirect {
 			return Err(AuthError::MultipleLoginLinkRedirectDefinitions.into());
 		}
 
-		let config = CONFIG.read().await;
-
-		if let Some(url) = &self.rd {
+		if let Some(url) = &self.post_login_redirect {
 			config
 				.services
 				.from_auth_url_origin(&url.origin())
@@ -101,15 +100,14 @@ impl LoginLinkRedirect {
 				.ok_or(ProxyError::InvalidSAMLRedirectUrl)?;
 			Ok(url)
 		} else {
-			drop(config);
 			Err(AuthError::NoLoginLinkRedirect.into())
 		}
 	}
 }
 
 impl MetadataKind for LoginLinkRedirect {
-	async fn validate(&self, _: &crate::Database) -> Result<(), AppError> {
-		self.validate_internal().await?;
+	async fn validate(&self, config: &Config, _: &crate::Database) -> Result<(), AppError> {
+		self.validate_internal(config).await?;
 		Ok(())
 	}
 }
@@ -142,10 +140,13 @@ impl FromRequestParts<AppState> for LoginLinkSecret {
 		parts: &mut Parts,
 		state: &AppState,
 	) -> Result<Self, Self::Rejection> {
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 		let Ok(LoginPath { link }) = parts.extract::<LoginPath>().await else {
 			return Err(AuthError::MissingLoginLinkCode.into());
 		};
 
-		Self::try_from_string(link, &state.db).await
+		Self::try_from_string(link, &config, &state.db).await
 	}
 }

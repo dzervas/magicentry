@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 use url::Url;
 
-use crate::config::LiveConfig;
+use crate::config::{Config, LiveConfig};
 use crate::error::{AppError, OidcError};
 use crate::oidc::handle_token::JWTData;
 use crate::secret::MetadataKind;
@@ -91,7 +91,7 @@ impl AuthorizeRequest {
 }
 
 impl MetadataKind for AuthorizeRequest {
-	async fn validate(&self, _db: &crate::Database) -> Result<(), AppError> {
+	async fn validate(&self, _config: &Config, _db: &crate::Database) -> Result<(), AppError> {
 		if let Some(code_challenge_method) = self.code_challenge_method.as_ref() {
 			// TODO: Support plain
 			if code_challenge_method != "S256" {

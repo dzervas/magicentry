@@ -37,13 +37,17 @@ impl OptionalFromRequestParts<AppState> for ProxySessionSecret {
 		let Ok(OriginalUri(origin_url)) = parts.extract::<OriginalUri>().await else {
 			return Ok(None);
 		};
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 
 		let Ok(jar) = parts.extract::<CookieJar>().await;
 		let Some(code) = jar.get(PROXY_SESSION_COOKIE) else {
 			return Ok(None);
 		};
 
-		let secret = match Self::try_from_string(code.value().to_string(), &state.db).await {
+		let secret = match Self::try_from_string(code.value().to_string(), &config, &state.db).await
+		{
 			Ok(secret) => secret,
 			Err(AppError::Auth(
 				AuthError::ExpiredSecret
@@ -58,9 +62,6 @@ impl OptionalFromRequestParts<AppState> for ProxySessionSecret {
 				tracing::error!(error = %err, "Failed to create proxy session secret from string");
 				return Err(err);
 			}
-		};
-		let Ok(config) = parts.extract::<LiveConfig>().await else {
-			return Err("Could not extract config".into());
 		};
 		let service = config
 			.services

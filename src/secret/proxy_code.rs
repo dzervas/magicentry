@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::LiveConfig;
 use crate::error::{AppError, AuthError, ProxyError};
-use crate::{AppState, CONFIG, OriginalUri, PROXY_QUERY_CODE};
+use crate::{AppState, OriginalUri, PROXY_QUERY_CODE};
 
 use super::browser_session::BrowserSessionSecretKind;
 use super::ephemeral_primitive::EphemeralUserSecret;
@@ -38,6 +38,9 @@ impl OptionalFromRequestParts<AppState> for ProxyCodeSecret {
 		let Ok(OriginalUri(origin_url)) = parts.extract::<OriginalUri>().await else {
 			return Ok(None);
 		};
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 
 		let Some(code) = origin_url
 			.query_pairs()
@@ -47,7 +50,7 @@ impl OptionalFromRequestParts<AppState> for ProxyCodeSecret {
 		};
 
 		let code_value = code.1.to_string();
-		let secret = match Self::try_from_string(code_value, &state.db).await {
+		let secret = match Self::try_from_string(code_value, &config, &state.db).await {
 			Ok(secret) => secret,
 			Err(AppError::Auth(
 				AuthError::ExpiredSecret
@@ -63,17 +66,17 @@ impl OptionalFromRequestParts<AppState> for ProxyCodeSecret {
 				return Err(err);
 			}
 		};
-		let service = {
-			let config = CONFIG.read().await;
-			config
-				.services
-				.from_auth_url_origin(&origin_url.origin())
-				.ok_or_else(|| {
-					AppError::Proxy(ProxyError::operation(
-						"Origin not found in service configuration",
-					))
-				})?
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Ok(None);
 		};
+		let service = config
+			.services
+			.from_auth_url_origin(&origin_url.origin())
+			.ok_or_else(|| {
+				AppError::Proxy(ProxyError::operation(
+					"Origin not found in service configuration",
+				))
+			})?;
 
 		if !service.is_user_allowed(secret.user()) {
 			tracing::warn!(

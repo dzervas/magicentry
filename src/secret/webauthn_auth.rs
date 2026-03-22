@@ -43,12 +43,15 @@ impl axum::extract::FromRequestParts<crate::AppState> for WebAuthnAuthSecret {
 		parts: &mut axum::http::request::Parts,
 		state: &crate::AppState,
 	) -> Result<Self, Self::Rejection> {
-		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 
+		let Ok(jar) = parts.extract::<axum_extra::extract::CookieJar>().await;
 		let Some(cookie) = jar.get(WEBAUTHN_AUTH_COOKIE) else {
 			return Err(WebAuthnError::SecretNotFound.into());
 		};
 
-		Self::try_from_string(cookie.value().to_string(), &state.db).await
+		Self::try_from_string(cookie.value().to_string(), &config, &state.db).await
 	}
 }

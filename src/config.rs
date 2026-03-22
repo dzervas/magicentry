@@ -8,6 +8,7 @@ use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
+use arc_swap::ArcSwap;
 use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
@@ -16,10 +17,10 @@ use notify::{PollWatcher, Watcher};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
+use crate::CONFIG;
 use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
 use crate::user::User;
-use crate::{CONFIG, CONFIG_FILE};
 
 /// The actual, deserialized config data
 ///
@@ -78,9 +79,11 @@ pub struct Config {
 	pub webauthn_enable: bool,
 
 	// pub force_https_redirects: bool,
+	pub users: Vec<User>,
 	/// Path to a file containing the user definitions
 	pub users_file: Option<String>,
-	pub users: Vec<User>,
+	pub users_sql_query: Option<String>,
+	pub users_sql_url: Option<String>,
 	pub services: Services,
 }
 
@@ -131,8 +134,10 @@ impl Default for Config {
 
 			// force_https_redirects: true,
 
-			users_file: None,
 			users: vec![],
+			users_file: None,
+			users_sql_query: None,
+			users_sql_url: None,
 
 			services: Services(vec![]),
         }
@@ -160,32 +165,27 @@ impl Config {
 	///
 	/// Note that live-updating the `CONFIG_FILE` environment variable
 	/// is **NOT** supported (and is probably impossible anyway)
-	pub async fn reload() -> anyhow::Result<()> {
-		let new_config = Self::reload_from_path(CONFIG_FILE.as_str()).await?;
-
-		let mut config = CONFIG.write().await;
-		if new_config.users_file != config.users_file {
-			error!(
-				"Users file path changed, live watching new paths is not supported, please restart the server"
-			);
-		}
-		// XXX: Does this memleak? I don't think so, but I'm not sure
-		*config = Arc::new(new_config);
-		drop(config);
-
+	pub async fn reload(config_path: &str, config: Arc<ArcSwap<Config>>) -> anyhow::Result<()> {
+		let new_config: Arc<Config> = Self::reload_from_path(config_path).await?.into();
+		// TODO: secrets and static pages still use the global config, updating it for the time being
+		let mut config_guard = CONFIG.write().await;
+		*config_guard = new_config.clone();
+		config.store(new_config);
 		Ok(())
 	}
 
 	/// Set up a file watcher for the specified config file path
-	pub fn watch(config_path: &str) -> PollWatcher {
-		Self::watch_with_interval(config_path, std::time::Duration::from_secs(2))
+	pub fn watch(config_path: &str, config: Arc<ArcSwap<Config>>) -> PollWatcher {
+		Self::watch_with_interval(config_path, config, std::time::Duration::from_secs(2))
 	}
 
 	/// Set up a file watcher for the specified config file path with custom interval
 	pub fn watch_with_interval(
 		config_path: &str,
+		config: Arc<ArcSwap<Config>>,
 		poll_interval: std::time::Duration,
 	) -> PollWatcher {
+		let config_clone = config.clone();
 		let config_path_clone = config_path.to_owned();
 		let watcher_config = notify::Config::default()
 			.with_compare_contents(true)
@@ -197,7 +197,8 @@ impl Config {
 				Ok(_) => {
 					info!("Config file changed, reloading");
 					futures::executor::block_on(async {
-						if let Err(e) = Self::reload_from_path(&config_path_clone).await {
+						if let Err(e) = Self::reload(&config_path_clone, config_clone.clone()).await
+						{
 							error!("Failed to reload config file: {e}");
 						}
 					});
@@ -213,12 +214,11 @@ impl Config {
 			.expect("Failed to watch config file for changes");
 
 		// Watch users file if it exists in current config
-		if let Ok(config_guard) = CONFIG.try_read() {
-			if let Some(users_file) = &config_guard.users_file {
-				watcher
-					.watch(Path::new(users_file), notify::RecursiveMode::NonRecursive)
-					.expect("Failed to watch users file for changes");
-			}
+		let config_ref = config.load();
+		if let Some(users_file) = &config_ref.users_file {
+			watcher
+				.watch(Path::new(users_file), notify::RecursiveMode::NonRecursive)
+				.expect("Failed to watch users file for changes");
 		}
 
 		watcher

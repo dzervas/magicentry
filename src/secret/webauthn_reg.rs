@@ -46,13 +46,16 @@ impl FromRequestParts<AppState> for WebAuthnRegSecret {
 		parts: &mut Parts,
 		state: &AppState,
 	) -> Result<Self, Self::Rejection> {
-		let Ok(jar) = parts.extract::<CookieJar>().await;
+		let Ok(config) = parts.extract::<LiveConfig>().await else {
+			return Err("Could not extract config".into());
+		};
 
+		let Ok(jar) = parts.extract::<CookieJar>().await;
 		let Some(cookie) = jar.get(WEBAUTHN_REG_COOKIE) else {
 			return Err(WebAuthnError::SecretNotFound.into());
 		};
 
-		Self::try_from_string(cookie.value().to_string(), &state.db).await
+		Self::try_from_string(cookie.value().to_string(), &config, &state.db).await
 	}
 }
 

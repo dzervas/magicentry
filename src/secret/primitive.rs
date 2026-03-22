@@ -1,7 +1,7 @@
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::config::LiveConfig;
+use crate::config::{Config, LiveConfig};
 use crate::database::Database;
 use crate::error::{AppError, AuthError};
 use crate::user::User;
@@ -115,7 +115,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 		config: &LiveConfig,
 		db: &Database,
 	) -> Result<Self, AppError> {
-		metadata.validate(db).await?;
+		metadata.validate(config, db).await?;
 
 		let expires_at = chrono::Utc::now()
 			.naive_utc()
@@ -140,7 +140,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 	///
 	/// Any failure will remove the secret from the db and return an error
 	/// This is useful for cleaning up expired secrets
-	pub async fn validate(&self, db: &Database) -> Result<(), AppError> {
+	pub async fn validate(&self, config: &Config, db: &Database) -> Result<(), AppError> {
 		let prefix = K::PREFIX.as_short_str();
 		if !self
 			.0
@@ -160,7 +160,7 @@ impl<K: UserSecretKind> UserSecret<K> {
 			return Err(AppError::Auth(AuthError::InvalidSecret));
 		}
 
-		if self.0.metadata.validate(db).await.is_err() {
+		if self.0.metadata.validate(config, db).await.is_err() {
 			InternalUserSecret::<K>::remove(&self.0.code, db).await?;
 			return Err(AppError::Auth(AuthError::InvalidSecretMetadata));
 		}
@@ -175,12 +175,16 @@ impl<K: UserSecretKind> UserSecret<K> {
 	}
 
 	/// Parse and validate a secret from a string - most probably from user controlled data
-	pub async fn try_from_string(code: String, db: &Database) -> Result<Self, AppError> {
+	pub async fn try_from_string(
+		code: String,
+		config: &Config,
+		db: &Database,
+	) -> Result<Self, AppError> {
 		let internal_secret = InternalUserSecret::get(&code.try_into()?, db)
 			.await?
 			.ok_or(AuthError::InvalidSecret)?;
 		let user_secret = Self(internal_secret);
-		user_secret.validate(db).await?;
+		user_secret.validate(config, db).await?;
 		Ok(user_secret)
 	}
 
@@ -280,7 +284,7 @@ mod tests {
 			.to_string();
 
 		// Test get
-		let retrieved = LoginLinkSecret::try_from_string(login_link_code, &db)
+		let retrieved = LoginLinkSecret::try_from_string(login_link_code, &config, &db)
 			.await
 			.unwrap();
 		let retrieved_code = retrieved.code().clone();

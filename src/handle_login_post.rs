@@ -43,7 +43,7 @@ pub async fn handle_login_post(
 	// Generate the magic link
 	let link = LoginLinkSecret::new(
 		user.clone(),
-		login_redirect.into_opt().await,
+		login_redirect.into_opt(&config).await,
 		&config,
 		&state.db,
 	)

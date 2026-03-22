@@ -18,7 +18,7 @@ pub mod tests {
 	use crate::config::Config;
 	use crate::database::init_database;
 	use crate::user::User;
-	use crate::{CONFIG, Database};
+	use crate::{CONFIG_FILE, Database};
 
 	use super::*;
 
@@ -30,20 +30,16 @@ pub mod tests {
 	}
 
 	pub async fn get_valid_user() -> User {
-		Config::reload()
-			.await
-			.expect("Failed to reload config file");
 		let user_email = "valid@example.com";
 		let user_realms = vec!["example".to_string()];
-		let user = {
-			let config = CONFIG.read().await;
-			config
-				.users
-				.iter()
-				.find(|u| u.email == user_email)
-				.unwrap()
-				.clone()
-		};
+
+		let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
+		let user = config
+			.users
+			.iter()
+			.find(|u| u.email == user_email)
+			.unwrap()
+			.clone();
 
 		assert_eq!(user.email, user_email);
 		assert_eq!(user.realms, user_realms);
@@ -53,9 +49,9 @@ pub mod tests {
 
 	pub async fn server() -> TestServer {
 		let db = db_connect().await;
-		let config: Arc<ArcSwap<Config>> =
-			Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
-		let server = axum_build(db, config, vec![], None).await;
+		let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
+		let config_ref: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
+		let server = axum_build(db, config_ref, vec![], None).await;
 		TestServer::new(server).unwrap()
 	}
 

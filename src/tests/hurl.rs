@@ -85,14 +85,14 @@ pub async fn app_server() -> (
 	SocketAddr,
 	sqlx::SqlitePool,
 ) {
-	Config::reload().await.unwrap();
-	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
+	let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
+	let config_ref: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 	let db = db_connect().await;
 
 	let (addr, server) = axum_run(
 		Some("127.0.0.1:0"),
 		db.clone(),
-		config.clone(),
+		config_ref.clone(),
 		vec![],
 		Some(|router| {
 			router
@@ -103,7 +103,7 @@ pub async fn app_server() -> (
 	)
 	.await;
 
-	let config_full = config.load_full();
+	let config_full = config_ref.load_full();
 	let mut config_mut = Arc::unwrap_or_clone(config_full);
 	config_mut.external_url = format!("http://localhost:{}", addr.port());
 	for service in &mut config_mut.services.0 {
@@ -114,7 +114,7 @@ pub async fn app_server() -> (
 			}
 		}
 	}
-	config.store(Arc::new(config_mut));
+	config_ref.store(Arc::new(config_mut));
 
 	(server, addr, db)
 }

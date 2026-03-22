@@ -36,7 +36,7 @@ impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, Excha
 		db: &crate::Database,
 		metadata: <ExchangeTo as UserSecretKind>::Metadata,
 	) -> Result<UserSecret<ExchangeTo>, AppError> {
-		self.0.validate(db).await?;
+		self.0.validate(config, db).await?;
 
 		let new_secret = UserSecret::new(self.0.user().clone(), metadata, config, db).await?;
 		InternalUserSecret::<K>::remove(self.0.code(), db).await?;
@@ -44,9 +44,13 @@ impl<K: UserSecretKind, ExchangeTo: UserSecretKind> EphemeralUserSecret<K, Excha
 		Ok(new_secret)
 	}
 
-	pub async fn try_from_string(code: String, db: &crate::Database) -> Result<Self, AppError> {
+	pub async fn try_from_string(
+		code: String,
+		config: &LiveConfig,
+		db: &crate::Database,
+	) -> Result<Self, AppError> {
 		Ok(Self(
-			UserSecret::try_from_string(code, db).await?,
+			UserSecret::try_from_string(code, config, db).await?,
 			PhantomData,
 		))
 	}
@@ -118,7 +122,7 @@ where
 		config: &LiveConfig,
 		db: &crate::Database,
 	) -> Result<UserSecret<ExchangeTo>, AppError> {
-		self.0.validate(db).await?;
+		self.0.validate(config, db).await?;
 		InternalUserSecret::<K>::remove(self.0.code(), db).await?;
 		let user = self.0.user().clone();
 		let metadata = self.0.take_metadata().into_empty();

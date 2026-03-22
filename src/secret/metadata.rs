@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use super::primitive::{UserSecret, UserSecretKind};
 
+use crate::config::Config;
 use crate::database::Database;
 use crate::error::AppError;
 
 /// The trait that needs to be implemented by all metadata types.
 /// Just a trait alias.
 pub trait MetadataKind: Serialize + DeserializeOwned + Send + Sync {
-	async fn validate(&self, _db: &Database) -> Result<(), AppError> {
+	async fn validate(&self, _config: &Config, _db: &Database) -> Result<(), AppError> {
 		Ok(())
 	}
 }
@@ -65,9 +66,9 @@ impl<P: UserSecretKind, M: MetadataKind> ChildSecretMetadata<P, M> {
 impl<P: UserSecretKind + PartialEq + Serialize + DeserializeOwned, M: MetadataKind> MetadataKind
 	for ChildSecretMetadata<P, M>
 {
-	async fn validate(&self, db: &Database) -> Result<(), AppError> {
-		self.metadata.validate(db).await?;
-		self.parent.validate(db).await?;
+	async fn validate(&self, config: &Config, db: &Database) -> Result<(), AppError> {
+		self.metadata.validate(config, db).await?;
+		self.parent.validate(config, db).await?;
 		Ok(())
 	}
 }

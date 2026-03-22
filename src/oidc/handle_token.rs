@@ -96,7 +96,8 @@ pub async fn handle_token(
 	basic: Option<TypedHeader<Authorization<Basic>>>,
 	Form(token_req): Form<TokenRequest>,
 ) -> Result<Response, AppError> {
-	let oidc_authcode = OIDCAuthCodeSecret::try_from_string(token_req.code, &state.db).await?;
+	let oidc_authcode =
+		OIDCAuthCodeSecret::try_from_string(token_req.code, &config, &state.db).await?;
 	let auth_req = oidc_authcode.child_metadata();
 
 	let client_id = basic.clone().map_or_else(

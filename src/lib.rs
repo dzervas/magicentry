@@ -72,6 +72,7 @@ pub mod saml;
 pub mod secret;
 pub mod service;
 pub mod user;
+pub mod user_store;
 pub mod utils;
 pub mod webauthn;
 
@@ -250,7 +251,7 @@ impl LinkSender for reqwest::Client {
 
 		let method = reqwest::Method::from_bytes(config.request_method.as_bytes())
 			.expect("Invalid request_method provided in the config");
-        let request_url = std::env::var("REQUEST_URL").unwrap_or(config.request_url.clone());
+		let request_url = std::env::var("REQUEST_URL").unwrap_or(config.request_url.clone());
 		let url = formatx!(
 			&request_url,
 			title = &config.title,

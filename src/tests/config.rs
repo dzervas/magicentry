@@ -43,7 +43,11 @@ async fn test_file_watcher_reload() -> anyhow::Result<()> {
 	assert_eq!(initial_config.title, "MagicEntry");
 
 	// Set up the file watcher for the temporary config file
-	let _watcher = Config::watch_with_interval(&temp_config_str, Duration::from_millis(50));
+	let _watcher = Config::watch_with_interval(
+		&temp_config_str,
+		config_arc.clone(),
+		Duration::from_millis(50),
+	);
 
 	// Modify the config file to change the title
 	let mut config_content = std::fs::read_to_string(&temp_config_path)?;

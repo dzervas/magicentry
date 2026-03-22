@@ -44,6 +44,8 @@ fn create_mock_config() -> Config {
 		request_content_type: "application/x-www-form-urlencoded".to_string(),
 		webauthn_enable: true,
 		users_file: None,
+		users_sql_query: None,
+		users_sql_url: None,
 		users: vec![],
 		services: crate::service::Services(vec![]),
 	}

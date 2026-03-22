@@ -8,7 +8,7 @@ use tracing::info;
 use magicentry::app_build::axum_run;
 use magicentry::config::Config;
 use magicentry::database::init_database;
-use magicentry::{CONFIG, CONFIG_FILE, SmtpTransport, init_tracing};
+use magicentry::{CONFIG_FILE, SmtpTransport, init_tracing};
 
 // Issues:
 // - Make webauthn not require an email?
@@ -30,12 +30,12 @@ use magicentry::{CONFIG, CONFIG_FILE, SmtpTransport, init_tracing};
 #[tokio::main]
 async fn main() {
 	init_tracing(None);
-	Config::reload()
+	let config = Config::reload_from_path(&CONFIG_FILE)
 		.await
 		.expect("Failed to reload config file");
-	let database_url = CONFIG.read().await.database_url.clone();
+	let database_url = config.database_url.clone();
 
-	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(crate::CONFIG.read().await.clone()));
+	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 	let db = init_database(&database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
@@ -44,7 +44,7 @@ async fn main() {
 
 	let config_inst = config.load();
 	if config_inst.smtp_enable {
-        let smtp_url = std::env::var("SMTP_URL").unwrap_or(config_inst.smtp_url.clone());
+		let smtp_url = std::env::var("SMTP_URL").unwrap_or(config_inst.smtp_url.clone());
 		let smtp_inst: SmtpTransport =
 			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&smtp_url)
 				.expect("Failed to create mailer - is the `smtp_url` correct?")
@@ -59,7 +59,7 @@ async fn main() {
 
 	let (addr, server) = axum_run(None, db.clone(), config.clone(), link_senders, None).await;
 
-	let _watcer = Config::watch(CONFIG_FILE.as_str());
+	let _watcer = Config::watch(CONFIG_FILE.as_str(), config.clone());
 	spawn_cleanup_job(db.clone());
 
 	info!("Server running on http://{addr}");
