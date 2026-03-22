@@ -1,5 +1,3 @@
-use std::path::{Path, PathBuf};
-
 use serde::{Deserialize, Serialize};
 use sqlx::Row as _;
 use tracing::*;

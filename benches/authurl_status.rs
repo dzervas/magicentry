@@ -5,104 +5,81 @@
 	clippy::future_not_send
 )]
 
-use actix_web::cookie::Cookie;
-use actix_web::dev::ServiceResponse;
-use actix_web::test::{TestRequest, call_service, init_service};
-use actix_web::{App, web};
+use std::hint::black_box;
+use std::sync::Arc;
+
+use arc_swap::ArcSwap;
+use axum::http::StatusCode;
+use axum_extra::extract::cookie::Cookie;
+use axum_test::TestServer;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use std::hint::black_box;
+use magicentry::app_build::axum_build;
+use magicentry::config::{Config, LiveConfig};
+use magicentry::database::init_database;
+use magicentry::secret::{BrowserSessionSecret, EmptyMetadata, ProxySessionSecret};
+use magicentry::user_store::UserStore;
+use magicentry::{CONFIG_FILE, PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
 
-use magicentry::auth_url::{self};
-use magicentry::config::ConfigFile;
-use magicentry::secret::proxy_session::ProxySessionSecret;
-use magicentry::secret::{BrowserSessionSecret, EmptyMetadata};
-use magicentry::user::User;
-use magicentry::{CONFIG, PROXY_SESSION_COOKIE};
-pub async fn db_connect() -> magicentry::Database {
-	magicentry::database::init_database(&CONFIG.read().await.database_url)
+async fn setup_bench() -> (TestServer, String) {
+	let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
+	let mut user_store = config.get_user_store().unwrap();
+	let user = user_store.from_email("valid@example.com").await.unwrap();
+	let live_config = LiveConfig(Arc::new(config.clone()));
+	let config = Arc::new(ArcSwap::new(Arc::new(config)));
+	let db = init_database("sqlite::memory:").await.unwrap();
+	let app = axum_build(db.clone(), config, vec![], None).await;
+	let server = TestServer::builder().http_transport().build(app).unwrap();
+
+	let browser_session = BrowserSessionSecret::new(user, EmptyMetadata(), &live_config, &db)
 		.await
-		.expect("Failed to initialize SQLite database")
-}
+		.unwrap();
+	let proxy_session =
+		ProxySessionSecret::new_child(browser_session, EmptyMetadata(), &live_config, &db)
+			.await
+			.unwrap();
 
-async fn setup_app(
-	db: magicentry::Database,
-) -> impl actix_web::dev::Service<
-	actix_http::Request,
-	Response = ServiceResponse,
-	Error = actix_web::Error,
-> {
-	init_service(
-		App::new()
-			.app_data(web::Data::new(db.clone()))
-			.service(auth_url::handle_status::status),
+	(
+		server,
+		proxy_session.code().to_str_that_i_wont_print().to_owned(),
 	)
-	.await
-}
-
-pub async fn get_valid_user() -> User {
-	ConfigFile::reload()
-		.await
-		.expect("Failed to reload config file");
-	let user_email = "valid@example.com";
-	let user_realms = vec!["example".to_string()];
-	let config = CONFIG.read().await;
-	let user = config
-		.users
-		.iter()
-		.find(|u| u.email == user_email)
-		.unwrap()
-		.clone();
-	drop(config);
-
-	assert_eq!(user.email, user_email);
-	assert_eq!(user.realms, user_realms);
-
-	user
 }
 
 fn bench_status_endpoint(c: &mut Criterion) {
-	// Setup the runtime for async code
 	let rt = tokio::runtime::Runtime::new().unwrap();
-
-	let (app, proxy_session) = rt.block_on(async {
-		let db = db_connect().await;
-		let app = setup_app(db.clone()).await;
-		let user = get_valid_user().await;
-		let browser_session = BrowserSessionSecret::new(user, EmptyMetadata(), &db)
-			.await
-			.unwrap();
-		let proxy_session = ProxySessionSecret::new_child(browser_session, EmptyMetadata(), &db)
-			.await
-			.unwrap();
-
-		(app, proxy_session)
-	});
+	let (server, proxy_session_cookie) = rt.block_on(setup_bench());
 
 	let mut group = c.benchmark_group("authurl_status");
 	group.throughput(criterion::Throughput::Elements(1));
-
-	group.bench_function("auth_url_status_with_session", |b| {
+	group.bench_function("proxy_session_ok", |b| {
 		b.to_async(&rt).iter(|| async {
-			let req = TestRequest::get()
-				.uri("/auth-url/status")
-				.cookie(Cookie::new(
-					PROXY_SESSION_COOKIE,
-					proxy_session.code().to_str_that_i_wont_print(),
-				))
-				.to_request();
+			let response = black_box(
+				server
+					.get("/auth-url/status")
+					.add_header(PROXY_ORIGIN_HEADER, "http://localhost:8080/")
+					.add_cookie(Cookie::new(
+						PROXY_SESSION_COOKIE,
+						proxy_session_cookie.clone(),
+					))
+					.await,
+			);
 
-			black_box(call_service(&app, req).await)
+			assert_eq!(response.status_code(), StatusCode::OK);
 		});
 	});
-
-	group.bench_function("auth_url_status_unauthorized", |b| {
+	group.bench_function("proxy_session_err", |b| {
 		b.to_async(&rt).iter(|| async {
-			let req = TestRequest::get().uri("/auth-url/status").to_request();
+			let response = black_box(
+				server
+					.get("/auth-url/status")
+					.add_header(PROXY_ORIGIN_HEADER, "http://localhost:8080/")
+					.await,
+			);
 
-			black_box(call_service(&app, req).await)
+			assert_eq!(response.status_code(), StatusCode::UNAUTHORIZED);
 		});
 	});
+	group.finish();
 }
 
 criterion_group!(benches, bench_status_endpoint);
