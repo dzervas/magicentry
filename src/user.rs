@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::config::LiveConfig;
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct User {
 	pub username: String,
@@ -12,11 +10,6 @@ pub struct User {
 }
 
 impl User {
-	pub fn from_email(config: &LiveConfig, email: &str) -> Option<Self> {
-		config.users.iter().find(|u| u.email == email).cloned()
-	}
-
-	#[must_use]
 	pub fn has_any_realm(&self, realms: &[String]) -> bool {
 		self.realms.contains(&"all".to_string()) || self.realms.iter().any(|r| realms.contains(r))
 	}

@@ -18,7 +18,8 @@ use crate::error::AppError;
 use crate::pages::{LoginActionPage, Page};
 use crate::secret::LoginLinkSecret;
 use crate::secret::login_link::LoginLinkRedirect;
-use crate::user::User;
+
+use crate::user_store::UserStore as _;
 
 /// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -29,14 +30,14 @@ pub struct LoginInfo {
 #[axum::debug_handler]
 pub async fn handle_login_post(
 	config: LiveConfig,
-	State(state): State<AppState>,
+	State(mut state): State<AppState>,
 	Query(login_redirect): Query<LoginLinkRedirect>,
 	Form(form): Form<LoginInfo>,
 ) -> Result<Response, AppError> {
 	let login_action_page = LoginActionPage.render().await;
 
 	// Return 200 to avoid leaking valid emails
-	let Some(user) = User::from_email(&config, &form.email) else {
+	let Some(user) = state.user_store.from_email(&form.email).await else {
 		return Ok(login_action_page.into_response());
 	};
 

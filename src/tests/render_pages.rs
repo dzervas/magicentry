@@ -11,53 +11,13 @@ use crate::config::Config;
 use crate::error::AppError;
 use crate::pages::*;
 
-/// Mock configuration for testing
-fn create_mock_config() -> Config {
-	Config {
-		database_url: "sqlite::memory:".to_string(),
-		listen_host: "127.0.0.1".to_string(),
-		listen_port: 8080,
-		path_prefix: "/demo".to_string(),
-		external_url: "http://localhost:8080".to_string(),
-		link_duration: chrono::Duration::try_hours(12).unwrap(),
-		session_duration: chrono::Duration::try_days(30).unwrap(),
-		secrets_cleanup_interval: chrono::Duration::try_hours(24).unwrap(),
-		title: "MagicEntry Demo".to_string(),
-		static_path: "static".to_string(),
-		auth_url_enable: true,
-		auth_url_user_header: "X-Remote-User".to_string(),
-		auth_url_email_header: "X-Remote-Email".to_string(),
-		auth_url_name_header: "X-Remote-Name".to_string(),
-		auth_url_realms_header: "X-Remote-Realms".to_string(),
-		oidc_code_duration: chrono::Duration::try_minutes(1).unwrap(),
-		saml_cert_pem_path: "saml_cert.pem".to_string(),
-		saml_key_pem_path: "saml_key.pem".to_string(),
-		smtp_enable: false,
-		smtp_url: "smtp://localhost:25".to_string(),
-		smtp_from: "{title} <magicentry@example.com>".to_string(),
-		smtp_subject: "{title} Login".to_string(),
-		smtp_body: "Click the link to login: {magic_link}".to_string(),
-		request_enable: false,
-		request_url: "https://www.cinotify.cc/api/notify".to_string(),
-		request_method: "POST".to_string(),
-		request_data: Some("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string()),
-		request_content_type: "application/x-www-form-urlencoded".to_string(),
-		webauthn_enable: true,
-		users_file: None,
-		users_sql_query: None,
-		users_sql_url: None,
-		users: vec![],
-		services: crate::service::Services(vec![]),
-	}
-}
-
 /// Helper function to render pages with mock config
 fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> Result<(), AppError> {
 	// For this example, we'll simulate the global CONFIG with a local Arc<RwLock>
 	// In a real application, the global CONFIG would be properly initialized
 
 	// Create a mock config and use it directly with render_partial
-	let mock_config = create_mock_config();
+	let mock_config = Config::default();
 
 	// Manually implement the render logic using the mock config
 	let content = page.render_partial();

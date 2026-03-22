@@ -4,26 +4,30 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum_extra::extract::CookieJar;
 
+use super::store::PasskeyStore;
 use crate::AppState;
 use crate::config::LiveConfig;
 use crate::error::{AppError, WebAuthnError};
 use crate::handle_login_post::LoginInfo;
 use crate::secret::WebAuthnAuthSecret;
-use crate::user::User;
 
-use super::store::PasskeyStore;
+use crate::user_store::UserStore as _;
 
 #[axum::debug_handler]
 pub async fn handle_auth_start(
 	config: LiveConfig,
-	State(state): State<AppState>,
+	State(mut state): State<AppState>,
 	jar: CookieJar,
 	form: Json<LoginInfo>,
 ) -> Result<(CookieJar, impl IntoResponse), AppError> {
 	let webauthn = state.webauthn.clone();
 
 	// TODO: Handle the errors to avoid leaking (in)valid emails
-	let user = User::from_email(&config, &form.email).ok_or(WebAuthnError::SecretNotFound)?;
+	let user = state
+		.user_store
+		.from_email(&form.email)
+		.await
+		.ok_or(WebAuthnError::SecretNotFound)?;
 
 	let passkey_stores = PasskeyStore::get_by_user(&user, &state.db).await?;
 	let passkeys = passkey_stores

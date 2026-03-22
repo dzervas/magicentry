@@ -21,6 +21,8 @@ use crate::CONFIG;
 use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
 use crate::user::User;
+use crate::user_store::{SQLUserStore, StaticUserStore, UserStoreKind};
+// use crate::user_store::{SQLUserStore, StaticUserStore, UserStoreKind};
 
 /// The actual, deserialized config data
 ///
@@ -79,10 +81,12 @@ pub struct Config {
 	pub webauthn_enable: bool,
 
 	// pub force_https_redirects: bool,
-	pub users: Vec<User>,
+	// Private to avoid reading from the field instead of the user store
+	users: Vec<User>,
 	/// Path to a file containing the user definitions
 	pub users_file: Option<String>,
-	pub users_sql_query: Option<String>,
+	pub users_sql_query_all: Option<String>,
+	pub users_sql_query_email: Option<String>,
 	pub users_sql_url: Option<String>,
 	pub services: Services,
 }
@@ -136,7 +140,8 @@ impl Default for Config {
 
 			users: vec![],
 			users_file: None,
-			users_sql_query: None,
+			users_sql_query_all: None,
+			users_sql_query_email: None,
 			users_sql_url: None,
 
 			services: Services(vec![]),
@@ -246,6 +251,43 @@ impl Config {
 			.filter(|line| !line.contains("BEGIN PRIVATE KEY") && !line.contains("END PRIVATE KEY"))
 			.collect::<String>()
 			.replace("\n", ""))
+	}
+
+	pub fn get_user_store(&self) -> anyhow::Result<UserStoreKind> {
+		if self.users.len() > 0 {
+			return Ok(UserStoreKind::Static(StaticUserStore::new(
+				self.users.clone(),
+			)));
+		}
+
+		if self.users_file.is_some() {
+			// TODO: While this is correct since during reload we shove the users to the store, it's not right
+			return Ok(UserStoreKind::Static(StaticUserStore::new(
+				self.users.clone(),
+			)));
+		}
+
+		if let Some(url) = self.users_sql_url.clone() {
+			let Some(query_all) = self.users_sql_query_all.clone() else {
+				return Err(anyhow::anyhow!(
+					"users_sql_query_all is required when users_sql_url is set"
+				));
+			};
+			let Some(query_email) = self.users_sql_query_email.clone() else {
+				return Err(anyhow::anyhow!(
+					"users_sql_query_email is required when users_sql_url is set"
+				));
+			};
+
+			return Ok(UserStoreKind::SQL(SQLUserStore::new(
+				&url,
+				query_all,
+				query_email,
+			)?));
+		}
+
+		error!("No users configured, using an empty user store");
+		Ok(UserStoreKind::Static(StaticUserStore::new(vec![])))
 	}
 }
 

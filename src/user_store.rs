@@ -5,21 +5,37 @@ use tracing::*;
 use crate::user::User;
 
 #[async_trait::async_trait]
-pub trait UserStore {
+pub trait UserStore: Send + Sync {
 	async fn from_email(&mut self, email: &str) -> Option<User>;
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfigUserStore(Vec<User>);
+#[derive(Debug, Clone)]
+pub enum UserStoreKind {
+	Static(StaticUserStore),
+	SQL(SQLUserStore),
+}
 
-impl ConfigUserStore {
+#[async_trait::async_trait]
+impl UserStore for UserStoreKind {
+	async fn from_email(&mut self, email: &str) -> Option<User> {
+		match self {
+			UserStoreKind::Static(store) => store.from_email(email).await,
+			UserStoreKind::SQL(store) => store.from_email(email).await,
+		}
+	}
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StaticUserStore(Vec<User>);
+
+impl StaticUserStore {
 	pub fn new(users: Vec<User>) -> Self {
-		ConfigUserStore(users)
+		StaticUserStore(users)
 	}
 }
 
 #[async_trait::async_trait]
-impl UserStore for ConfigUserStore {
+impl UserStore for StaticUserStore {
 	async fn from_email(&mut self, email: &str) -> Option<User> {
 		self.0.iter().find(|user| user.email == email).cloned()
 	}
@@ -28,6 +44,8 @@ impl UserStore for ConfigUserStore {
 #[derive(Debug, Clone)]
 pub struct SQLUserStore {
 	conn: sqlx::AnyPool,
+	#[allow(dead_code)]
+	// This is not used but there's no way we won't need it at some point, right?
 	query_all: String,
 	query_email: String,
 }

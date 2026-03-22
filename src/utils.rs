@@ -18,6 +18,7 @@ pub mod tests {
 	use crate::config::Config;
 	use crate::database::init_database;
 	use crate::user::User;
+	use crate::user_store::UserStore;
 	use crate::{CONFIG_FILE, Database};
 
 	use super::*;
@@ -35,11 +36,11 @@ pub mod tests {
 
 		let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
 		let user = config
-			.users
-			.iter()
-			.find(|u| u.email == user_email)
+			.get_user_store()
 			.unwrap()
-			.clone();
+			.from_email(user_email)
+			.await
+			.unwrap();
 
 		assert_eq!(user.email, user_email);
 		assert_eq!(user.realms, user_realms);

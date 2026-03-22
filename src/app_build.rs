@@ -50,6 +50,9 @@ pub async fn axum_build(
 	let external_url = config_ref.external_url.clone();
 	let key = oidc::init(&db).await;
 	let webauthn = webauthn::init(&title, &external_url).unwrap();
+	let user_store = config_ref
+		.get_user_store()
+		.expect("Could not construct a valid user store");
 	drop(config_ref);
 
 	let state = AppState {
@@ -58,6 +61,7 @@ pub async fn axum_build(
 		link_senders,
 		key,
 		webauthn,
+		user_store,
 	};
 
 	// TODO: Static files
