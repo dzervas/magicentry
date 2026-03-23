@@ -58,7 +58,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
 
 use crate::error::AppError;
-use crate::user_store::UserStoreKind;
+use crate::user_store::UserStore;
 use crate::{config::Config, user::User};
 
 pub mod app_build;
@@ -143,7 +143,7 @@ pub struct InFlightConfig(Arc<Config>);
 pub struct AppState {
 	pub db: crate::Database,
 	config: Arc<ArcSwap<Config>>,
-	pub user_store: UserStoreKind,
+	pub user_store: Arc<dyn UserStore>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
 
 	pub key: jsonwebtoken::EncodingKey,

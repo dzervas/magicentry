@@ -11,7 +11,6 @@ use crate::error::{AppError, AuthError};
 use crate::secret::LoginLinkSecret;
 use crate::secret::admin_token::{AdminApiTokenMetadata, AdminApiTokenSecret};
 use crate::secret::login_link::LoginLinkRedirect;
-use crate::user_store::UserStore;
 use crate::{AppState, secret::BrowserSessionSecret};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -35,7 +34,7 @@ pub struct GenerateMagicLinkResponse {
 #[axum::debug_handler]
 pub async fn handle_admin_generate_magic_link(
 	_: AdminApiTokenSecret,
-	State(mut state): State<AppState>,
+	State(state): State<AppState>,
 	config: LiveConfig,
 	Json(generate_magic_link_request): Json<GenerateMagicLinkRequest>,
 ) -> Response {

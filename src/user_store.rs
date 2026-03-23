@@ -6,25 +6,7 @@ use crate::user::User;
 
 #[async_trait::async_trait]
 pub trait UserStore: Send + Sync {
-	async fn from_email(&mut self, email: &str) -> Option<User>;
-}
-
-#[derive(Debug, Clone)]
-pub enum UserStoreKind {
-	Static(StaticUserStore),
-	File(FileUserStore),
-	SQL(SQLUserStore),
-}
-
-#[async_trait::async_trait]
-impl UserStore for UserStoreKind {
-	async fn from_email(&mut self, email: &str) -> Option<User> {
-		match self {
-			UserStoreKind::Static(store) => store.from_email(email).await,
-			UserStoreKind::File(store) => store.from_email(email).await,
-			UserStoreKind::SQL(store) => store.from_email(email).await,
-		}
-	}
+	async fn from_email(&self, email: &str) -> Option<User>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +20,7 @@ impl StaticUserStore {
 
 #[async_trait::async_trait]
 impl UserStore for StaticUserStore {
-	async fn from_email(&mut self, email: &str) -> Option<User> {
+	async fn from_email(&self, email: &str) -> Option<User> {
 		self.0.iter().find(|user| user.email == email).cloned()
 	}
 }
@@ -54,7 +36,7 @@ impl FileUserStore {
 
 #[async_trait::async_trait]
 impl UserStore for FileUserStore {
-	async fn from_email(&mut self, email: &str) -> Option<User> {
+	async fn from_email(&self, email: &str) -> Option<User> {
 		let users_contents = match std::fs::read_to_string(self.0.clone()) {
 			Ok(contents) => contents,
 			Err(e) => {
@@ -95,7 +77,7 @@ impl SQLUserStore {
 
 #[async_trait::async_trait]
 impl UserStore for SQLUserStore {
-	async fn from_email(&mut self, email: &str) -> Option<User> {
+	async fn from_email(&self, email: &str) -> Option<User> {
 		// let Ok(conn) = self.conn.acquire().await else {
 		// 	error!("Failed to acquire connection from the SQL user pool");
 		// 	return None;

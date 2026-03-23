@@ -18,7 +18,6 @@ pub mod tests {
 	use crate::config::Config;
 	use crate::database::init_database;
 	use crate::user::User;
-	use crate::user_store::UserStore;
 	use crate::{CONFIG_FILE, Database};
 
 	use super::*;

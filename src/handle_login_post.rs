@@ -19,8 +19,6 @@ use crate::pages::{LoginActionPage, Page};
 use crate::secret::LoginLinkSecret;
 use crate::secret::login_link::LoginLinkRedirect;
 
-use crate::user_store::UserStore as _;
-
 /// Used to get the login form data for from the login page
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LoginInfo {
@@ -30,7 +28,7 @@ pub struct LoginInfo {
 #[axum::debug_handler]
 pub async fn handle_login_post(
 	config: LiveConfig,
-	State(mut state): State<AppState>,
+	State(state): State<AppState>,
 	Query(login_redirect): Query<LoginLinkRedirect>,
 	Form(form): Form<LoginInfo>,
 ) -> Result<Response, AppError> {

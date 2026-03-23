@@ -30,6 +30,7 @@ use crate::service::StatusAuth;
 ///
 /// In order to use the one-time-code functionality, some setup is required,
 /// documented in [the example](https://magicentry.rs/#/installation?id=example-valuesyaml)
+// TODO: Cache the response for about a second or so
 #[axum::debug_handler]
 pub async fn handle_status(
 	config: LiveConfig,
@@ -45,10 +46,7 @@ pub async fn handle_status(
 		.unwrap_or(false);
 
 	if log_authurl_lines {
-		let cookies: Vec<&str> = jar
-			.iter()
-			.map(|cookie| cookie.name())
-			.collect();
+		let cookies: Vec<&str> = jar.iter().map(|cookie| cookie.name()).collect();
 		let headers: Vec<&str> = request_headers
 			.iter()
 			.map(|(name, _value)| name.as_str())

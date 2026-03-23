@@ -21,8 +21,7 @@ use crate::CONFIG;
 use crate::database::{ConfigKVRow, Database};
 use crate::service::Services;
 use crate::user::User;
-use crate::user_store::{FileUserStore, SQLUserStore, StaticUserStore, UserStoreKind};
-// use crate::user_store::{SQLUserStore, StaticUserStore, UserStoreKind};
+use crate::user_store::{FileUserStore, SQLUserStore, StaticUserStore, UserStore};
 
 /// The actual, deserialized config data
 ///
@@ -253,15 +252,14 @@ impl Config {
 			.replace("\n", ""))
 	}
 
-	pub fn get_user_store(&self) -> anyhow::Result<UserStoreKind> {
+	pub fn get_user_store(&self) -> anyhow::Result<Arc<dyn UserStore>> {
 		if self.users.len() > 0 {
-			return Ok(UserStoreKind::Static(StaticUserStore::new(
-				self.users.clone(),
-			)));
+			// TODO: This does not hot-reload
+			return Ok(Arc::new(StaticUserStore::new(self.users.clone())));
 		}
 
 		if let Some(users_file) = self.users_file.clone() {
-			return Ok(UserStoreKind::File(FileUserStore::new(users_file)));
+			return Ok(Arc::new(FileUserStore::new(users_file)));
 		}
 
 		if let Some(url) = self.users_sql_url.clone() {
@@ -276,15 +274,12 @@ impl Config {
 				));
 			};
 
-			return Ok(UserStoreKind::SQL(SQLUserStore::new(
-				&url,
-				query_all,
-				query_email,
-			)?));
+			return Ok(Arc::new(SQLUserStore::new(&url, query_all, query_email)?));
 		}
 
 		error!("No users configured, using an empty user store");
-		Ok(UserStoreKind::Static(StaticUserStore::new(vec![])))
+		// TODO: This does not hot-reload
+		Ok(Arc::new(StaticUserStore::new(vec![])))
 	}
 }
 

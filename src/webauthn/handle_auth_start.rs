@@ -11,12 +11,10 @@ use crate::error::{AppError, WebAuthnError};
 use crate::handle_login_post::LoginInfo;
 use crate::secret::WebAuthnAuthSecret;
 
-use crate::user_store::UserStore as _;
-
 #[axum::debug_handler]
 pub async fn handle_auth_start(
 	config: LiveConfig,
-	State(mut state): State<AppState>,
+	State(state): State<AppState>,
 	jar: CookieJar,
 	form: Json<LoginInfo>,
 ) -> Result<(CookieJar, impl IntoResponse), AppError> {
