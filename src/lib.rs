@@ -77,12 +77,12 @@ pub mod user_store;
 pub mod utils;
 pub mod webauthn;
 
+pub mod handle_admin;
 pub mod handle_index;
 pub mod handle_login;
 pub mod handle_login_post;
 pub mod handle_logout;
 pub mod handle_magic_link;
-// pub mod handle_static;
 
 pub mod pages;
 

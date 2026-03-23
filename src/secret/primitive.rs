@@ -194,6 +194,9 @@ impl<K: UserSecretKind> UserSecret<K> {
 	pub const fn user(&self) -> &User {
 		&self.0.user
 	}
+	pub const fn created_at(&self) -> NaiveDateTime {
+		self.0.created_at
+	}
 	pub const fn expires_at(&self) -> NaiveDateTime {
 		self.0.expires_at
 	}

@@ -5,6 +5,7 @@ pub mod metadata;
 pub mod primitive;
 
 // Secret types
+pub mod admin_token;
 pub mod browser_session;
 pub mod login_link;
 pub mod oidc_authcode;
@@ -30,7 +31,7 @@ use crate::{error::AuthError, utils::random_string};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Encode, sqlx::Decode)]
 pub enum SecretType {
-	ApiKey,
+	AdminApiKey,
 	BrowserSession,
 	LoginLink,
 	MagicToken,
@@ -48,7 +49,7 @@ impl SecretType {
 	#[must_use]
 	pub const fn as_short_str(&self) -> &'static str {
 		match self {
-			Self::ApiKey => "aa",
+			Self::AdminApiKey => "aa",
 			Self::BrowserSession => "bs",
 			Self::LoginLink => "ll",
 			Self::MagicToken => "mt",
@@ -67,24 +68,30 @@ impl SecretType {
 pub struct SecretString(SecretType, String);
 
 impl SecretString {
-	#[must_use]
 	pub fn new(kind: &SecretType) -> Self {
 		Self(kind.clone(), random_string())
 	}
 
-	#[must_use]
 	pub const fn get_type(&self) -> &SecretType {
 		&self.0
 	}
 
-	#[allow(clippy::must_use_candidate)]
 	pub fn to_str_that_i_wont_print(&self) -> String {
 		self.with_prefix()
 	}
 
-	#[must_use]
 	fn with_prefix(&self) -> String {
 		format!("me_{}_{}", self.0.as_short_str(), self.1)
+	}
+
+	pub fn obfuscated(&self) -> String {
+		let mut result = self.with_prefix();
+		let Some(underscore_index) = result.rfind("_") else {
+			return result[..5].to_string();
+		};
+
+		result.replace_range((underscore_index + 3)..(result.len() - 4), "...");
+		result
 	}
 }
 
@@ -140,7 +147,7 @@ impl TryFrom<String> for SecretString {
 		}
 
 		let kind = match parts[1] {
-			"aa" => SecretType::ApiKey,
+			"aa" => SecretType::AdminApiKey,
 			"bs" => SecretType::BrowserSession,
 			"ll" => SecretType::LoginLink,
 			"mt" => SecretType::MagicToken,

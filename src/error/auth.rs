@@ -88,6 +88,9 @@ pub enum AuthError {
 
 	#[error("Kubernetes ingress has no host")]
 	IngressHasNoHost,
+
+	#[error("You are not authorized to perform admin-level actions")]
+	NotAnAdmin,
 }
 
 impl AuthError {
