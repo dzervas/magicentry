@@ -37,3 +37,4 @@ dist/
 /src/tests/gen_hurl_tests.rs
 /rendered_pages
 /static/main.bundle.css
+/crates/magicentry-ee

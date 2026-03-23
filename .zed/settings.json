@@ -1,4 +1,5 @@
 {
+	"file_scan_inclusions": ["crates/magicentry-ee"],
 	"languages": {
 		"Rust": {
 			"hard_tabs": true,

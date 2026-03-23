@@ -598,6 +598,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "build-utils"
+version = "0.0.0-git"
+
+[[package]]
 name = "bumpalo"
 version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2925,6 +2929,24 @@ dependencies = [
  "urlencoding",
  "uuid",
  "webauthn-rs",
+]
+
+[[package]]
+name = "magicentry-ee"
+version = "0.0.0-git"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "async-trait",
+ "axum",
+ "axum-test",
+ "magicentry",
+ "serde",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

@@ -1,0 +1,4 @@
+[package]
+name = "build-utils"
+version = "0.0.0-git"
+edition = "2024"
