@@ -46,7 +46,6 @@ pub enum SecretType {
 }
 
 impl SecretType {
-	#[must_use]
 	pub const fn as_short_str(&self) -> &'static str {
 		match self {
 			Self::AdminApiKey => "aa",

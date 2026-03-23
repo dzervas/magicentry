@@ -10,8 +10,7 @@ pub struct PageLayout {
 }
 
 /// Create a complete HTML page with content
-#[must_use]
-pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
+pub fn render_page(layout: &PageLayout, content: &Markup, full_page: bool) -> Markup {
 	html! {
 		(DOCTYPE)
 		html lang="en" {
@@ -24,8 +23,9 @@ pub fn render_page(layout: &PageLayout, content: &Markup) -> Markup {
 			}
 			body {
 				section class="h-full bg-white dark:bg-gray-900" {
+					@if full_page { (content) }
 					main class="flex flex-col h-screen justify-center items-center" {
-						(content)
+						@if !full_page { (content) }
 
 						footer class="mx-auto max-w-(--breakpoint-sm) text-sm text-left text-gray-500 dark:text-gray-300 bottom-0 absolute my-6" {
 							"Powered by ";

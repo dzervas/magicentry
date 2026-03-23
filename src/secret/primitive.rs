@@ -83,6 +83,36 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 		Ok(Some(obj))
 	}
 
+	/// Fetches all the available secrets of the time - be careful with this method!
+	/// Aimed for the admin API token list to show admins obfuscated tokens
+	async fn list_all(db: &Database) -> anyhow::Result<Vec<Self>> {
+		let prefix = format!("me_{}_%", K::PREFIX.as_short_str());
+		let rows = sqlx::query!(
+			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code LIKE ?"#,
+			prefix
+		)
+		.fetch_all(db)
+		.await?;
+
+		rows.into_iter()
+			.map(|row| {
+				// Since the metadata column in the DB is nullable, we need to handle it
+				let metadata =
+					serde_json::from_str(&row.metadata.unwrap_or_else(|| "null".to_string()))?;
+
+				let obj = Self {
+					code: row.code.try_into()?,
+					user: serde_json::from_str(&row.user)?,
+					expires_at: row.expires_at,
+					created_at: row.created_at.unwrap_or_default(),
+					metadata,
+				};
+
+				Ok(obj)
+			})
+			.collect()
+	}
+
 	/// Check if a user secret exists
 	pub async fn exists(code: &SecretString, db: &Database) -> anyhow::Result<bool> {
 		let count: i64 =
@@ -186,6 +216,16 @@ impl<K: UserSecretKind> UserSecret<K> {
 		let user_secret = Self(internal_secret);
 		user_secret.validate(config, db).await?;
 		Ok(user_secret)
+	}
+
+	/// List all secrets from the db
+	/// WARNING: Does NOT validate the secrets!
+	pub(super) async fn list_all_unverified(db: &Database) -> anyhow::Result<Vec<Self>> {
+		InternalUserSecret::<K>::list_all(db)
+			.await?
+			.into_iter()
+			.map(|sec| Ok(Self(sec)))
+			.collect()
 	}
 
 	pub const fn code(&self) -> &SecretString {

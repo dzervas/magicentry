@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use magicentry::secret::cleanup::spawn_cleanup_job;
-use tracing::info;
 
 use magicentry::app_build::axum_run;
 use magicentry::config::Config;

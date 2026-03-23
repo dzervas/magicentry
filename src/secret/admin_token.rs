@@ -5,6 +5,7 @@ use headers::Authorization;
 use headers::authorization::Bearer;
 use serde::{Deserialize, Serialize};
 
+use crate::Database;
 use crate::config::LiveConfig;
 use crate::error::AuthError;
 use crate::secret::MetadataKind;
@@ -32,6 +33,13 @@ pub struct AdminApiTokenMetadata {
 impl MetadataKind for AdminApiTokenMetadata {}
 
 pub type AdminApiTokenSecret = UserSecret<AdminApiTokenSecretKind>;
+
+impl AdminApiTokenSecret {
+	pub async fn list(db: &Database) -> anyhow::Result<Vec<Self>> {
+		let tokens = Self::list_all_unverified(db).await?;
+		Ok(tokens)
+	}
+}
 
 impl FromRequestParts<crate::AppState> for AdminApiTokenSecret {
 	type Rejection = crate::error::AppError;
