@@ -50,8 +50,9 @@ pub mod tests {
 	pub async fn server() -> TestServer {
 		let db = db_connect().await;
 		let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
+		let user_store = config.get_user_store().unwrap();
 		let config_ref: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
-		let server = axum_build(db, config_ref, vec![], None).await;
+		let server = axum_build(db, config_ref, vec![], user_store, None).await;
 		TestServer::new(server).unwrap()
 	}
 

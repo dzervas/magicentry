@@ -34,13 +34,24 @@ async fn main() {
 		.expect("Failed to reload config file");
 	let database_url = config.database_url.clone();
 	let link_senders = config.get_link_senders();
+	let user_store = config
+		.get_user_store()
+		.expect("Could not construct a valid user store");
 
 	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 	let db = init_database(&database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
 
-	let (addr, server) = axum_run(None, db.clone(), config.clone(), link_senders, None).await;
+	let (addr, server) = axum_run(
+		None,
+		db.clone(),
+		config.clone(),
+		link_senders,
+		user_store,
+		None,
+	)
+	.await;
 
 	let _watcer = Config::watch(CONFIG_FILE.as_str(), config.clone());
 	spawn_cleanup_job(db.clone());

@@ -60,7 +60,8 @@ async fn test_file_watcher_reload() -> anyhow::Result<()> {
 	config_arc.store(updated_config);
 
 	// Verify the title has been updated
-	assert_eq!(config_arc.load().title, "UpdatedMagicEntry");
+	let config_inst = config_arc.load();
+	assert_eq!(config_inst.title, "UpdatedMagicEntry");
 
 	// Now test with the axum-test server
 	use crate::app_build::axum_build;
@@ -69,7 +70,8 @@ async fn test_file_watcher_reload() -> anyhow::Result<()> {
 
 	// Initialize database and build server with our config
 	let db = db_connect().await;
-	let server = axum_build(db, config_arc.clone(), vec![], None).await;
+	let user_store = config_inst.get_user_store().unwrap();
+	let server = axum_build(db, config_arc.clone(), vec![], user_store, None).await;
 	let test_server = TestServer::new(server).unwrap();
 
 	// Initial GET to /login to check the title

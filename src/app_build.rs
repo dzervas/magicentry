@@ -43,6 +43,7 @@ pub async fn axum_build(
 	db: Database,
 	config: Arc<ArcSwap<Config>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
+	user_store: Arc<dyn UserStore>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> Router {
 	let config_ref = config.load();
@@ -50,9 +51,6 @@ pub async fn axum_build(
 	let external_url = config_ref.external_url.clone();
 	let key = oidc::init(&db).await;
 	let webauthn = webauthn::init(&title, &external_url).unwrap();
-	let user_store = config_ref
-		.get_user_store()
-		.expect("Could not construct a valid user store");
 	drop(config_ref);
 
 	let state = AppState {
@@ -111,6 +109,7 @@ pub async fn axum_run(
 	db: Database,
 	config: Arc<ArcSwap<Config>>,
 	link_senders: Vec<Arc<dyn LinkSender>>,
+	user_store: Arc<dyn UserStore>,
 	router_fn: Option<fn(Router<AppState>) -> Router<AppState>>,
 ) -> (SocketAddr, Serve<TcpListener, Router, Router>) {
 	let config_listen = {
@@ -122,7 +121,7 @@ pub async fn axum_run(
 		)
 	};
 
-	let router = axum_build(db, config, link_senders, router_fn).await;
+	let router = axum_build(db, config, link_senders, user_store, router_fn).await;
 	let listen = listen.unwrap_or(&config_listen);
 	let listener = TcpListener::bind(listen).await.unwrap();
 	let server = axum::serve(listener, router);

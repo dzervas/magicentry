@@ -27,7 +27,7 @@ async fn setup_bench() -> (TestServer, String) {
 	let live_config = LiveConfig(Arc::new(config.clone()));
 	let config = Arc::new(ArcSwap::new(Arc::new(config)));
 	let db = init_database("sqlite::memory:").await.unwrap();
-	let app = axum_build(db.clone(), config, vec![], None).await;
+	let app = axum_build(db.clone(), config, vec![], user_store, None).await;
 	let server = TestServer::builder().http_transport().build(app).unwrap();
 
 	let browser_session = BrowserSessionSecret::new(user, EmptyMetadata(), &live_config, &db)

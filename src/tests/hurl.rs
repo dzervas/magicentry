@@ -86,6 +86,7 @@ pub async fn app_server() -> (
 	sqlx::SqlitePool,
 ) {
 	let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
+	let user_store = config.get_user_store().unwrap();
 	let config_ref: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 	let db = db_connect().await;
 
@@ -94,6 +95,7 @@ pub async fn app_server() -> (
 		db.clone(),
 		config_ref.clone(),
 		vec![],
+		user_store,
 		Some(|router| {
 			router
 				.route("/secrets", get(secrets_handler))

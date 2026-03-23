@@ -45,9 +45,10 @@ async fn login_uses_sql_user_store_end_to_end() -> anyhow::Result<()> {
 		.await?;
 
 	let config = test_config(users_db_url);
+	let user_store = config.get_user_store().unwrap();
 	let config_ref: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 	let app_db = db_connect().await;
-	let app = axum_build(app_db.clone(), config_ref, vec![], None).await;
+	let app = axum_build(app_db.clone(), config_ref, vec![], user_store, None).await;
 	let server = TestServer::new(app).unwrap();
 
 	let response = server.get("/login").await;
