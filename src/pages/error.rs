@@ -46,6 +46,6 @@ impl ErrorPage {
 			path_prefix: "/".to_string(),
 		};
 
-		render_page(&layout, &content)
+		render_page(&layout, &content, false)
 	}
 }

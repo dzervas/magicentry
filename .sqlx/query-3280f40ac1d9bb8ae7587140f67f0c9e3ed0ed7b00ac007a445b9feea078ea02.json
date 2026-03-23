@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code LIKE ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "code",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "user",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "expires_at",
+        "ordinal": 2,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "metadata",
+        "ordinal": 4,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "3280f40ac1d9bb8ae7587140f67f0c9e3ed0ed7b00ac007a445b9feea078ea02"
+}

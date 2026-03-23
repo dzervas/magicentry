@@ -14,6 +14,8 @@ use super::partials::{PageLayout, render_page};
 /// 2. Provide a complete HTML page with proper layout
 #[async_trait::async_trait]
 pub trait Page {
+	const FULL_PAGE: bool = false;
+
 	/// Render the partial content of the page with config access
 	///
 	/// This method receives config data and should
@@ -38,7 +40,7 @@ pub trait Page {
 			path_prefix: self.get_path_prefix(config).to_string(),
 		};
 
-		render_page(&layout, &content)
+		render_page(&layout, &content, Self::FULL_PAGE)
 	}
 
 	/// Get the page title from config or use a default

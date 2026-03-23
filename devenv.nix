@@ -33,7 +33,7 @@
   };
 
   scripts = {
-    db-reinit.exec = "rm -f database.db*; cargo sqlx db create; cargo sqlx migrate run; cargo sqlx prepare";
+    db-reinit.exec = "rm -f database.db*; cargo sqlx db create; cargo sqlx migrate run; cargo sqlx prepare --workspace";
     ce.exec = "cargo $* --package magicentry-ee";
   };
 }
