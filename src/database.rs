@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool, sqlite::SqliteConnectOptions};
-use std::str::FromStr;
+use std::{path::Path, str::FromStr};
 
 use crate::{error::AppError, user::User};
 use anyhow::Context as _;
@@ -22,7 +22,10 @@ pub async fn init_database(database_url: &str) -> Result<Database, AppError> {
 		.with_context(|| format!("Failed to connect to database: {database_url}"))?;
 
 	// Run migrations
-	sqlx::migrate!("./migrations")
+	let migrations_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("migrations");
+	sqlx::migrate::Migrator::new(migrations_path.clone())
+		.await
+		.context(format!("Failed to find migrations in {migrations_path:?}"))?
 		.run(&pool)
 		.await
 		.context("Failed to run database migrations")?;

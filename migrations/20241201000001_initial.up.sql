@@ -1,5 +1,4 @@
 -- Initial schema for magicentry SQLite database
--- Replaces reindeer/sled storage with SQLite
 
 -- User secrets table
 CREATE TABLE user_secrets (

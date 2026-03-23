@@ -3,13 +3,13 @@ name = "magicentry"
 version = "0.8.6"
 edition = "2024"
 
-[features]
-default = []
-kube = ["dep:kube", "dep:k8s-openapi"]
+[[bench]]
+harness = false
+name = "authurl_status"
 
 [dependencies]
-serde_qs = { version = "0.15", features = ["axum"] }
 maud = { version = "0.27", features = ["axum"] }
+serde_qs = { version = "0.15", features = ["axum"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.1", features = ["display", "error"] }
@@ -17,84 +17,99 @@ duration-str = "0.21"
 formatx = "0.2"
 futures = "0.3"
 hex = "0.4.3"
-lettre = { version = "0.11", default-features = false , features = [
-	"rustls-tls",
-	"tokio1-rustls-tls",
-	"builder",
-	"pool",
-	"smtp-transport",
-]}
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+lettre = { version = "0.11", default-features = false, features = [
+  "builder",
+  "pool",
+  "rustls-tls",
+  "smtp-transport",
+  "tokio1-rustls-tls",
+] }
+md5 = "0.8"
 notify = "8"
 rand = "0.10"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "all-databases", "chrono", "uuid", "json"] }
 reqwest = { version = "0.12", default-features = false, features = [
-	"rustls-tls",
+  "rustls-tls",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 sha2 = "0.10"
+sqlx = { version = "0.8", features = [
+  "all-databases",
+  "chrono",
+  "json",
+  "migrate",
+  "runtime-tokio-rustls",
+  "uuid"
+] }
 tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 url = { version = "2", features = ["serde"] }
 urlencoding = "2.1"
 uuid = { version = "1.22", features = ["serde", "v4"] }
 webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
-md5 = "0.8"
 
 # Dependency of webauthn-rs that needs to be vendored
 openssl = { version = "0.10", features = ["vendored"] }
 
-# kube feature
-kube = { version = "0.99", features = ["runtime", "derive"], optional = true }
-k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
-flate2 = "1.1"
+anyhow = "1.0"
+async-trait = "0.1"
 base64 = "0.22"
+flate2 = "1.1"
+jsonwebtoken = { version = "10", default-features = false, features = [
+  "rust_crypto"
+] }
+k8s-openapi = { version = "0.24", features = ["v1_28"], optional = true }
+# kube feature
+kube = { version = "0.99", features = ["derive", "runtime"], optional = true }
 quick-xml = { version = "0.39", features = ["async-tokio", "serialize"] }
 rsa = { version = "0.9", features = ["sha2"] }
-jsonwebtoken = { version = "10", default-features = false, features = ["rust_crypto"] }
-async-trait = "0.1"
-anyhow = "1.0"
 thiserror = "2.0"
 
+arc-swap = "1.8"
 axum = { version = "0.8", features = ["http2", "macros", "tokio"] }
-axum-extra = { version = "0.12", features = ["cookie", "form", "query", "typed-header", "typed-routing"] }
+axum-extra = { version = "0.12", features = [
+  "cookie",
+  "form",
+  "query",
+  "typed-header",
+  "typed-routing"
+] }
 headers = "0.4"
-tower-http = { version = "0.6", features = ["tokio", "trace", "fs"] }
-arc-swap = "1.8.2"
+tower-http = { version = "0.6", features = ["fs", "tokio", "trace"] }
 
 [dev-dependencies]
 actix-http = "3.12"
 axum-test = { version = "18.7.0", features = ["reqwest", "typed-routing"] }
 
 criterion = { version = "0.8.2", features = ["async_tokio"] }
-scraper = "0.24"
-tempfile = "3.26"
 glob = "0.3"
-tiny_http = "0.12"
 # Use Hurl as a library to run E2E HTTP specs
 # We intentionally put this under dev-dependencies so it's only pulled for tests
 hurl = "*"
 hurl_core = "*"
+scraper = "0.24"
+tempfile = "3.26"
+tiny_http = "0.12"
 
-[[bench]]
-name = "authurl_status"
-harness = false
+[features]
+default = []
+kube = ["dep:k8s-openapi", "dep:kube"]
 
-[profile.release]
-opt-level = 3
-lto = true
-codegen-units = 1
-panic = "abort"
-strip = "symbols"
+[lints.clippy]
+enum_glob_use = "deny"
+option_if_let_else = "allow"
+# pedantic = "deny"
+# nursery = "deny"
+# unwrap_used = "deny"
 
 [lints.rust]
 unsafe_code = "forbid"
 
-[lints.clippy]
-option_if_let_else = "allow"
-enum_glob_use = "deny"
-# pedantic = "deny"
-# nursery = "deny"
-# unwrap_used = "deny"
+[profile.release]
+opt-level = 3
+strip = "symbols"
+lto = true
+panic = "abort"
+codegen-units = 1

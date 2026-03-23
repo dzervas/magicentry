@@ -127,5 +127,7 @@ pub async fn axum_run(
 	let server = axum::serve(listener, router);
 	let local_addr = server.local_addr().unwrap();
 
+	info!("Server running on http://{local_addr}");
+
 	(local_addr, server)
 }

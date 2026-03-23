@@ -29,6 +29,11 @@ use magicentry::{CONFIG_FILE, init_tracing};
 #[tokio::main]
 async fn main() {
 	init_tracing(None);
+	tracing::info!(
+		"MagicEntry Enterprise Edition v{}",
+		env!("CARGO_PKG_VERSION")
+	);
+
 	let config = Config::reload_from_path(&CONFIG_FILE)
 		.await
 		.expect("Failed to reload config file");
@@ -43,7 +48,7 @@ async fn main() {
 		.await
 		.expect("Failed to initialize SQLite database");
 
-	let (addr, server) = axum_run(
+	let (_addr, server) = axum_run(
 		None,
 		db.clone(),
 		config.clone(),
@@ -55,8 +60,6 @@ async fn main() {
 
 	let _watcer = Config::watch(CONFIG_FILE.as_str(), config.clone());
 	spawn_cleanup_job(db.clone());
-
-	info!("Server running on http://{addr}");
 
 	#[cfg(feature = "kube")]
 	tokio::select! {
