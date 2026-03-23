@@ -162,10 +162,6 @@ impl AppState {
 		Ok(())
 	}
 
-	// pub async fn config(&self) -> Arc<Config> {
-	// 	self.config.read().await.clone()
-	// }
-
 	async fn config_middleware(
 		State(state): State<Self>,
 		request: axum::http::Request<axum::body::Body>,
@@ -190,52 +186,73 @@ pub trait LinkSender: Send + Sync {
 	) -> Result<(), AppError>;
 }
 
+async fn send_magic_link_email<T: lettre::transport::AsyncTransport + Send + Sync>(
+	trans: &T,
+	user: &User,
+	link: &str,
+	config: &Config,
+) -> Result<(), AppError> {
+	use anyhow::Context as _;
+	use formatx::formatx;
+	use lettre::Message;
+	use lettre::message::header::ContentType as LettreContentType;
+
+	let email = Message::builder()
+		.from(
+			config
+				.smtp_from
+				.parse()
+				.context("Failed to parse SMTP 'from' address")?,
+		)
+		.to(user
+			.email
+			.parse()
+			.context("Failed to parse user email address")?)
+		.subject(
+			formatx!(&config.smtp_subject, title = &config.title)
+				.context("Failed to format SMTP subject template")?,
+		)
+		.header(LettreContentType::TEXT_HTML)
+		.body(
+			formatx!(
+				&config.smtp_body,
+				title = &config.title,
+				magic_link = &link,
+				name = user.name.clone(),
+				username = user.username.clone()
+			)
+			.context("Failed to format SMTP body template")?,
+		)
+		.context("Failed to build email message")?;
+
+	if let Err(_) = trans.send(email).await {
+		return Err(anyhow::anyhow!("Failed to send email via SMTP").into());
+	}
+
+	Ok(())
+}
+
 #[async_trait::async_trait]
-impl LinkSender for crate::SmtpTransport {
+impl LinkSender for lettre::transport::stub::AsyncStubTransport {
 	async fn send_magic_link(
 		&self,
 		user: &User,
 		link: &str,
 		config: &Config,
 	) -> Result<(), AppError> {
-		use anyhow::Context as _;
-		use formatx::formatx;
-		use lettre::message::header::ContentType as LettreContentType;
-		use lettre::{AsyncTransport, Message};
+		send_magic_link_email(self, user, link, config).await
+	}
+}
 
-		let email = Message::builder()
-			.from(
-				config
-					.smtp_from
-					.parse()
-					.context("Failed to parse SMTP 'from' address")?,
-			)
-			.to(user
-				.email
-				.parse()
-				.context("Failed to parse user email address")?)
-			.subject(
-				formatx!(&config.smtp_subject, title = &config.title)
-					.context("Failed to format SMTP subject template")?,
-			)
-			.header(LettreContentType::TEXT_HTML)
-			.body(
-				formatx!(
-					&config.smtp_body,
-					title = &config.title,
-					magic_link = &link,
-					name = user.name.clone(),
-					username = user.username.clone()
-				)
-				.context("Failed to format SMTP body template")?,
-			)
-			.context("Failed to build email message")?;
-
-		self.send(email)
-			.await
-			.context("Failed to send email via SMTP")?;
-
-		Ok(())
+#[async_trait::async_trait]
+impl LinkSender for lettre::transport::smtp::AsyncSmtpTransport<lettre::Tokio1Executor> {
+	async fn send_magic_link(
+		&self,
+		user: &User,
+		link: &str,
+		config: &Config,
+	) -> Result<(), AppError> {
+		send_magic_link_email(self, user, link, config).await
 	}
 }
 

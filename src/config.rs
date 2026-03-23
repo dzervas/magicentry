@@ -13,6 +13,7 @@ use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use chrono::Duration;
+use lettre::transport::smtp;
 use notify::{PollWatcher, Watcher};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
@@ -280,6 +281,23 @@ impl Config {
 		error!("No users configured, using an empty user store");
 		// TODO: This does not hot-reload
 		Ok(Arc::new(StaticUserStore::new(vec![])))
+	}
+
+	pub fn get_link_senders(&self) -> Vec<Arc<dyn crate::LinkSender>> {
+		let mut result: Vec<Arc<dyn crate::LinkSender>> = vec![];
+		if self.smtp_enable {
+			let smtp_url = std::env::var("SMTP_URL").unwrap_or(self.smtp_url.clone());
+			let smtp_inst = smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&smtp_url)
+				.expect("Failed to create mailer - is the `smtp_url` correct?")
+				.pool_config(smtp::PoolConfig::new())
+				.build();
+			result.push(Arc::new(smtp_inst));
+		}
+		if self.request_enable {
+			result.push(Arc::new(reqwest::Client::new()));
+		}
+
+		result
 	}
 }
 

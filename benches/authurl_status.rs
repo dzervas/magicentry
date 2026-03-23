@@ -18,12 +18,11 @@ use magicentry::app_build::axum_build;
 use magicentry::config::{Config, LiveConfig};
 use magicentry::database::init_database;
 use magicentry::secret::{BrowserSessionSecret, EmptyMetadata, ProxySessionSecret};
-use magicentry::user_store::UserStore;
 use magicentry::{CONFIG_FILE, PROXY_ORIGIN_HEADER, PROXY_SESSION_COOKIE};
 
 async fn setup_bench() -> (TestServer, String) {
 	let config = Config::reload_from_path(&CONFIG_FILE).await.unwrap();
-	let mut user_store = config.get_user_store().unwrap();
+	let user_store = config.get_user_store().unwrap();
 	let user = user_store.from_email("valid@example.com").await.unwrap();
 	let live_config = LiveConfig(Arc::new(config.clone()));
 	let config = Arc::new(ArcSwap::new(Arc::new(config)));

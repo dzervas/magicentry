@@ -1,14 +1,13 @@
 use std::sync::Arc;
 
 use arc_swap::ArcSwap;
-use lettre::transport::smtp;
 use magicentry::secret::cleanup::spawn_cleanup_job;
 use tracing::info;
 
 use magicentry::app_build::axum_run;
 use magicentry::config::Config;
 use magicentry::database::init_database;
-use magicentry::{CONFIG_FILE, SmtpTransport, init_tracing};
+use magicentry::{CONFIG_FILE, init_tracing};
 
 // Issues:
 // - Make webauthn not require an email?
@@ -34,28 +33,12 @@ async fn main() {
 		.await
 		.expect("Failed to reload config file");
 	let database_url = config.database_url.clone();
+	let link_senders = config.get_link_senders();
 
 	let config: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 	let db = init_database(&database_url)
 		.await
 		.expect("Failed to initialize SQLite database");
-
-	let mut link_senders: Vec<Arc<dyn magicentry::LinkSender>> = vec![];
-
-	let config_inst = config.load();
-	if config_inst.smtp_enable {
-		let smtp_url = std::env::var("SMTP_URL").unwrap_or(config_inst.smtp_url.clone());
-		let smtp_inst: SmtpTransport =
-			smtp::AsyncSmtpTransport::<lettre::Tokio1Executor>::from_url(&smtp_url)
-				.expect("Failed to create mailer - is the `smtp_url` correct?")
-				.pool_config(smtp::PoolConfig::new())
-				.build();
-		link_senders.push(Arc::new(smtp_inst));
-	}
-	if config_inst.request_enable {
-		link_senders.push(Arc::new(reqwest::Client::new()));
-	}
-	drop(config_inst);
 
 	let (addr, server) = axum_run(None, db.clone(), config.clone(), link_senders, None).await;
 
