@@ -82,7 +82,7 @@ pub async fn axum_build(
 		.route("/webauthn/auth/finish", post(handle_auth_finish))
 		.route("/webauthn/register/start", post(handle_reg_start))
 		.route("/webauthn/register/finish", post(handle_reg_finish))
-		.route_service("/favicon.ico", ServeFile::new("static/favicon.ico"))
+		.route_service("/favicon.png", ServeFile::new("static/logo.png"))
 		.nest_service("/static", ServeDir::new("static"));
 
 	// TODO: Add a fallback route (404)

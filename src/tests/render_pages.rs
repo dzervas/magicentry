@@ -28,7 +28,7 @@ fn render_with_mock_config<P: Page>(page: &P, filename: &str) -> Result<(), AppE
 		path_prefix: page.get_path_prefix(&mock_config).to_string(),
 	};
 
-	let html = crate::pages::partials::render_page(&layout, &content);
+	let html = crate::pages::partials::render_page(&layout, &content, P::FULL_PAGE);
 	save_html(filename, &html.into_string()).context("Failed to save HTML file")?;
 
 	Ok(())

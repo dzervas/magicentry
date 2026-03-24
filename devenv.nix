@@ -34,8 +34,10 @@
 
   scripts = {
     db-reinit.exec = "rm -f database.db*; cargo sqlx db create; cargo sqlx migrate run; cargo sqlx prepare --workspace";
-    ce.exec = "cargo $* --package magicentry-ee";
     watchexec-ee.exec = "watchexec -w src/ -w crates/magicentry-ee/src/ --no-vcs-ignore -r cargo run --package magicentry-ee";
     watchexec-oss.exec = "watchexec -w src/ -r cargo run";
+
+    ce.exec = "cargo $* --package magicentry-ee";
+    je.exec = "jj -R crates/magicentry-ee";
   };
 }

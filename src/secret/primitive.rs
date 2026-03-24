@@ -88,7 +88,7 @@ impl<K: UserSecretKind> InternalUserSecret<K> {
 	async fn list_all(db: &Database) -> anyhow::Result<Vec<Self>> {
 		let prefix = format!("me_{}_%", K::PREFIX.as_short_str());
 		let rows = sqlx::query!(
-			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code LIKE ?"#,
+			r#"SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code LIKE ? ORDER BY created_at DESC"#,
 			prefix
 		)
 		.fetch_all(db)

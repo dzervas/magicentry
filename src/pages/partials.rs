@@ -20,6 +20,7 @@ pub fn render_page(layout: &PageLayout, content: &Markup, full_page: bool) -> Ma
 				meta name="color-scheme" content="light dark";
 				title { (&layout.title) }
 				link rel="stylesheet" href="/static/main.bundle.css";
+				link rel="icon" type="image/png" href="/favicon.png";
 			}
 			body {
 				section class="h-full bg-white dark:bg-gray-900" {

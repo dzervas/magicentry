@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code LIKE ?",
+  "query": "SELECT code, user, expires_at, created_at, metadata FROM user_secrets WHERE code LIKE ? ORDER BY created_at DESC",
   "describe": {
     "columns": [
       {
@@ -40,5 +40,5 @@
       true
     ]
   },
-  "hash": "3280f40ac1d9bb8ae7587140f67f0c9e3ed0ed7b00ac007a445b9feea078ea02"
+  "hash": "8e30a3ecc75098d4036030d007f017e5e8587df66b574904bafad37061ed39a8"
 }

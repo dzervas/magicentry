@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://magicentry.rs">
-    <img alt="magicentry" height=200 src="./static/logo.svg">
+    <img alt="magicentry" height=200 src="./static/logo.png">
   </a>
 </p>
 

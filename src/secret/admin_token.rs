@@ -17,7 +17,7 @@ use super::primitive::{UserSecret, UserSecretKind};
 pub struct AdminApiTokenSecretKind;
 
 impl UserSecretKind for AdminApiTokenSecretKind {
-	const PREFIX: SecretType = SecretType::OIDCToken;
+	const PREFIX: SecretType = SecretType::AdminApiKey;
 	type Metadata = AdminApiTokenMetadata;
 
 	async fn duration(config: &LiveConfig) -> chrono::Duration {
