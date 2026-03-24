@@ -15,7 +15,7 @@ use axum::http::request::Parts;
 use chrono::Duration;
 use lettre::transport::smtp;
 use notify::{PollWatcher, Watcher};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use tracing::{error, info};
 
 use crate::CONFIG;
@@ -31,7 +31,7 @@ use crate::user_store::{FileUserStore, SQLUserStore, StaticUserStore, UserStore}
 /// TODO: Move the comments from here to the config.sample.yaml so the code
 /// is the source of truth
 // TODO: Generate a validation schema
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct Config {
@@ -42,13 +42,22 @@ pub struct Config {
 	pub path_prefix: String,
 	pub external_url: String,
 
-	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "serialize_duration_chrono"
+	)]
 	pub link_duration: Duration,
-	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "serialize_duration_chrono"
+	)]
 	pub session_duration: Duration,
 
 	/// Interval for periodic cleanup of expired secrets
-	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "serialize_duration_chrono"
+	)]
 	pub secrets_cleanup_interval: Duration,
 
 	pub title: String,
@@ -60,7 +69,10 @@ pub struct Config {
 	pub auth_url_email_header: String,
 	pub auth_url_realms_header: String,
 
-	#[serde(deserialize_with = "duration_str::deserialize_duration_chrono")]
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "serialize_duration_chrono"
+	)]
 	pub oidc_code_duration: Duration,
 
 	pub saml_cert_pem_path: String,
@@ -96,7 +108,7 @@ impl Default for Config {
 	#[allow(clippy::unwrap_used)] // All the cases are either const or on start (e.g. port)
 	fn default() -> Self {
 		Self {
-			database_url: std::env::var("DATABASE_URL").unwrap_or("database.db".to_string()),
+			database_url: std::env::var("DATABASE_URL").unwrap_or("sqlite://database.db".to_string()),
 
 			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
 			listen_port : std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
@@ -299,6 +311,36 @@ impl Config {
 
 		result
 	}
+
+	/// Enterprise-only feature
+	pub async fn load_from_db(db: &Database) -> anyhow::Result<Option<Self>> {
+		info!("Loading config from database");
+		let config = ConfigKV::get(&ConfigKeys::Config, db)
+			.await?
+			.and_then(|c| serde_json::from_str::<Self>(&c).ok());
+		println!("{config:?}");
+		Ok(config)
+	}
+
+	/// Enterprise-only feature
+	pub async fn reload_from_db(config: Arc<ArcSwap<Config>>, db: &Database) -> anyhow::Result<()> {
+		let Some(new_config) = Self::load_from_db(db).await? else {
+			return Err(anyhow::anyhow!("Failed to load config from database"));
+		};
+		let new_config_arc = Arc::new(new_config.clone());
+		// TODO: secrets and static pages still use the global config, updating it for the time being
+		let mut config_guard = CONFIG.write().await;
+		*config_guard = new_config_arc.clone();
+		config.store(new_config_arc.into());
+		Ok(())
+	}
+
+	/// Enterprise-only feature
+	pub async fn save_to_db(&self, db: &Database) -> anyhow::Result<()> {
+		info!("Saving config to database");
+		ConfigKV::set(&ConfigKeys::Config, Some(serde_json::to_string(self)?), db).await?;
+		Ok(())
+	}
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
@@ -345,7 +387,7 @@ pub struct ConfigKV {
 
 impl ConfigKV {
 	/// Set the provided key to the provided value - overwrites any previous values
-	pub async fn set(key: ConfigKeys, value: Option<String>, db: &Database) -> anyhow::Result<()> {
+	pub async fn set(key: &ConfigKeys, value: Option<String>, db: &Database) -> anyhow::Result<()> {
 		let key_str = serde_json::to_string(&key)?;
 		let value_str = value.unwrap_or_default();
 
@@ -371,6 +413,17 @@ impl ConfigKV {
 pub enum ConfigKeys {
 	Secret,
 	JWTSecret,
+	Config,
 }
 
-// Remove AsBytes trait as it's no longer needed for SQLx
+fn serialize_duration_chrono<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
+where
+	S: Serializer,
+{
+	let duration_str = format!(
+		"{}s + {}ns",
+		duration.num_seconds(),
+		duration.subsec_nanos()
+	);
+	serializer.serialize_str(&duration_str)
+}

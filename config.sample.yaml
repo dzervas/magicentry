@@ -1,7 +1,7 @@
 ---
 # Apart from oidc_clients and users, the following are the default values
 # To create a new config, just set the `users` (or point to `users_file`) and any other settings you want to change
-database_url: database.db
+database_url: sqlite://database.db
 
 # Host that the server will listen on
 listen_host: 0.0.0.0
