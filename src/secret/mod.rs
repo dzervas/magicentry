@@ -89,7 +89,7 @@ impl SecretString {
 			return result[..5].to_string();
 		};
 
-		result.replace_range((underscore_index + 3)..(result.len() - 4), "...");
+		result.replace_range((underscore_index + 5)..(result.len() - 4), "...");
 		result
 	}
 }
