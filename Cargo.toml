@@ -90,7 +90,7 @@ glob = "0.3"
 hurl = "*"
 hurl_core = "*"
 scraper = "0.24"
-tempfile = "3.26"
+tempfile = "3.27"
 tiny_http = "0.12"
 
 [[bench]]
