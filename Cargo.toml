@@ -10,7 +10,7 @@ default-members = ["."]
 
 [workspace.dependencies]
 maud = { version = "0.27", features = ["axum"] }
-serde_qs = { version = "0.15", features = ["axum"] }
+serde_qs = { version = "1.1", features = ["axum"] }
 
 chrono = { version = "0.4", features = ["serde"] }
 derive_more = { version = "2.1", features = ["display", "error"] }
