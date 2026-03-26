@@ -141,7 +141,7 @@ pub struct InFlightConfig(Arc<Config>);
 #[derive(Clone)]
 pub struct AppState {
 	pub db: crate::Database,
-	config: Arc<ArcSwap<Config>>,
+	pub config_arc: Arc<ArcSwap<Config>>,
 	pub user_store: Arc<dyn UserStore>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
 
@@ -153,7 +153,7 @@ impl AppState {
 	pub async fn send_magic_link(&self, user: &User, link: &str) -> Result<(), AppError> {
 		// TODO: Make this concurrent and return multiple errors
 		// It's ok to re-read the config here since it only uses the link_senders
-		let config = self.config.load();
+		let config = self.config_arc.load();
 		for sender in &self.link_senders {
 			sender.send_magic_link(user, link, &config).await?;
 		}
@@ -166,7 +166,7 @@ impl AppState {
 		request: axum::http::Request<axum::body::Body>,
 		next: Next,
 	) -> impl IntoResponse {
-		let config_arc = state.config.load_full();
+		let config_arc = state.config_arc.load_full();
 
 		let mut request = request;
 		request.extensions_mut().insert(config_arc);

@@ -2970,6 +2970,7 @@ dependencies = [
  "magicentry",
  "maud",
  "serde",
+ "serde_json",
  "sqlx",
  "tempfile",
  "tokio",

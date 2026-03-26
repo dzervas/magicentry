@@ -24,141 +24,121 @@ use crate::service::Services;
 use crate::user::User;
 use crate::user_store::{FileUserStore, SQLUserStore, StaticUserStore, UserStore};
 
-/// The actual, deserialized config data
-///
-/// To see what each field represents check out the [config.sample.yaml](https://github.com/dzervas/magicentry/blob/main/config.sample.yaml) file
-///
-/// TODO: Move the comments from here to the config.sample.yaml so the code
-/// is the source of truth
-// TODO: Generate a validation schema
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-#[allow(clippy::struct_excessive_bools)]
-pub struct Config {
-	pub database_url: String,
+macro_rules! config_struct {
+	(
+		$(
+			$(#[$meta:meta])*
+			$pub:vis $name:ident: $type:ty = $default:expr
+		),+ $(,)?
+	) => {
 
-	pub listen_host: String,
-	pub listen_port: u16,
-	pub path_prefix: String,
-	pub external_url: String,
+		/// The actual, deserialized config data
+		///
+		/// To see what each field represents check out the [config.sample.yaml](https://github.com/dzervas/magicentry/blob/main/config.sample.yaml) file
+		///
+		/// TODO: Move the comments from here to the config.sample.yaml so the code
+		/// is the source of truth
+		// TODO: Generate a validation schema
+        #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+        #[serde(default, deny_unknown_fields)]
+        pub struct Config {
+            $(
+	            $(#[$meta])*
+	            $pub $name: $type
+            ),+
+        }
 
-	#[serde(
-		deserialize_with = "duration_str::deserialize_duration_chrono",
-		serialize_with = "serialize_duration_chrono"
-	)]
-	pub link_duration: Duration,
-	#[serde(
-		deserialize_with = "duration_str::deserialize_duration_chrono",
-		serialize_with = "serialize_duration_chrono"
-	)]
-	pub session_duration: Duration,
+        impl Default for Config {
+            fn default() -> Self {
+                Self {
+                    $( $name: $default ),+
+                }
+            }
+        }
 
-	/// Interval for periodic cleanup of expired secrets
-	#[serde(
-		deserialize_with = "duration_str::deserialize_duration_chrono",
-		serialize_with = "serialize_duration_chrono"
-	)]
-	pub secrets_cleanup_interval: Duration,
+        impl Config {
+            pub async fn update_field(config_arc: Arc<ArcSwap<Config>>, db: &Database, field: &str, value: serde_json::Value) -> anyhow::Result<()> {
+                let config_full = config_arc.load().to_owned();
+                let mut config = Arc::unwrap_or_clone(config_full);
+                match field {
+                    $(
+	                    stringify!($name) => {
+	                        config.$name = serde_json::from_value::<$type>(value)?;
+	                    },
+                    )+
+                    _ => anyhow::bail!("Unknown field: {field}"),
+                };
 
-	pub title: String,
-	pub static_path: String,
-
-	pub auth_url_enable: bool,
-	pub auth_url_user_header: String,
-	pub auth_url_name_header: String,
-	pub auth_url_email_header: String,
-	pub auth_url_realms_header: String,
-
-	#[serde(
-		deserialize_with = "duration_str::deserialize_duration_chrono",
-		serialize_with = "serialize_duration_chrono"
-	)]
-	pub oidc_code_duration: Duration,
-
-	pub saml_cert_pem_path: String,
-	pub saml_key_pem_path: String,
-
-	pub smtp_enable: bool,
-	pub smtp_url: String,
-	pub smtp_from: String,
-	pub smtp_subject: String,
-	pub smtp_body: String,
-
-	pub request_enable: bool,
-	pub request_url: String,
-	pub request_method: String,
-	pub request_data: Option<String>,
-	pub request_content_type: String,
-
-	pub webauthn_enable: bool,
-
-	// pub force_https_redirects: bool,
-	// Private to avoid reading from the field instead of the user store
-	users: Vec<User>,
-	/// Path to a file containing the user definitions
-	pub users_file: Option<String>,
-	pub users_sql_query_all: Option<String>,
-	pub users_sql_query_email: Option<String>,
-	pub users_sql_url: Option<String>,
-	pub services: Services,
+                config.save_to_db(db).await?;
+                config.replace(config_arc).await?;
+                Ok(())
+            }
+        }
+    };
 }
 
-impl Default for Config {
-	#[allow(clippy::or_fun_call)]
-	#[allow(clippy::unwrap_used)] // All the cases are either const or on start (e.g. port)
-	fn default() -> Self {
-		Self {
-			database_url: std::env::var("DATABASE_URL").unwrap_or("sqlite://database.db".to_string()),
+config_struct! {
+	pub database_url: String = std::env::var("DATABASE_URL").unwrap_or("sqlite://database.db".to_string()),
 
-			listen_host : std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
-			listen_port : std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
-			path_prefix : "/".to_string(),
-			external_url: "http://localhost:8080".to_string(),
+	pub listen_host: String = std::env::var("LISTEN_HOST").unwrap_or("127.0.0.1".to_string()),
+	pub listen_port: u16 = std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
+	pub path_prefix: String = "/".to_string(),
+	pub external_url: String = "http://localhost:8080".to_string(),
 
-			link_duration   : Duration::try_hours(12).unwrap(),
-            session_duration: Duration::try_days(30).unwrap(),
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "crate::config::serialize_duration_chrono"
+	)]
+	pub link_duration: Duration = Duration::try_hours(12).unwrap(),
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "crate::config::serialize_duration_chrono"
+	)]
+	pub session_duration: Duration = Duration::try_days(30).unwrap(),
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "crate::config::serialize_duration_chrono"
+	)]
+	pub secrets_cleanup_interval: Duration = Duration::try_hours(24).unwrap(),
 
-            secrets_cleanup_interval: Duration::try_hours(24).unwrap(),
+	pub title: String = "MagicEntry".to_string(),
+	pub static_path: String = "static".to_string(),
 
-			title: "MagicEntry".to_string(),
-			static_path: "static".to_string(),
+	pub auth_url_enable: bool = true,
+	pub auth_url_user_header: String = "X-Auth-User".to_string(),
+	pub auth_url_name_header: String = "X-Auth-Name".to_string(),
+	pub auth_url_email_header: String = "X-Auth-Email".to_string(),
+	pub auth_url_realms_header: String = "X-Auth-Realms".to_string(),
 
-			auth_url_enable       : true,
-			auth_url_user_header  : "X-Remote-User".to_string(),
-			auth_url_email_header : "X-Remote-Email".to_string(),
-			auth_url_name_header  : "X-Remote-Name".to_string(),
-			auth_url_realms_header: "X-Remote-Realms".to_string(),
+	#[serde(
+		deserialize_with = "duration_str::deserialize_duration_chrono",
+		serialize_with = "crate::config::serialize_duration_chrono"
+	)]
+	pub oidc_code_duration: Duration = Duration::try_minutes(1).unwrap(),
 
-			oidc_code_duration: Duration::try_minutes(1).unwrap(),
+	pub saml_cert_pem_path: String = "saml_cert.pem".to_string(),
+	pub saml_key_pem_path: String = "saml_key.pem".to_string(),
 
-			saml_cert_pem_path: "saml_cert.pem".to_string(),
-			saml_key_pem_path : "saml_key.pem".to_string(),
+	pub smtp_enable: bool = false,
+	pub smtp_url: String = "smtp://localhost:25".to_string(),
+	pub smtp_from: String = "{title} <magicentry@example.com>".to_string(),
+	pub smtp_subject: String = "{title} Login".to_string(),
+	pub smtp_body: String = "Click the link to login: {magic_link}".to_string(),
 
-			smtp_enable : false,
-			smtp_url    : "smtp://localhost:25".to_string(),
-			smtp_from   : "{title} <magicentry@example.com>".to_string(),
-			smtp_subject: "{title} Login".to_string(),
-			smtp_body   : "Click the link to login: {magic_link}".to_string(),
+	pub request_enable: bool = false,
+	pub request_url: String = "https://www.cinotify.cc/api/notify".to_string(),
+	pub request_method: String = "POST".to_string(),
+	pub request_data: Option<String> = Some(std::env::var("REQUEST_DATA").unwrap_or("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string())),
+	pub request_content_type: String = "application/x-www-form-urlencoded".to_string(),
 
-			request_enable      : false,
-			request_url         : "https://www.cinotify.cc/api/notify".to_string(),
-			request_method      : "POST".to_string(),
-			request_data        : Some(std::env::var("REQUEST_DATA").unwrap_or("to={email}&subject={title} Login&body=Click the link to login: <a href=\"{magic_link}\">Login</a>&type=text/html".to_string())),
-			request_content_type: "application/x-www-form-urlencoded".to_string(),
+	pub webauthn_enable: bool = true,
 
-			webauthn_enable: true,
-
-			// force_https_redirects: true,
-
-			users: vec![],
-			users_file: None,
-			users_sql_query_all: None,
-			users_sql_query_email: None,
-			users_sql_url: None,
-
-			services: Services(vec![]),
-        }
-	}
+	users: Vec<User> = vec![],
+	pub users_file: Option<String> = None,
+	pub users_sql_query_all: Option<String> = None,
+	pub users_sql_query_email: Option<String> = None,
+	pub users_sql_url: Option<String> = None,
+	pub services: Services = Services::default(),
 }
 
 impl Config {
@@ -183,11 +163,8 @@ impl Config {
 	/// Note that live-updating the `CONFIG_FILE` environment variable
 	/// is **NOT** supported (and is probably impossible anyway)
 	pub async fn reload(config_path: &str, config: Arc<ArcSwap<Config>>) -> anyhow::Result<()> {
-		let new_config: Arc<Config> = Self::reload_from_path(config_path).await?.into();
-		// TODO: secrets and static pages still use the global config, updating it for the time being
-		let mut config_guard = CONFIG.write().await;
-		*config_guard = new_config.clone();
-		config.store(new_config);
+		let new_config = Self::reload_from_path(config_path).await?;
+		new_config.replace(config).await?;
 		Ok(())
 	}
 
@@ -312,30 +289,33 @@ impl Config {
 		result
 	}
 
+	async fn replace(self, config: Arc<ArcSwap<Config>>) -> anyhow::Result<()> {
+		let new_config_arc = Arc::new(self);
+
+		// TODO: secrets and static pages still use the global config, updating it for the time being
+		let mut config_guard = CONFIG.write().await;
+		*config_guard = new_config_arc.clone();
+		config.store(new_config_arc);
+		Ok(())
+	}
+
 	/// Enterprise-only feature
 	pub async fn load_from_db(db: &Database) -> anyhow::Result<Option<Self>> {
 		info!("Loading config from database");
 		let config = ConfigKV::get(&ConfigKeys::Config, db)
 			.await?
 			.and_then(|c| serde_json::from_str::<Self>(&c).ok());
-		println!("{config:?}");
 		Ok(config)
 	}
 
-	/// Enterprise-only feature
 	pub async fn reload_from_db(config: Arc<ArcSwap<Config>>, db: &Database) -> anyhow::Result<()> {
 		let Some(new_config) = Self::load_from_db(db).await? else {
 			return Err(anyhow::anyhow!("Failed to load config from database"));
 		};
-		let new_config_arc = Arc::new(new_config.clone());
-		// TODO: secrets and static pages still use the global config, updating it for the time being
-		let mut config_guard = CONFIG.write().await;
-		*config_guard = new_config_arc.clone();
-		config.store(new_config_arc.into());
+		new_config.replace(config).await?;
 		Ok(())
 	}
 
-	/// Enterprise-only feature
 	pub async fn save_to_db(&self, db: &Database) -> anyhow::Result<()> {
 		info!("Saving config to database");
 		ConfigKV::set(&ConfigKeys::Config, Some(serde_json::to_string(self)?), db).await?;

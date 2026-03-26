@@ -58,7 +58,6 @@ pub struct ServiceOIDC {
 pub struct Services(pub Vec<Service>);
 
 impl Services {
-	#[must_use]
 	pub fn get(&self, name: &str) -> Option<&Service> {
 		self.0.iter().find(|s| s.name == name)
 	}
@@ -68,7 +67,6 @@ impl Services {
 	}
 
 	/// Returns all the services that the provided user has access to
-	#[must_use]
 	pub fn from_user(&self, user: &User) -> Self {
 		let res = self
 			.0
@@ -81,7 +79,6 @@ impl Services {
 	}
 
 	/// Returns the first service that matches the given OIDC client ID
-	#[must_use]
 	pub fn from_oidc_client_id(&self, client_id: &str) -> Option<Service> {
 		self.0
 			.iter()
@@ -90,7 +87,6 @@ impl Services {
 	}
 
 	/// Returns the first service that matches the given OIDC redirect URL
-	#[must_use]
 	pub fn from_oidc_redirect_url(&self, redirect_url: &url::Url) -> Option<Service> {
 		self.0
 			.iter()
@@ -103,7 +99,6 @@ impl Services {
 	}
 
 	/// Returns the first service that matches the given SAML entity ID
-	#[must_use]
 	pub fn from_saml_entity_id(&self, entity_id: &str) -> Option<Service> {
 		self.0
 			.iter()
@@ -112,7 +107,6 @@ impl Services {
 	}
 
 	/// Returns the first service that matches the given redirect URL
-	#[must_use]
 	pub fn from_saml_redirect_url(&self, redirect_url: &url::Url) -> Option<Service> {
 		self.0
 			.iter()
@@ -125,7 +119,6 @@ impl Services {
 	}
 
 	/// Returns the first service that matches the given redirect URL
-	#[must_use]
 	pub fn from_auth_url_origin(&self, origin: &url::Origin) -> Option<Service> {
 		let origin_str = origin.ascii_serialization();
 		self.0

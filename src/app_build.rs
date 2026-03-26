@@ -55,7 +55,7 @@ pub async fn axum_build(
 
 	let state = AppState {
 		db,
-		config,
+		config_arc: config,
 		link_senders,
 		key,
 		webauthn,
