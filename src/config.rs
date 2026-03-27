@@ -84,6 +84,7 @@ config_struct! {
 	pub listen_port: u16 = std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
 	pub path_prefix: String = "/".to_string(),
 	pub external_url: String = "http://localhost:8080".to_string(),
+	pub static_path: String = "static".to_string(),
 
 	#[serde(
 		deserialize_with = "duration_str::deserialize_duration_chrono",
@@ -102,7 +103,6 @@ config_struct! {
 	pub secrets_cleanup_interval: Duration = Duration::try_hours(24).unwrap(),
 
 	pub title: String = "MagicEntry".to_string(),
-	pub static_path: String = "static".to_string(),
 
 	pub auth_url_enable: bool = true,
 	pub auth_url_user_header: String = "X-Auth-User".to_string(),

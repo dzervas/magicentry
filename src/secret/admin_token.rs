@@ -20,8 +20,9 @@ impl UserSecretKind for AdminApiTokenSecretKind {
 	const PREFIX: SecretType = SecretType::AdminApiKey;
 	type Metadata = AdminApiTokenMetadata;
 
-	async fn duration(config: &LiveConfig) -> chrono::Duration {
-		config.session_duration
+	async fn duration(_config: &LiveConfig) -> chrono::Duration {
+		// XXX: This needs to be configurable per-token
+		chrono::Duration::days(365)
 	}
 }
 
