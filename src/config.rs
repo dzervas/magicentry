@@ -39,42 +39,42 @@ macro_rules! config_struct {
 		/// TODO: Move the comments from here to the config.sample.yaml so the code
 		/// is the source of truth
 		// TODO: Generate a validation schema
-        #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-        #[serde(default, deny_unknown_fields)]
-        pub struct Config {
-            $(
-	            $(#[$meta])*
-	            $pub $name: $type
-            ),+
-        }
+		#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+		// #[serde(default, deny_unknown_fields)]
+		pub struct Config {
+			$(
+				$(#[$meta])*
+				$pub $name: $type
+			),+
+		}
 
-        impl Default for Config {
-            fn default() -> Self {
-                Self {
-                    $( $name: $default ),+
-                }
-            }
-        }
+		impl Default for Config {
+			fn default() -> Self {
+				Self {
+					$( $name: $default ),+
+				}
+			}
+		}
 
-        impl Config {
-            pub async fn update_field(config_arc: Arc<ArcSwap<Config>>, db: &Database, field: &str, value: serde_json::Value) -> anyhow::Result<()> {
-                let config_full = config_arc.load().to_owned();
-                let mut config = Arc::unwrap_or_clone(config_full);
-                match field {
-                    $(
-	                    stringify!($name) => {
-	                        config.$name = serde_json::from_value::<$type>(value)?;
-	                    },
-                    )+
-                    _ => anyhow::bail!("Unknown field: {field}"),
-                };
+		impl Config {
+			pub async fn update_field(config_arc: Arc<ArcSwap<Config>>, db: &Database, field: &str, value: serde_json::Value) -> anyhow::Result<()> {
+				let config_full = config_arc.load().to_owned();
+				let mut config = Arc::unwrap_or_clone(config_full);
+				match field {
+					$(
+						stringify!($name) => {
+							config.$name = serde_json::from_value::<$type>(value)?;
+						},
+					)+
+					_ => anyhow::bail!("Unknown field: {field}"),
+				};
 
-                config.save_to_db(db).await?;
-                config.replace(config_arc).await?;
-                Ok(())
-            }
-        }
-    };
+				config.save_to_db(db).await?;
+				config.replace(config_arc).await?;
+				Ok(())
+			}
+		}
+	};
 }
 
 config_struct! {
@@ -84,7 +84,6 @@ config_struct! {
 	pub listen_port: u16 = std::env::var("LISTEN_PORT").unwrap_or("8080".to_string()).parse().unwrap(),
 	pub path_prefix: String = "/".to_string(),
 	pub external_url: String = "http://localhost:8080".to_string(),
-	pub static_path: String = "static".to_string(),
 
 	#[serde(
 		deserialize_with = "duration_str::deserialize_duration_chrono",

@@ -77,6 +77,10 @@ pub mod user_store;
 pub mod utils;
 pub mod webauthn;
 
+pub mod adapters;
+pub mod application;
+pub mod domain;
+
 pub mod handle_index;
 pub mod handle_login;
 pub mod handle_login_post;
@@ -116,24 +120,33 @@ pub const JWT_ALGORITHM: jsonwebtoken::Algorithm = jsonwebtoken::Algorithm::HS25
 /// for switching between actual and stub implementations during testing
 #[cfg(not(test))]
 pub type SmtpTransport = lettre::transport::smtp::AsyncSmtpTransport<lettre::Tokio1Executor>;
+#[cfg(test)]
+pub type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
+
+/// Global static that holds a read/write mutex to the [`Config`] struct
+/// to allow for concurrent access to the config. I'm not proud but here we are
+pub static CONFIG: LazyLock<RwLock<Arc<Config>>> = LazyLock::new(RwLock::default);
+
+#[macro_export]
+macro_rules! lazy_env {
+	($name:ident, $default:literal) => {
+		LazyLock::new(|| std::env::var(stringify!($name)).unwrap_or_else(|_| $default.to_string()))
+	};
+}
 
 /// Config file path, taken from env vars during startup
 /// or defaulting to `config.yaml` if not set
 // Needs lazy_static because we want to read the env var on runtime
 #[cfg(not(test))]
-pub static CONFIG_FILE: LazyLock<String> =
-	LazyLock::new(|| std::env::var("CONFIG_FILE").unwrap_or_else(|_| "config.yaml".to_string()));
+pub static CONFIG_FILE: LazyLock<String> = lazy_env!(MAGICENTRY_CONFIG_FILE, "config.yaml");
 
 #[cfg(test)]
-pub type SmtpTransport = lettre::transport::stub::AsyncStubTransport;
-#[cfg(test)]
-pub static CONFIG_FILE: LazyLock<String> = LazyLock::new(|| "config.sample.yaml".to_string());
+pub static CONFIG_FILE: LazyLock<String> = lazy_env!(MAGICENTRY_CONFIG_FILE, "config.sample.yaml");
 
-/// Global static that holds a read/write mutex to the [`Config`] struct
-/// to allow for concurrent access to the config. I'm not proud but here we are
-// Can this be kept in an actix app state? If so, how could the kube side
-// access it - and even worse, write to it?
-pub static CONFIG: LazyLock<RwLock<Arc<Config>>> = LazyLock::new(RwLock::default);
+pub static DATABASE_URL: LazyLock<String> =
+	lazy_env!(MAGICENTRY_DATABASE_URL, "sqlite://db.sqlite");
+pub static LISTEN_HOST: LazyLock<String> = lazy_env!(MAGICENTRY_LISTEN_HOST, "127.0.0.1");
+pub static LISTEN_PORT: LazyLock<String> = lazy_env!(MAGICENTRY_LISTEN_PORT, "8080");
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct InFlightConfig(Arc<Config>);
