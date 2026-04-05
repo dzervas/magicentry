@@ -89,7 +89,7 @@ glob = "0.3"
 # We intentionally put this under dev-dependencies so it's only pulled for tests
 hurl = "*"
 hurl_core = "*"
-scraper = "0.24"
+scraper = "0.26"
 tempfile = "3.26"
 tiny_http = "0.12"
 
