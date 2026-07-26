@@ -81,9 +81,15 @@ impl<'a> Discovery<'a> {
 pub async fn handle_discover(
 	config: LiveConfig,
 	axum::extract::State(_state): axum::extract::State<crate::AppState>,
-	OriginalUri(origin_url): OriginalUri,
+	origin_url: Option<OriginalUri>,
 ) -> impl axum::response::IntoResponse {
-	let discovery = Discovery::new(origin_url.origin().ascii_serialization(), config.external_url.clone());
+    let origin = if let Some(OriginalUri(o)) = origin_url {
+        o
+    } else {
+        config.external_url.clone().parse().unwrap()
+    };
+
+	let discovery = Discovery::new(origin.origin().ascii_serialization(), config.external_url.clone());
 
 	(
 		[

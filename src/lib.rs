@@ -316,8 +316,7 @@ impl LinkSender for reqwest::Client {
 	}
 }
 
-use axum::extract::{FromRequestParts, State};
-use axum::http::StatusCode;
+use axum::extract::{FromRequestParts, OptionalFromRequestParts, State};
 use axum::http::request::Parts;
 use url::Url;
 
@@ -326,7 +325,7 @@ pub struct OriginalUri(pub Url);
 
 // TODO: Error handling
 impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
-	type Rejection = StatusCode;
+	type Rejection = AppError;
 
 	async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
 		// The list of headers to check, in order of preference.
@@ -347,8 +346,20 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 		}
 
 		// If the loop completes without finding any of the headers, return an error.
-		Err(StatusCode::BAD_REQUEST)
+		Err(AppError::Proxy(error::ProxyError::CouldNotParseXOriginalURIHeader))
 	}
+}
+
+impl<S: Send + Sync> OptionalFromRequestParts<S> for OriginalUri {
+	type Rejection = AppError;
+
+	async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Option<Self>, Self::Rejection> {
+        if let Ok(res) = <OriginalUri as FromRequestParts<S>>::from_request_parts(parts, state).await {
+            Ok(Some(res))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 pub fn init_tracing(level: Option<&str>) {
