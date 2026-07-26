@@ -58,8 +58,7 @@ fn compile_tailwind_css() {
 			}
 		}
 		Err(e) => {
-			eprintln!("Failed to run tailwindcss command: {}", e);
-			eprintln!("");
+			eprintln!("Failed to run tailwindcss command: {}\n", e);
 			eprintln!("Please ensure tailwindcss is installed and available in PATH");
 			panic!("tailwindcss command not found");
 		}
@@ -67,6 +66,7 @@ fn compile_tailwind_css() {
 }
 
 fn main() {
+	println!("cargo:rerun-if-changed=migrations");
 	generate_hurl_tests();
 
 	if cfg!(test) {
