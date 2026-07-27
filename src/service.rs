@@ -47,10 +47,29 @@ pub struct ServiceSAML {
 	pub redirect_urls: Vec<url::Url>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum IdTokenSigningAlgorithm {
+	#[default]
+	#[serde(rename = "RS256")]
+	RS256,
+	#[serde(rename = "HS256")]
+	HS256,
+}
+
+impl From<IdTokenSigningAlgorithm> for jsonwebtoken::Algorithm {
+	fn from(value: IdTokenSigningAlgorithm) -> Self {
+		match value {
+			IdTokenSigningAlgorithm::RS256 => Self::RS256,
+			IdTokenSigningAlgorithm::HS256 => Self::HS256,
+		}
+	}
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceOIDC {
 	pub client_id: String,
 	pub client_secret: String,
+	#[serde(default)]
+	pub signing_alg: IdTokenSigningAlgorithm,
 	pub redirect_urls: Vec<url::Url>,
 }
 
@@ -129,5 +148,31 @@ impl Services {
 					.is_some_and(|o| o.origins.contains(&origin_str))
 			})
 			.cloned()
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{IdTokenSigningAlgorithm, ServiceOIDC};
+
+	#[test]
+	fn oidc_signing_algorithm_is_configurable_and_defaults_to_rs256() {
+		let oidc: ServiceOIDC = serde_json::from_value(serde_json::json!({
+			"client_id": "client-id",
+			"client_secret": "client-secret",
+			"redirect_urls": []
+		}))
+		.unwrap();
+
+		assert_eq!(oidc.signing_alg, IdTokenSigningAlgorithm::RS256);
+
+		let oidc: ServiceOIDC = serde_json::from_value(serde_json::json!({
+			"client_id": "client-id",
+			"client_secret": "client-secret",
+			"signing_alg": "HS256",
+			"redirect_urls": []
+		}))
+		.unwrap();
+		assert_eq!(oidc.signing_alg, IdTokenSigningAlgorithm::HS256);
 	}
 }

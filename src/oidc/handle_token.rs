@@ -38,8 +38,6 @@ pub struct TokenResponse {
 /// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#IDToken>
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct JWTData {
-	#[serde(rename = "sub")]
-	pub user: String,
 	#[serde(rename = "aud")]
 	pub client_id: String,
 	#[serde(rename = "iss")]
@@ -68,7 +66,6 @@ impl JWTData {
 		let expiry = Utc::now() + config.session_duration;
 
 		Self {
-			user: String::default(),
 			client_id: String::default(),
 			from_url: base_url,
 			expires_at: expiry.timestamp(),
@@ -168,6 +165,7 @@ pub async fn handle_token(
 		config.external_url.clone(),
 		&state.key,
 		&config,
+		&oidc,
 	)?;
 	let oidc_token = oidc_authcode.exchange_sibling(&config, &state.db).await?;
 

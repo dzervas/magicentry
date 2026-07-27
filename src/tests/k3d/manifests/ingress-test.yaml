@@ -10,6 +10,7 @@ metadata:
     magicentry.rs/auth_url: "true"
     magicentry.rs/oidc-target-secret: "test-service-oidc"
     magicentry.rs/oidc-redirect-urls: "http://test-service.local/callback,https://test-service.local/oauth/callback"
+    magicentry.rs/oidc-signing-alg: "RS256"
     magicentry.rs/saml-entity-id: "test-service"
     magicentry.rs/saml-redirect-urls: "http://test-service.local/saml/acs"
     magicentry.rs/manage-ingress-nginx: "true"

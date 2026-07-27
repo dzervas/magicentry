@@ -137,6 +137,8 @@ services:
       client_id: my_client
       # OIDC client secret
       client_secret: my_secret
+      # ID token signing algorithm (RS256 by default; HS256 uses this client's secret)
+      signing_alg: RS256
       # OIDC redirect URLs
       redirect_urls:
         - https://openidconnect.net/callback

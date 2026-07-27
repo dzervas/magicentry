@@ -8,6 +8,7 @@ use crate::config::{Config, LiveConfig};
 use crate::error::{AppError, OidcError};
 use crate::oidc::handle_token::JWTData;
 use crate::secret::MetadataKind;
+use crate::service::{IdTokenSigningAlgorithm, ServiceOIDC};
 use crate::user::User;
 
 /// Implementation of <https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest>
@@ -70,11 +71,11 @@ impl AuthorizeRequest {
 		&self,
 		user: &User,
 		url: String,
-		encoding_key: &EncodingKey,
+		signing_keys: &crate::oidc::SigningKeys,
 		config: &LiveConfig,
+		oidc: &ServiceOIDC,
 	) -> anyhow::Result<String> {
 		let jwt_data = JWTData {
-			user: user.email.clone(),
 			client_id: self.client_id.clone(),
 			user_info: user.into(),
 
@@ -82,7 +83,19 @@ impl AuthorizeRequest {
 		};
 		debug!("JWT Data: {jwt_data:?}");
 
-		let header = Header::new(crate::JWT_ALGORITHM);
+		let algorithm = oidc.signing_alg.into();
+		let mut header = Header::new(algorithm);
+		let hmac_key;
+		let encoding_key = match oidc.signing_alg {
+			IdTokenSigningAlgorithm::RS256 => {
+				header.kid = Some(signing_keys.rsa_kid.clone());
+				&signing_keys.rsa
+			}
+			IdTokenSigningAlgorithm::HS256 => {
+				hmac_key = EncodingKey::from_secret(oidc.client_secret.as_bytes());
+				&hmac_key
+			}
+		};
 		let id_token = encode(&header, &jwt_data, encoding_key)
 			.with_context(|| format!("Failed to encode ID token for user {}", user.email))?;
 
@@ -134,5 +147,101 @@ pub mod as_string {
 			|| Ok(None),
 			|json| serde_json::from_str(json).map(Some).map_err(Error::custom),
 		)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::sync::Arc;
+
+	use super::AuthorizeRequest;
+	use crate::config::{Config, LiveConfig};
+	use crate::oidc::{SigningKeys, TEST_RSA_PRIVATE_KEY_DER};
+	use crate::service::{IdTokenSigningAlgorithm, ServiceOIDC};
+	use crate::user::User;
+	use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
+
+	#[derive(serde::Deserialize)]
+	struct Claims {
+		#[allow(dead_code)]
+		exp: usize,
+		#[allow(dead_code)]
+		aud: String,
+	}
+
+	fn signing_keys() -> SigningKeys {
+		SigningKeys::from_rsa_der(TEST_RSA_PRIVATE_KEY_DER)
+	}
+
+	fn fixtures(algorithm: IdTokenSigningAlgorithm) -> (AuthorizeRequest, User, ServiceOIDC) {
+		let request = AuthorizeRequest {
+			scope: "openid".into(),
+			response_type: "code".into(),
+			client_id: "client-id".into(),
+			redirect_uri: "https://client.example/callback".into(),
+			state: None,
+			code_challenge: None,
+			code_challenge_method: None,
+			nonce: Some("nonce".into()),
+		};
+		let user = User {
+			username: "user".into(),
+			realms: vec![],
+			email: "user@example.com".into(),
+			name: "User".into(),
+		};
+		let oidc = ServiceOIDC {
+			client_id: "client-id".into(),
+			client_secret: "a-client-secret-long-enough-for-hs256".into(),
+			signing_alg: algorithm,
+			redirect_urls: vec![],
+		};
+		(request, user, oidc)
+	}
+
+	#[test]
+	fn signs_and_verifies_rs256_and_hs256_id_tokens() {
+		let keys = signing_keys();
+		let config = LiveConfig(Arc::new(Config::default()));
+
+		let (request, user, oidc) = fixtures(IdTokenSigningAlgorithm::RS256);
+		let token = request
+			.generate_id_token(
+				&user,
+				"https://issuer.example".into(),
+				&keys,
+				&config,
+				&oidc,
+			)
+			.unwrap();
+		let header = decode_header(&token).unwrap();
+		assert_eq!(header.alg, Algorithm::RS256);
+		assert_eq!(header.kid.as_deref(), Some(keys.rsa_kid.as_str()));
+		let jwk = jsonwebtoken::jwk::Jwk::from_encoding_key(&keys.rsa, Algorithm::RS256).unwrap();
+		let mut validation = Validation::new(Algorithm::RS256);
+		validation.set_audience(&["client-id"]);
+		decode::<Claims>(&token, &DecodingKey::from_jwk(&jwk).unwrap(), &validation).unwrap();
+
+		let (request, user, oidc) = fixtures(IdTokenSigningAlgorithm::HS256);
+		let token = request
+			.generate_id_token(
+				&user,
+				"https://issuer.example".into(),
+				&keys,
+				&config,
+				&oidc,
+			)
+			.unwrap();
+		let header = decode_header(&token).unwrap();
+		assert_eq!(header.alg, Algorithm::HS256);
+		assert_eq!(header.kid, None);
+		let mut validation = Validation::new(Algorithm::HS256);
+		validation.set_audience(&["client-id"]);
+		decode::<Claims>(
+			&token,
+			&DecodingKey::from_secret(oidc.client_secret.as_bytes()),
+			&validation,
+		)
+		.unwrap();
 	}
 }

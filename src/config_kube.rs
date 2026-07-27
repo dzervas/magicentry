@@ -24,7 +24,7 @@ use tracing::*;
 
 use crate::config::Config;
 use crate::secret::{SecretString, SecretType};
-use crate::service::{Service, ServiceAuthUrl, ServiceOIDC, ServiceSAML};
+use crate::service::{IdTokenSigningAlgorithm, Service, ServiceAuthUrl, ServiceOIDC, ServiceSAML};
 
 /// The prefix for all magicentry-related annotations
 const ANNOTATION_PREFIX: &str = "magicentry.rs/";
@@ -54,6 +54,8 @@ pub struct KubeServiceAnnotations {
 	/// (data keys are `clientID` and `clientSecret`)
 	pub oidc_target_secret: Option<String>,
 	pub oidc_redirect_urls: Option<String>,
+	#[serde(rename = "oidc-signing-alg")]
+	pub oidc_signing_alg: Option<IdTokenSigningAlgorithm>,
 
 	/// SAML configuration from within kubernetes
 	pub saml_entity_id: Option<String>,
@@ -190,6 +192,7 @@ pub async fn add_service_from_kube(
 				client_secret: SecretString::new(&SecretType::KubeOIDCSecret)
 					.to_str_that_i_wont_print()
 					.to_string(),
+				signing_alg: annotations.oidc_signing_alg.unwrap_or_default(),
 				redirect_urls: redirect_urls
 					.split(',')
 					.filter_map(|u| url::Url::parse(u).ok())
@@ -365,5 +368,59 @@ pub async fn watch(config: Arc<ArcSwap<Config>>) -> anyhow::Result<()> {
 
 		warn!("Service watch stream ended unexpectedly - waiting 5 seconds before retrying");
 		tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use std::collections::BTreeMap;
+
+	use k8s_openapi::api::core::v1::Service as KubeService;
+
+	use super::KubeServiceAnnotations;
+	use crate::service::IdTokenSigningAlgorithm;
+
+	fn service_with_signing_alg(algorithm: Option<&str>) -> KubeService {
+		let mut annotations = BTreeMap::from([
+			("magicentry.rs/name".to_string(), "test".to_string()),
+			(
+				"magicentry.rs/url".to_string(),
+				"https://test.example".to_string(),
+			),
+			("magicentry.rs/realms".to_string(), "test".to_string()),
+		]);
+		if let Some(algorithm) = algorithm {
+			annotations.insert(
+				"magicentry.rs/oidc-signing-alg".to_string(),
+				algorithm.to_string(),
+			);
+		}
+
+		KubeService {
+			metadata: kube::api::ObjectMeta {
+				annotations: Some(annotations),
+				..Default::default()
+			},
+			..Default::default()
+		}
+	}
+
+	#[test]
+	fn parses_oidc_signing_algorithm_annotation() {
+		let annotations =
+			KubeServiceAnnotations::try_from(&service_with_signing_alg(Some("HS256"))).unwrap();
+		assert_eq!(
+			annotations.oidc_signing_alg,
+			Some(IdTokenSigningAlgorithm::HS256)
+		);
+
+		let annotations =
+			KubeServiceAnnotations::try_from(&service_with_signing_alg(None)).unwrap();
+		assert_eq!(annotations.oidc_signing_alg, None);
+	}
+
+	#[test]
+	fn rejects_invalid_oidc_signing_algorithm_annotation() {
+		assert!(KubeServiceAnnotations::try_from(&service_with_signing_alg(Some("none"))).is_err());
 	}
 }

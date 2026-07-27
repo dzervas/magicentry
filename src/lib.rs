@@ -110,8 +110,6 @@ pub const SESSION_COOKIE: &str = "session_id";
 /// to aid a bit on the transition to come to a new db
 pub type Database = sqlx::SqlitePool;
 
-pub const JWT_ALGORITHM: jsonwebtoken::Algorithm = jsonwebtoken::Algorithm::HS256;
-
 /// The type of the [lettre](lettre::transport) `SmtpTransport`, defined to allow
 /// for switching between actual and stub implementations during testing
 #[cfg(not(test))]
@@ -145,7 +143,7 @@ pub struct AppState {
 	pub user_store: Arc<dyn UserStore>,
 	pub link_senders: Vec<Arc<dyn LinkSender>>,
 
-	pub key: jsonwebtoken::EncodingKey,
+	pub key: crate::oidc::SigningKeys,
 	pub webauthn: webauthn_rs::Webauthn,
 }
 

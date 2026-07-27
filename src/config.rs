@@ -393,6 +393,7 @@ impl ConfigKV {
 pub enum ConfigKeys {
 	Secret,
 	JWTSecret,
+	JWTPrivateKey,
 	Config,
 }
 
