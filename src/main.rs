@@ -14,7 +14,7 @@ use magicentry::{CONFIG_FILE, init_tracing};
 // - Test kube e2e
 // - Bring back the benchmark (maybe axum-test instead of hurl)
 // - Clean architecture
-// - Per-type token endpoint to split them (PCRE/code/etc.)
+// - Per-type token endpoint to split them (PKCE/code/etc.)
 // - HTML & style the email (and the http?)
 // - SAML deflate can be a tokio middleware (already in tower-http)
 // - Maybe browser session middleware?

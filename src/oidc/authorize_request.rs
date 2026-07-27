@@ -36,14 +36,31 @@ impl AuthorizeRequest {
 	) -> Option<String> {
 		let redirect_url = Url::parse(&urlencoding::decode(&self.redirect_uri).ok()?).ok()?;
 
-		let Some(service) = config.services.from_oidc_redirect_url(&redirect_url) else {
+		// TODO: Pop this function to self, handle_authorize.rs also uses these
+		let Some(service) = config.services.from_oidc_client_id(&self.client_id) else {
+			tracing::warn!(
+				"Invalid OIDC client_id: {} - this should NOT be possible",
+				self.client_id,
+			);
+			return None;
+		};
+
+		let Some(ref oidc) = service.oidc else {
+			tracing::warn!(
+				"OIDC request was done against a non-OIDC service `{}` - this should NOT be possible",
+				service.name
+			);
+			return None;
+		};
+
+		if !oidc.redirect_urls.contains(&redirect_url) {
 			tracing::warn!(
 				"Invalid OIDC redirect_uri: {} for client_id: {}",
 				redirect_url,
 				self.client_id
 			);
 			return None;
-		};
+		}
 
 		if !service.is_user_allowed(user) {
 			tracing::warn!(

@@ -344,20 +344,27 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 		}
 
 		// If the loop completes without finding any of the headers, return an error.
-		Err(AppError::Proxy(error::ProxyError::CouldNotParseXOriginalURIHeader))
+		Err(AppError::Proxy(
+			error::ProxyError::CouldNotParseXOriginalURIHeader,
+		))
 	}
 }
 
 impl<S: Send + Sync> OptionalFromRequestParts<S> for OriginalUri {
 	type Rejection = AppError;
 
-	async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Option<Self>, Self::Rejection> {
-        if let Ok(res) = <OriginalUri as FromRequestParts<S>>::from_request_parts(parts, state).await {
-            Ok(Some(res))
-        } else {
-            Ok(None)
-        }
-    }
+	async fn from_request_parts(
+		parts: &mut Parts,
+		state: &S,
+	) -> Result<Option<Self>, Self::Rejection> {
+		if let Ok(res) =
+			<OriginalUri as FromRequestParts<S>>::from_request_parts(parts, state).await
+		{
+			Ok(Some(res))
+		} else {
+			Ok(None)
+		}
+	}
 }
 
 pub fn init_tracing(level: Option<&str>) {

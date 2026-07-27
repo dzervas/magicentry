@@ -60,6 +60,14 @@ pub enum OidcError {
 
 	#[error("OIDC authorization error: {message}")]
 	Authorization { message: String },
+
+	#[error(
+		"Multiple OIDC client IDs provided - basic authentication & token request through form post"
+	)]
+	MultipleOIDCClientIDs,
+
+	#[error("PKCE request is missing the code_verifier form field")]
+	MissingCodeVerifier,
 }
 
 impl OidcError {

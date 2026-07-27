@@ -105,3 +105,109 @@ session_id: {{session}}
 HTTP 200
 [Asserts]
 body contains "https://openidconnect.net/callback?code=me_oa_"
+
+# A redirect registered to one client must not be accepted for another client.
+GET {{base_url}}/oidc/authorize
+[Options]
+variable: redirect="https://openidconnect.net/callback"
+[Cookies]
+session_id: {{session}}
+[Query]
+client_id: admin_client
+redirect_uri: {{redirect urlEncode}}
+scope: openid
+response_type: code
+code_challenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+code_challenge_method: S256
+HTTP 400
+
+# The handler currently stores the rejected code before validating the redirect. Retrieve it
+# through the test-only fixture to verify that token exchange still rejects the unauthorized user.
+GET {{base_url}}/oidc-authcode
+HTTP 200
+[Captures]
+rejected_cross_client_authcode: body
+
+POST {{base_url}}/oidc/token
+[Form]
+grant_type: authorization_code
+code: {{rejected_cross_client_authcode}}
+client_id: admin_client
+code_verifier: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+HTTP 401
+
+# A valid PKCE flow succeeds.
+GET {{base_url}}/oidc/authorize
+[Options]
+variable: redirect="https://openidconnect.net/callback"
+[Cookies]
+session_id: {{session}}
+[Query]
+client_id: my_client
+redirect_uri: {{redirect urlEncode}}
+scope: openid
+response_type: code
+code_challenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+code_challenge_method: S256
+HTTP 200
+[Captures]
+pkce_authcode: regex "code=(me_oa_\\w+)&"
+
+POST {{base_url}}/oidc/token
+[Form]
+grant_type: authorization_code
+code: {{pkce_authcode}}
+client_id: my_client
+code_verifier: dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+HTTP 200
+[Asserts]
+jsonpath "$.token_type" == "Bearer"
+
+# Client credentials cannot bypass a PKCE challenge when the verifier is missing.
+GET {{base_url}}/oidc/authorize
+[Options]
+variable: redirect="https://openidconnect.net/callback"
+[Cookies]
+session_id: {{session}}
+[Query]
+client_id: my_client
+redirect_uri: {{redirect urlEncode}}
+scope: openid
+response_type: code
+code_challenge: E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+code_challenge_method: S256
+HTTP 200
+[Captures]
+pkce_authcode_without_verifier: regex "code=(me_oa_\\w+)&"
+
+POST {{base_url}}/oidc/token
+[Form]
+grant_type: authorization_code
+code: {{pkce_authcode_without_verifier}}
+client_id: my_client
+client_secret: my_secret
+HTTP 400
+[Asserts]
+body contains "PKCE request is missing the code_verifier form field"
+
+# Basic credentials for a different client cannot change the client bound to the code.
+GET {{base_url}}/oidc/authorize
+[Options]
+variable: redirect="https://openidconnect.net/callback"
+[Cookies]
+session_id: {{session}}
+[Query]
+client_id: my_client
+redirect_uri: {{redirect urlEncode}}
+scope: openid
+response_type: code
+HTTP 200
+[Captures]
+basic_authcode: regex "code=(me_oa_\\w+)&"
+
+POST {{base_url}}/oidc/token
+Authorization: Basic YWRtaW5fY2xpZW50OmFkbWluX3NlY3JldA==
+[Form]
+grant_type: authorization_code
+code: {{basic_authcode}}
+HTTP 401

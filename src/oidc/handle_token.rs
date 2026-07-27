@@ -7,7 +7,7 @@ use headers::Authorization;
 use headers::authorization::Basic;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::AppState;
 use crate::config::LiveConfig;
@@ -95,31 +95,47 @@ pub async fn handle_token(
 ) -> Result<Response, AppError> {
 	let oidc_authcode =
 		OIDCAuthCodeSecret::try_from_string(token_req.code, &config, &state.db).await?;
-	let auth_req = oidc_authcode.child_metadata();
+	let oidc_authcode_meta = oidc_authcode.child_metadata();
+	// TODO: This is the trusted client_id. A mechanism that reassures that this matches with the request would be nice
+	let client_id = &oidc_authcode_meta.client_id;
 
-	let client_id = basic.clone().map_or_else(
-		|| auth_req.client_id.clone(),
-		|basic_creds| basic_creds.username().to_string(),
-	);
-
-	let mut service = config
+	let service = config
 		.services
 		.from_oidc_client_id(&client_id)
 		.ok_or(AuthError::InvalidClientID)?;
 
-	let mut oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
+	if !service.is_user_allowed(oidc_authcode.user()) {
+		warn!(
+			"Suspicious: Unauthorized user {} is trying to exchange an authorization code for service {}",
+			oidc_authcode.user().username,
+			service.name
+		);
+		return Err(AuthError::Unauthorized.into());
+	}
 
-	if let Some(code_verifier) = token_req.code_verifier.clone() {
-		// We're using PCRE with code_challenge - code_verifier
-		// Client id & secret is not required and only the request origin should be checked
-		info!("Responding to PCRE request for client {}", service.name);
+	let service_oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
+
+	if oidc_authcode_meta.code_challenge.is_some() {
+		// We're using PKCE with code_challenge - code_verifier
+		// Client secret is not required and only the request origin should be checked
+
+		info!("Responding to PKCE request for client {}", service.name);
+		let code_verifier = token_req
+			.code_verifier
+			.ok_or(OidcError::MissingCodeVerifier)?;
+
+		let req_client_id = token_req.client_id.clone().ok_or(OidcError::NoClientID)?;
+		if service_oidc.client_id != req_client_id {
+			return Err(AuthError::InvalidClientID.into());
+		}
+
 		let mut hasher = Sha256::new();
 		hasher.update(code_verifier.as_bytes());
 		let generated_code_challenge_bytes = hasher.finalize();
 		let generated_code_challenge =
 			general_purpose::URL_SAFE_NO_PAD.encode(generated_code_challenge_bytes);
 
-		if Some(generated_code_challenge) != auth_req.code_challenge {
+		if Some(generated_code_challenge) != oidc_authcode_meta.code_challenge {
 			return Err(OidcError::InvalidCodeVerifier.into());
 		}
 	} else if let Some(req_client_secret) = token_req.client_secret.clone() {
@@ -130,42 +146,36 @@ pub async fn handle_token(
 		);
 		let req_client_id = token_req.client_id.clone().ok_or(OidcError::NoClientID)?;
 
-		if oidc.client_secret != req_client_secret {
-			return Err(AuthError::InvalidClientSecret.into());
+		if service_oidc.client_id != req_client_id {
+			return Err(AuthError::InvalidClientID.into());
 		}
 
-		if oidc.client_id != req_client_id {
-			return Err(AuthError::InvalidClientID.into());
+		if service_oidc.client_secret != req_client_secret {
+			return Err(AuthError::InvalidClientSecret.into());
 		}
 	} else if let Some(basic_creds) = basic {
 		// We're using client_id - client_secret over basic auth
 		debug!("Responding to client_secret_basic request");
 		let req_client_id = basic_creds.username();
 		let req_client_secret = basic_creds.password();
-		service = config
-			.services
-			.from_oidc_client_id(req_client_id)
-			.ok_or(AuthError::InvalidClientID)?;
 
-		if !service.is_user_allowed(oidc_authcode.user()) {
-			return Err(AuthError::Unauthorized.into());
+		if service_oidc.client_id != req_client_id {
+			return Err(AuthError::InvalidClientID.into());
 		}
 
-		oidc = service.oidc.ok_or(OidcError::NotConfigured)?;
-
-		if oidc.client_id != req_client_id || oidc.client_secret != req_client_secret {
+		if service_oidc.client_secret != req_client_secret {
 			return Err(AuthError::InvalidClientSecret.into());
 		}
 	} else {
 		return Err(OidcError::NoClientCredentialsProvided.into());
 	}
 
-	let id_token = auth_req.generate_id_token(
+	let id_token = oidc_authcode_meta.generate_id_token(
 		oidc_authcode.user(),
 		config.external_url.clone(),
 		&state.key,
 		&config,
-		&oidc,
+		&service_oidc,
 	)?;
 	let oidc_token = oidc_authcode.exchange_sibling(&config, &state.db).await?;
 

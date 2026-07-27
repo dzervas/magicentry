@@ -150,3 +150,15 @@ services:
       # SAML redirect URLs
       redirect_urls:
         - https://openidconnect.net/
+
+  # Second OIDC service used to verify that clients cannot use each other's redirects.
+  - name: admin
+    url: https://admin.example
+    realms:
+      - admin
+    oidc:
+      client_id: admin_client
+      client_secret: admin_secret
+      signing_alg: RS256
+      redirect_urls:
+        - https://admin.example/callback

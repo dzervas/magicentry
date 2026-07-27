@@ -72,6 +72,7 @@ pub async fn handle_authorize(
 
 	// TODO: Check the state with the cookie for CSRF
 	// TODO: WTF?
+	// TODO: This is flimsy and easy to mix which redirect url is trusted and weather it's owned by the target service
 	let redirect_url = auth_req
 		.get_redirect_url(
 			&config,
