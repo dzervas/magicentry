@@ -119,10 +119,14 @@ pub async fn create_kube_secret(
 		let result = secrets.create(&Default::default(), &new_secret).await;
 
 		match result.as_ref().err() {
-			Some(kube::Error::Api(ErrorResponse { code: 409, .. })) => {
-				info!("Kubernetes secret '{namespace}/{name}' already exists, recreating");
-				secrets.delete(&name, &Default::default()).await?;
-				secrets.create(&Default::default(), &new_secret).await?;
+			Some(kube::Error::Api(api_err)) => {
+				if api_err.code != 409 {
+					result?;
+				} else {
+					info!("Kubernetes secret '{namespace}/{name}' already exists, recreating");
+					secrets.delete(&name, &Default::default()).await?;
+					secrets.create(&Default::default(), &new_secret).await?;
+				}
 			}
 			_ => {
 				result?;
