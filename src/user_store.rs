@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sqlx::Row as _;
+use sqlx::{AssertSqlSafe, Row as _};
 use tracing::*;
 
 use crate::user::User;
@@ -83,7 +83,9 @@ impl UserStore for SQLUserStore {
 		// 	return None;
 		// };
 
-		let row_result = sqlx::query(&self.query_email)
+		// This is by-design trusted - it's the query that is provided by the admin in the config
+		// the untrusted input is still bound since it's user managed
+		let row_result = sqlx::query(AssertSqlSafe(self.query_email.clone()))
 			.bind(email)
 			.fetch_one(&self.conn)
 			.await;

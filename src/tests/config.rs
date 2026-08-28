@@ -72,7 +72,7 @@ async fn test_file_watcher_reload() -> anyhow::Result<()> {
 	let db = db_connect().await;
 	let user_store = config_inst.get_user_store().unwrap();
 	let server = axum_build(db, config_arc.clone(), vec![], user_store, None).await;
-	let test_server = TestServer::new(server).unwrap();
+	let test_server = TestServer::new(server);
 
 	// Initial GET to /login to check the title
 	let initial_response = test_server.get("/login").await;

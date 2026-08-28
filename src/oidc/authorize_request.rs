@@ -18,12 +18,16 @@ pub struct AuthorizeRequest {
 	pub response_type: String,
 	pub client_id: String,
 	pub redirect_uri: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub state: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub code_challenge: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub code_challenge_method: Option<String>,
 	// String value used to associate a Client session with an ID Token, and to mitigate replay attacks.
 	// The value is passed through unmodified from the Authentication Request to the ID Token.
 	// Sufficient entropy MUST be present in the nonce values used to prevent attackers from guessing values.
+	#[serde(skip_serializing_if = "Option::is_none")]
 	pub nonce: Option<String>,
 }
 

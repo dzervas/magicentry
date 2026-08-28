@@ -14,8 +14,6 @@ use anyhow::Context;
 use arc_swap::ArcSwap;
 use futures::TryStreamExt;
 use k8s_openapi::api::core::v1::{Secret as KubeSecret, Service as KubeService};
-#[allow(unused_imports)]
-use kube::core::ErrorResponse;
 use kube::runtime::watcher;
 use kube::runtime::watcher::Event;
 use kube::{Api, Client};

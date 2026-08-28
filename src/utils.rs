@@ -53,7 +53,7 @@ pub mod tests {
 		let user_store = config.get_user_store().unwrap();
 		let config_ref: Arc<ArcSwap<Config>> = Arc::new(ArcSwap::new(config.into()));
 		let server = axum_build(db, config_ref, vec![], user_store, None).await;
-		TestServer::new(server).unwrap()
+		TestServer::new(server)
 	}
 
 	#[test]
