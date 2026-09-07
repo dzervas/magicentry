@@ -149,7 +149,7 @@ jobs:
           ref: ${{ needs.bump.outputs.new_ref }}
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
 
       - name: Run chart-releaser
         uses: bsord/helm-push@v4
