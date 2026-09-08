@@ -38,6 +38,15 @@ GET {{base_url}}/auth-url/status
 X-Original-Url: http://localhost:8081/asdasdasdas
 HTTP 200
 
+# Traefik-style forward-auth
+GET {{base_url}}/auth-url/status
+X-Forwarded-Method: GET
+X-Forwarded-Proto: http
+X-Forwarded-Host: localhost:8081
+X-Forwarded-Uri: /asdasdasdas
+X-Forwarded-Method: http
+HTTP 200
+
 # TODO: Test the external auth-url status using service-provided cookie
 # # External auth-url status using service-provided cookie
 # GET {{base_url}}/auth-url/status

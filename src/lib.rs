@@ -328,7 +328,7 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 	async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
 		// The list of headers to check, in order of preference.
 		const VALID_HEADERS: &[&str] = &["x-original-uri", "x-original-url", "x-remote-url"];
-        let mut error_values: Vec<&str> = vec![];
+        let mut error_values: Vec<String> = vec![];
 
 		// Iterate through the list of valid header names.
 		for header_name in VALID_HEADERS {
@@ -341,12 +341,28 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 				};
 
 				let Ok(uri) = uri_str.parse() else {
-					error_values.push(uri_str);
+					error_values.push(uri_str.to_string());
 					continue;
 				};
 
 				return Ok(OriginalUri(uri));
 			}
+		}
+
+		// Traefik-style x-forwarded headers
+		'forwarded: {
+			let Some(x_proto) = parts.headers.get("x-forwarded-proto").and_then(|v| v.to_str().ok()) else { break 'forwarded; };
+			let Some(x_host) = parts.headers.get("x-forwarded-host").and_then(|v| v.to_str().ok()) else { break 'forwarded; };
+			let Some(x_uri) = parts.headers.get("x-forwarded-uri").and_then(|v| v.to_str().ok()) else { break 'forwarded; };
+
+			let uri_str = format!("{x_proto}://{x_host}{x_uri}");
+
+			let Ok(uri) = uri_str.parse() else {
+				error_values.push(uri_str.clone());
+				break 'forwarded;
+			};
+
+			return Ok(OriginalUri(uri));
 		}
 
 		// If the loop completes without finding any of the headers, return an error.
