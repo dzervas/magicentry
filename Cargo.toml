@@ -21,9 +21,11 @@ hex = "0.4.3"
 lettre = { version = "0.11", default-features = false, features = [
   "builder",
   "pool",
-  "rustls-tls",
+  "aws-lc-rs",
+  "rustls-no-provider",
   "smtp-transport",
-  "tokio1-rustls-tls",
+  "tokio1-rustls",
+  "webpki-roots",
 ] }
 md5 = "0.8"
 notify = "8"
@@ -41,7 +43,7 @@ sqlx = { version = "0.9", features = [
   "json",
   "migrate",
   "runtime-tokio",
-  "tls-rustls",
+  "tls-rustls-aws-lc-rs",
   "uuid"
 ] }
 tokio = { version = "1", features = ["full"] }
@@ -77,7 +79,13 @@ axum-extra = { version = "0.12", features = [
 ] }
 headers = "0.4"
 k8s-openapi = { version = "0.28", features = ["earliest"] }
-kube = { version = "4.2", features = ["derive", "runtime"] }
+kube = { version = "4.2", default-features = false, features = [
+  "aws-lc-rs",
+  "client",
+  "derive",
+  "runtime",
+  "rustls-tls",
+] }
 tower-http = { version = "0.7", features = ["fs", "trace"] }
 
 # dev deps
