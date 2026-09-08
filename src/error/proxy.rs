@@ -8,8 +8,8 @@ pub enum ProxyError {
 	#[error("Missing auth_url code in (query string or cookie)")]
 	MissingCode,
 
-	#[error("Could not parse X-Original-URL header (it is set but not valid)")]
-	CouldNotParseXOriginalURIHeader,
+	#[error("Could not parse X-Original-URL header: {value}")]
+	CouldNotParseXOriginalURIHeader { value: String },
 
 	#[error(
 		"The provided return destination URL (`rd` query parameter) doesn't have a an origin that is allowed in the config"

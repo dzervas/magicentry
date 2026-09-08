@@ -328,6 +328,7 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 	async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
 		// The list of headers to check, in order of preference.
 		const VALID_HEADERS: &[&str] = &["x-original-uri", "x-original-url", "x-remote-url"];
+        let mut error_values: Vec<&str> = vec![];
 
 		// Iterate through the list of valid header names.
 		for header_name in VALID_HEADERS {
@@ -335,9 +336,14 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 			// Header names are case-insensitive, so this works correctly.
 			if let Some(header_value) = parts.headers.get(*header_name) {
 				// We found a header. Now, try to parse its value into a URI.
-				let uri_str = header_value.to_str().unwrap();
+				let Ok(uri_str) = header_value.to_str() else {
+					continue;
+				};
 
-				let uri = uri_str.parse().unwrap();
+				let Ok(uri) = uri_str.parse() else {
+					error_values.push(uri_str);
+					continue;
+				};
 
 				return Ok(OriginalUri(uri));
 			}
@@ -345,7 +351,9 @@ impl<S: Send + Sync> FromRequestParts<S> for OriginalUri {
 
 		// If the loop completes without finding any of the headers, return an error.
 		Err(AppError::Proxy(
-			error::ProxyError::CouldNotParseXOriginalURIHeader,
+			error::ProxyError::CouldNotParseXOriginalURIHeader {
+				value: format!("Received heaader values: `{}`", error_values.join("`,`")).to_string()
+			},
 		))
 	}
 }
