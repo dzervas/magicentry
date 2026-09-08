@@ -142,7 +142,7 @@ pub async fn run_test(hurl_path: &str) {
 	let _server_handle = tokio::spawn(async move {
 		server.await.unwrap();
 	});
-	let base_url = format!("http://127.0.0.1:{}", addr.port());
+	let base_url = format!("http://localhost:{}", addr.port());
 	let fixture_url = format!("{base_url}/secrets");
 	let webauthn_fixture_url = format!("{base_url}/webauthn-fixture");
 

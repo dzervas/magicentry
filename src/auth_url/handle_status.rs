@@ -5,10 +5,12 @@ use axum::http::HeaderMap;
 use axum::http::StatusCode;
 use axum::http::header::HeaderName;
 use axum::response::IntoResponse;
+use axum::response::Redirect;
 use axum::response::Response;
 use axum_extra::extract::CookieJar;
 use reqwest::header::COOKIE;
 use tracing::{info, warn};
+use url::Url;
 
 use crate::AppState;
 use crate::OriginalUri;
@@ -44,6 +46,20 @@ pub async fn handle_status(
 	let log_authurl_lines = env::var("LOG_AUTHURL_LINES")
 		.map(|v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true"))
 		.unwrap_or(false);
+
+	let error_redirect = |jar: CookieJar| {
+		// We want to return the redirect with the ?rd=<uri> link, since traefik doesn't support
+		// interpolation in the authloginurl. Also there's no need for custom authSigninUrl anymore
+		// since the external_url is also returned
+		let mut login_url = Url::parse(&config.external_url).map_err(|_| crate::error::OidcError::InvalidExternalUrl)?;
+		login_url.set_path("/login");
+		login_url.query_pairs_mut().append_pair("rd", origin_url.as_str());
+
+		Ok((
+			jar.remove(PROXY_SESSION_COOKIE),
+			Redirect::to(login_url.as_str()).into_response(),
+		))
+	};
 
 	if log_authurl_lines {
 		let cookies: Vec<&str> = jar.iter().map(|cookie| cookie.name()).collect();
@@ -97,10 +113,7 @@ pub async fn handle_status(
 
 						for cookie_name in cookie_names {
 							let Some(cookie) = jar.get(cookie_name) else {
-								return Ok((
-									jar.remove(PROXY_SESSION_COOKIE),
-									StatusCode::UNAUTHORIZED.into_response(),
-								));
+								return error_redirect(jar);
 							};
 
 							cookies.push(format!("{cookie_name}={}", cookie.value()));
@@ -161,10 +174,7 @@ pub async fn handle_status(
 			}
 		}
 
-		return Ok((
-			jar.remove(PROXY_SESSION_COOKIE),
-			StatusCode::UNAUTHORIZED.into_response(),
-		));
+		return error_redirect(jar);
 	};
 
 	let mut resp_headers = HeaderMap::new();

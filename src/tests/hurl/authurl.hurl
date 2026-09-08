@@ -1,5 +1,14 @@
+# Check that auth-url denies us and redirects us to the login page with ?rd query param
+GET {{base_url}}/auth-url/status
+X-Original-Url: http://localhost:8081/asdf?a=b
+HTTP 303
+[Captures]
+login_redirect: header "Location"
+[Asserts]
+header "Location" == "{{base_url}}/login?rd=http%3A%2F%2Flocalhost%3A8081%2Fasdf%3Fa%3Db"
+
 # Click the "Login" button in the UI that the proxy redirected us to
-POST {{base_url}}/login?rd=http://localhost:8081/asdf?a=b
+POST {{login_redirect}}
 [Form]
 email: valid@example.com
 HTTP 200
