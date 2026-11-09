@@ -21,7 +21,7 @@
 	},
 	"homepage": "https://github.com/dzervas/magicentry#readme",
 	"dependencies": {
-		"@tailwindcss/cli": "^4.3.3",
+		"@tailwindcss/cli": "^4.3.4",
 		"tailwindcss": "^4.3.3"
 	}
 }
